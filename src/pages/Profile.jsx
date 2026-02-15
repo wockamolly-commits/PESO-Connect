@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 
 const Profile = () => {
-    const { currentUser, userData, refreshUserData, isJobseeker } = useAuth()
+    const { currentUser, userData, isJobseeker } = useAuth()
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -68,7 +68,6 @@ const Profile = () => {
                 ...formData,
                 updated_at: new Date().toISOString()
             })
-            await refreshUserData()
             setSaved(true)
             setTimeout(() => setSaved(false), 3000)
         } catch (error) {
