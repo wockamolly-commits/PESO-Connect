@@ -27,6 +27,7 @@ import Profile from './pages/Profile'
 import JobseekerProfileEdit from './pages/JobseekerProfileEdit'
 import MyApplications from './pages/MyApplications'
 import Messages from './pages/Messages'
+import Settings from './pages/Settings'
 import EmployerProfileEdit from './pages/EmployerProfileEdit'
 import IndividualProfileEdit from './pages/IndividualProfileEdit'
 import PublicProfile from './pages/PublicProfile'
@@ -139,6 +140,16 @@ function AppContent() {
                             element={
                                 <ProtectedRoute allowedRoles={['jobseeker', 'employer', 'individual']}>
                                     <ErrorBoundary><Messages /></ErrorBoundary>
+                                </ProtectedRoute>
+                            }
+                        />
+
+                        {/* Settings */}
+                        <Route
+                            path="/settings"
+                            element={
+                                <ProtectedRoute>
+                                    <ErrorBoundary><Settings /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
                         />
