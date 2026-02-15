@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useReducer } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -205,16 +205,42 @@ const QuickContactModal = ({ worker, onClose, onAccountCreated }) => {
     )
 }
 
+// ─── Diagnostic State Machine ────────────────────────────────────────────────
+const initialDiagnosticState = {
+    status: 'idle', // 'idle' | 'analyzing' | 'loadingWorkers' | 'complete' | 'error'
+    results: null,
+    workers: [],
+    error: null,
+    degraded: false,
+}
+
+const diagnosticReducer = (state, action) => {
+    switch (action.type) {
+        case 'ANALYZE_START':
+            return { ...initialDiagnosticState, status: 'analyzing' }
+        case 'ANALYZE_SUCCESS':
+            return { ...state, status: 'loadingWorkers', results: action.payload, degraded: action.payload.degraded || false }
+        case 'ANALYZE_FAIL':
+            return { ...state, status: 'error', error: action.payload }
+        case 'WORKERS_LOADED':
+            return { ...state, status: 'complete', workers: action.payload }
+        case 'WORKERS_FAILED':
+            return { ...state, status: 'complete', workers: [] }
+        case 'RESET':
+            return { ...initialDiagnosticState }
+        default:
+            return state
+    }
+}
+
 // ─── Main Diagnostic Page ───────────────────────────────────────────────────
 const Diagnostic = () => {
     const navigate = useNavigate()
     const { currentUser, userData } = useAuth()
 
     const [problemText, setProblemText] = useState('')
-    const [analyzing, setAnalyzing] = useState(false)
-    const [results, setResults] = useState(null)
-    const [workers, setWorkers] = useState([])
-    const [loadingWorkers, setLoadingWorkers] = useState(false)
+    const [state, dispatch] = useReducer(diagnosticReducer, initialDiagnosticState)
+    const { status, results, workers, error: diagError, degraded } = state
 
     // Quick Contact modal state
     const [contactModal, setContactModal] = useState({ open: false, worker: null })
@@ -223,58 +249,50 @@ const Diagnostic = () => {
     const handleAnalyze = async () => {
         if (!problemText.trim()) return
 
-        setAnalyzing(true)
-        setResults(null)
-        setWorkers([])
+        dispatch({ type: 'ANALYZE_START' })
 
         try {
             const analysisResults = await analyzeWithAI(problemText)
-            setResults(analysisResults)
+            dispatch({ type: 'ANALYZE_SUCCESS', payload: analysisResults })
 
-            // If we have a primary trade, fetch matching workers
             if (analysisResults.primaryTrade) {
-                fetchMatchingWorkers(analysisResults.primaryTrade.id)
+                try {
+                    const matchingWorkers = await fetchMatchingWorkers(analysisResults.primaryTrade.id)
+                    dispatch({ type: 'WORKERS_LOADED', payload: matchingWorkers })
+                } catch {
+                    dispatch({ type: 'WORKERS_FAILED' })
+                }
+            } else {
+                dispatch({ type: 'WORKERS_LOADED', payload: [] })
             }
         } catch (error) {
             console.error('Analysis failed:', error)
-        } finally {
-            setAnalyzing(false)
+            dispatch({ type: 'ANALYZE_FAIL', payload: error.message || 'Analysis failed. Please try again.' })
         }
     }
 
     const fetchMatchingWorkers = async (tradeId) => {
-        setLoadingWorkers(true)
-        try {
-            const requiredSkills = getTradeSkills(tradeId)
+        const requiredSkills = getTradeSkills(tradeId)
 
-            // Fetch verified jobseekers
-            const usersQuery = query(
-                collection(db, 'users'),
-                where('role', '==', 'jobseeker'),
-                where('is_verified', '==', true)
-            )
-            const snapshot = await getDocs(usersQuery)
+        const usersQuery = query(
+            collection(db, 'users'),
+            where('role', '==', 'jobseeker'),
+            where('is_verified', '==', true)
+        )
+        const snapshot = await getDocs(usersQuery)
 
-            // Filter workers who have matching skills
-            const matchingWorkers = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(user => {
-                    if (!user.skills || user.skills.length === 0) return false
-                    const userSkillsLower = user.skills.map(s => s.toLowerCase())
-                    return requiredSkills.some(reqSkill =>
-                        userSkillsLower.some(userSkill =>
-                            userSkill.includes(reqSkill.toLowerCase()) ||
-                            reqSkill.toLowerCase().includes(userSkill)
-                        )
+        return snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(user => {
+                if (!user.skills || user.skills.length === 0) return false
+                const userSkillsLower = user.skills.map(s => s.toLowerCase())
+                return requiredSkills.some(reqSkill =>
+                    userSkillsLower.some(userSkill =>
+                        userSkill.includes(reqSkill.toLowerCase()) ||
+                        reqSkill.toLowerCase().includes(userSkill)
                     )
-                })
-
-            setWorkers(matchingWorkers)
-        } catch (error) {
-            console.error('Error fetching workers:', error)
-        } finally {
-            setLoadingWorkers(false)
-        }
+                )
+            })
     }
 
     // Handle "Message Worker" click
@@ -316,8 +334,7 @@ const Diagnostic = () => {
 
     const clearResults = () => {
         setProblemText('')
-        setResults(null)
-        setWorkers([])
+        dispatch({ type: 'RESET' })
     }
 
     const getColorClasses = (color) => {
@@ -379,10 +396,10 @@ const Diagnostic = () => {
                     <div className="flex flex-col sm:flex-row gap-3">
                         <button
                             onClick={handleAnalyze}
-                            disabled={analyzing || !problemText.trim()}
+                            disabled={status === 'analyzing' || !problemText.trim()}
                             className="btn-primary flex-1 flex items-center justify-center gap-2"
                         >
-                            {analyzing ? (
+                            {status === 'analyzing' ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
                                     Analyzing with AI...
@@ -525,7 +542,7 @@ const Diagnostic = () => {
                                     Verified {results.primaryTrade.name} Professionals
                                 </h2>
 
-                                {loadingWorkers ? (
+                                {status === 'loadingWorkers' ? (
                                     <div className="text-center py-8">
                                         <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-4" />
                                         <p className="text-gray-600">Finding verified workers...</p>
@@ -592,7 +609,7 @@ const Diagnostic = () => {
                 )}
 
                 {/* Trade Categories Reference */}
-                {!results && !analyzing && (
+                {!results && status === 'idle' && (
                     <div className="card">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4 ">Available Services</h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
