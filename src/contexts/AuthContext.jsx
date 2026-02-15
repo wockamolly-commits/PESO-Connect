@@ -4,9 +4,12 @@ import {
     createUserWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    reauthenticateWithCredential,
+    EmailAuthProvider,
+    deleteUser
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 
 const AuthContext = createContext({})
@@ -172,6 +175,20 @@ export const AuthProvider = ({ children }) => {
         await sendPasswordResetEmail(auth, email)
     }
 
+    // Delete user account (requires re-authentication)
+    const deleteAccount = async (password) => {
+        if (!currentUser) throw new Error('No authenticated user')
+
+        const credential = EmailAuthProvider.credential(currentUser.email, password)
+        await reauthenticateWithCredential(currentUser, credential)
+
+        await deleteDoc(doc(db, 'users', currentUser.uid))
+        await deleteUser(currentUser)
+
+        setCurrentUser(null)
+        setUserData(null)
+    }
+
     // Check if user is verified
     const isVerified = () => {
         return userData?.is_verified === true
@@ -254,6 +271,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         resetPassword,
+        deleteAccount,
         isVerified,
         hasRole,
         isAdmin,
