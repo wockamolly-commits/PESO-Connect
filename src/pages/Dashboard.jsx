@@ -62,6 +62,26 @@ const Dashboard = () => {
                     </p>
                 </div>
 
+                {/* Incomplete Registration Banner */}
+                {userData?.registration_complete === false && (
+                    <div className="card mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                        <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <AlertCircle className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-blue-800 mb-1">Complete Your Registration</h3>
+                                <p className="text-blue-700 text-sm mb-3">
+                                    Your registration is not yet complete. Finish setting up your profile to unlock all platform features.
+                                </p>
+                                <Link to="/register/continue" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
+                                    Continue Registration <ArrowRight className="w-4 h-4" />
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Verification Status Banner (not shown for individual/homeowner accounts) */}
                 {!isVerified() && !isIndividual() && (
                     <div className={`card mb-8 ${userData?.employer_status === 'rejected'
