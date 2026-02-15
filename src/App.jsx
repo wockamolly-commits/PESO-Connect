@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // Public Pages
 import Home from './pages/Home'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import Register from './pages/Register'
 import JobseekerRegistration from './pages/JobseekerRegistration'
 import EmployerRegistration from './pages/EmployerRegistration'
@@ -53,6 +54,7 @@ function AppContent() {
                         {/* Public Routes */}
                         <Route path="/" element={<ErrorBoundary><Home /></ErrorBoundary>} />
                         <Route path="/login" element={<ErrorBoundary><Login /></ErrorBoundary>} />
+                        <Route path="/forgot-password" element={<ErrorBoundary><ForgotPassword /></ErrorBoundary>} />
                         <Route path="/register" element={<ErrorBoundary><Register /></ErrorBoundary>} />
                         <Route path="/register/jobseeker" element={<ErrorBoundary><JobseekerRegistration /></ErrorBoundary>} />
                         <Route path="/register/employer" element={<ErrorBoundary><EmployerRegistration /></ErrorBoundary>} />

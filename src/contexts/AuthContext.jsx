@@ -3,7 +3,8 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut,
-    onAuthStateChanged
+    onAuthStateChanged,
+    sendPasswordResetEmail
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
@@ -166,6 +167,11 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
+    // Send password reset email
+    const resetPassword = async (email) => {
+        await sendPasswordResetEmail(auth, email)
+    }
+
     // Check if user is verified
     const isVerified = () => {
         return userData?.is_verified === true
@@ -247,6 +253,7 @@ export const AuthProvider = ({ children }) => {
         compressAndEncode,
         login,
         logout,
+        resetPassword,
         isVerified,
         hasRole,
         isAdmin,
