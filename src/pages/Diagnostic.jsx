@@ -440,9 +440,37 @@ const Diagnostic = () => {
                     )}
                 </div>
 
+                {/* Error State */}
+                {status === 'error' && (
+                    <div className="card border-red-200 bg-red-50 mb-6 animate-fade-in">
+                        <div className="flex items-start gap-4">
+                            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-red-800 mb-1">Analysis Failed</h3>
+                                <p className="text-red-700 text-sm mb-3">{diagError || 'Something went wrong. Please check your connection and try again.'}</p>
+                                <button onClick={handleAnalyze} className="btn-primary text-sm py-2 px-4">
+                                    Try Again
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Results Section */}
                 {results && (
                     <div className="space-y-6 animate-fade-in">
+                        {/* Degradation Warning */}
+                        {degraded && (
+                            <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                <Info className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                                <p className="text-sm text-yellow-800">
+                                    <span className="font-semibold">AI analysis was unavailable.</span> Showing keyword-based results which may be less accurate.
+                                </p>
+                            </div>
+                        )}
+
                         {/* Diagnostic Report */}
                         <div className="card overflow-hidden">
                             <div className="flex items-center justify-between mb-4 pb-4 border-b">
