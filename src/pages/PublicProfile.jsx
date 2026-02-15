@@ -11,7 +11,7 @@ import {
 const PublicProfile = () => {
     const { userId } = useParams()
     const navigate = useNavigate()
-    const { currentUser } = useAuth()
+    const { currentUser, userData } = useAuth()
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
 
@@ -53,6 +53,23 @@ const PublicProfile = () => {
 
     const isOwn = currentUser?.uid === userId
     const initial = (profile.full_name || profile.company_name || profile.name || '?').charAt(0).toUpperCase()
+
+    // Privacy: check profile visibility settings
+    const isRestricted = !isOwn
+        && profile.privacy_settings?.profile_visibility === 'verified_only'
+        && !userData?.is_verified
+
+    if (isRestricted) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+                <div className="card max-w-md text-center">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Restricted Profile</h2>
+                    <p className="text-gray-600 mb-4">This profile is only visible to verified users.</p>
+                    <button onClick={() => navigate(-1)} className="btn-primary">Go Back</button>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white py-8 px-4">
@@ -127,7 +144,7 @@ const JobseekerProfile = ({ profile }) => (
                 <p className="text-gray-700 whitespace-pre-line">{profile.bio}</p>
             </div>
         )}
-        {profile.skills?.length > 0 && (
+        {profile.privacy_settings?.show_skills !== false && profile.skills?.length > 0 && (
             <div className="card">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Skills</h2>
                 <div className="flex flex-wrap gap-2">
