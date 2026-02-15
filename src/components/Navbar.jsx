@@ -48,12 +48,10 @@ const Navbar = () => {
     const protectedLinks = [
         ...(isJobseeker() ? [
             { path: '/my-applications', label: 'My Applications', icon: Users },
-            { path: '/messages', label: 'Messages', icon: MessageSquare },
         ] : []),
         ...(isEmployer() ? [
             { path: '/post-job', label: 'Post Job', icon: Briefcase },
             { path: '/my-listings', label: 'My Listings', icon: Users },
-            { path: '/messages', label: 'Messages', icon: MessageSquare },
         ] : []),
         ...(isAdmin() ? [
             { path: '/admin', label: 'Admin Panel', icon: Shield },
