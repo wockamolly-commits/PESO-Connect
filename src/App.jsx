@@ -29,6 +29,7 @@ import Messages from './pages/Messages'
 import EmployerProfileEdit from './pages/EmployerProfileEdit'
 import IndividualProfileEdit from './pages/IndividualProfileEdit'
 import PublicProfile from './pages/PublicProfile'
+import RegistrationContinue from './pages/RegistrationContinue'
 
 // Employer Pages
 import PostJob from './pages/employer/PostJob'
@@ -68,6 +69,14 @@ function AppContent() {
                             element={
                                 <ProtectedRoute>
                                     <ErrorBoundary><Dashboard /></ErrorBoundary>
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/register/continue"
+                            element={
+                                <ProtectedRoute>
+                                    <ErrorBoundary><RegistrationContinue /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
                         />
