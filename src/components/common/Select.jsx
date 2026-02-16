@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
 
 const Select = ({
@@ -18,7 +18,8 @@ const Select = ({
   const listboxRef = useRef(null)
   const typeAheadRef = useRef('')
   const typeAheadTimerRef = useRef(null)
-  const listboxId = useRef(`select-listbox-${Math.random().toString(36).slice(2, 9)}`).current
+  const id = useId()
+  const listboxId = `select-listbox${id}`
 
   const selectedOption = options.find((opt) => opt.value === value)
   const selectedIndex = options.findIndex((opt) => opt.value === value)
@@ -28,18 +29,12 @@ const Select = ({
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false)
+        setHighlightedIndex(-1)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  // When opening, set highlight to currently selected option
-  useEffect(() => {
-    if (isOpen) {
-      setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
-    }
-  }, [isOpen, selectedIndex])
 
   // Scroll highlighted option into view
   useEffect(() => {
@@ -52,8 +47,11 @@ const Select = ({
   }, [isOpen, highlightedIndex])
 
   const openDropdown = useCallback(() => {
-    if (!disabled) setIsOpen(true)
-  }, [disabled])
+    if (!disabled) {
+      setIsOpen(true)
+      setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
+    }
+  }, [disabled, selectedIndex])
 
   const closeDropdown = useCallback(() => {
     setIsOpen(false)
@@ -102,8 +100,7 @@ const Select = ({
           break
         default:
           // Type-ahead: single printable character
-          if (e.key.length === 1) {
-            e.preventDefault()
+          if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
             typeAheadRef.current += e.key.toLowerCase()
 
             clearTimeout(typeAheadTimerRef.current)
@@ -113,7 +110,7 @@ const Select = ({
 
             const query = typeAheadRef.current
             const matchIndex = options.findIndex((opt) =>
-              opt.label.toLowerCase().startsWith(query)
+              (opt.label ?? '').toLowerCase().startsWith(query)
             )
             if (matchIndex >= 0) {
               setHighlightedIndex(matchIndex)
@@ -144,8 +141,10 @@ const Select = ({
         aria-controls={listboxId}
         aria-activedescendant={isOpen && highlightedIndex >= 0 ? getOptionId(highlightedIndex) : undefined}
         disabled={disabled}
+        aria-label={placeholder}
         onClick={() => {
-          if (!disabled) setIsOpen((prev) => !prev)
+          if (disabled) return
+          isOpen ? closeDropdown() : openDropdown()
         }}
         onKeyDown={handleKeyDown}
         className={`
