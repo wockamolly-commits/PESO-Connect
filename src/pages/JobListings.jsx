@@ -115,7 +115,7 @@ const JobListings = () => {
                 </div>
 
                 {/* Search & Filters */}
-                <div className="card mb-8">
+                <div className="card mb-8 relative z-10">
                     <div className="grid md:grid-cols-4 gap-4">
                         {/* Search */}
                         <div className="md:col-span-2 relative">
