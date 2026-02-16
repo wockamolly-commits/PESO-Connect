@@ -1,11 +1,17 @@
 # Dropdown Design System — Design Document
 
 **Date:** 2026-02-16
-**Status:** Approved
+**Status:** Approved (refined)
 
 ## Goal
 
 Replace default browser `<select>` styling across PESO-Connect with a unified, glassmorphic dropdown aesthetic. Two-layer approach: CSS utility for simple selects, enhanced React component for rich dropdowns.
+
+## Decisions
+
+- **No new dependencies.** Pure CSS animations. No Framer Motion, no Headless UI.
+- **Full keyboard/accessibility support** from the start (ArrowUp/Down, Enter/Space, Escape, type-ahead, ARIA roles).
+- **All-at-once migration** — all 7 files in one pass.
 
 ## Approach: Hybrid (CSS + Component)
 
@@ -25,21 +31,29 @@ Dark variant `.input-select-dark` for admin panel:
 
 ### Layer 2: `<Select>` Component
 
-Location: `src/components/common/Select.jsx` (enhanced from existing unused `CustomDropdown.jsx`)
+Location: `src/components/common/Select.jsx` (replaces existing `CustomDropdown.jsx`)
 
 **Props:**
 - `options`: `[{ value, label, icon?, description? }]`
-- `value`, `onChange`, `placeholder`, `icon` (leading Lucide icon)
-- `variant`: `"light"` (default) | `"dark"`
+- `value`, `onChange(value)`, `placeholder`, `icon` (leading Lucide icon)
 - `disabled`, `className`
 
-**Trigger:** Glassmorphic button with `bg-white/50 backdrop-blur-sm`, rotating chevron.
+**Trigger:** `<button>` with `bg-white/50 backdrop-blur-sm`, `border-2 border-gray-200`, `rounded-xl`. Focus: `border-primary-400 ring-4 ring-primary-100`. Rotating chevron (180deg CSS transition).
 
-**Panel:** `bg-white/95 backdrop-blur-md`, `shadow-xl`, `rounded-xl`. Scale-in CSS animation (150ms ease-out). Max-height with scroll. Options show hover states, check icon for selected.
+**Panel:** `bg-white/95 backdrop-blur-md`, `shadow-xl`, `rounded-xl`, `border border-white/50`. Scale-in CSS animation: `scale(0.95) -> scale(1)` + `opacity 0 -> 1` over 150ms ease-out. `max-height: 240px` with `overflow-y: auto`.
 
-**Keyboard:** ArrowDown/Up navigation, Enter/Space select, Escape close, type-ahead.
+**Options:** Hover `bg-gray-50`. Selected: `bg-primary-50 text-primary-700` + check icon. Support for optional `description` (small gray text) and `icon` (Lucide icon on left).
 
-**Dark variant:** `bg-slate-800/95`, `border-slate-700`, `bg-slate-700` hover.
+**Keyboard:**
+- ArrowDown/Up: move highlight (wraps)
+- Enter/Space: select highlighted, close
+- Escape: close without selecting
+- Type-ahead: jump to first matching label
+
+**Accessibility:**
+- `role="listbox"` on panel, `role="option"` on items
+- `aria-expanded`, `aria-activedescendant`, `aria-selected`
+- Trigger is a native `<button>` for focus
 
 ## Migration Map
 
@@ -50,13 +64,16 @@ Location: `src/components/common/Select.jsx` (enhanced from existing unused `Cus
 | Step4Education.jsx | Highest Education | `.input-select` |
 | PostJob.jsx | Education Level | `.input-select` |
 | JobListings.jsx | Category, Type filters | `.input-select` |
-| MyListings.jsx | Status dropdown | `.input-select` (adapted for pill shape) |
+| MyListings.jsx | Status dropdown | `.input-select` |
 | admin/SearchAndFilters.jsx | Education Level | `.input-select-dark` |
+
+**Showcase migration:** `Register.jsx` role selector — currently uses `CustomDropdown` with icons/descriptions, migrates to the new `<Select>` component.
 
 ## Deletions
 
 - `src/components/CustomDropdown.jsx` — replaced by `src/components/common/Select.jsx`
+- All imports of `CustomDropdown` updated to `Select` from new path
 
 ## Dependencies
 
-None added. Pure CSS animations (no Framer Motion). No Headless UI.
+None added. Pure CSS animations. Zero new packages.
