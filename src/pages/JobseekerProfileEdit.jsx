@@ -6,7 +6,7 @@ import { db } from '../config/firebase'
 import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
     Plus, X, ChevronRight, CheckCircle, Upload, Home, GraduationCap,
-    Award, Calendar, DollarSign, Building, Link as LinkIcon, Save, Sparkles
+    Award, Calendar, Building, Link as LinkIcon, Save, Sparkles
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
@@ -503,7 +503,7 @@ const JobseekerProfileEdit = () => {
                                     name="gender"
                                     value={formData.gender}
                                     onChange={handleChange}
-                                    className="input-field"
+                                    className="input-select"
                                 >
                                     <option value="">Select gender</option>
                                     <option value="Male">Male</option>
@@ -517,7 +517,7 @@ const JobseekerProfileEdit = () => {
                                     name="civil_status"
                                     value={formData.civil_status}
                                     onChange={handleChange}
-                                    className="input-field"
+                                    className="input-select"
                                 >
                                     <option value="">Select civil status</option>
                                     <option value="Single">Single</option>
@@ -569,7 +569,7 @@ const JobseekerProfileEdit = () => {
                             <select
                                 value={newLanguage.proficiency}
                                 onChange={(e) => setNewLanguage(prev => ({ ...prev, proficiency: e.target.value }))}
-                                className="input-field w-40"
+                                className="input-select w-40"
                             >
                                 <option value="Basic">Basic</option>
                                 <option value="Conversational">Conversational</option>
@@ -669,7 +669,7 @@ const JobseekerProfileEdit = () => {
                                     name="willing_to_relocate"
                                     value={formData.willing_to_relocate}
                                     onChange={handleChange}
-                                    className="input-field"
+                                    className="input-select"
                                 >
                                     <option value="no">No</option>
                                     <option value="yes">Yes</option>
@@ -691,7 +691,7 @@ const JobseekerProfileEdit = () => {
                                     name="highest_education"
                                     value={formData.highest_education}
                                     onChange={handleChange}
-                                    className="input-field"
+                                    className="input-select"
                                 >
                                     <option value="">Select education level</option>
                                     {educationLevels.map(level => (
