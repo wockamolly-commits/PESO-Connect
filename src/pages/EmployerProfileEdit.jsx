@@ -144,7 +144,7 @@ const EmployerProfileEdit = () => {
                             </div>
                             <div>
                                 <label className="label">Employer Type</label>
-                                <select name="employer_type" value={formData.employer_type} onChange={handleChange} className="input-field">
+                                <select name="employer_type" value={formData.employer_type} onChange={handleChange} className="input-select">
                                     <option value="">Select type</option>
                                     <option value="company">Company</option>
                                     <option value="small_business">Small Business</option>
@@ -175,7 +175,7 @@ const EmployerProfileEdit = () => {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="label">Company Size</label>
-                                <select name="company_size" value={formData.company_size} onChange={handleChange} className="input-field">
+                                <select name="company_size" value={formData.company_size} onChange={handleChange} className="input-select">
                                     <option value="">Select size</option>
                                     <option value="1-10">1-10 employees</option>
                                     <option value="11-50">11-50 employees</option>
