@@ -1,4 +1,5 @@
 import { GraduationCap, Calendar } from 'lucide-react'
+import Select from '../common/Select'
 
 const EDUCATION_LEVELS = [
     'Elementary Graduate',
@@ -22,21 +23,13 @@ const Step4Education = ({ formData, handleChange }) => {
             {/* Highest Educational Attainment */}
             <div>
                 <label className="label">Highest Educational Attainment *</label>
-                <div className="relative">
-                    <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <select
-                        name="highest_education"
-                        value={formData.highest_education}
-                        onChange={handleChange}
-                        className="input-select pl-12"
-                        required
-                    >
-                        <option value="">Select education level</option>
-                        {EDUCATION_LEVELS.map((level) => (
-                            <option key={level} value={level}>{level}</option>
-                        ))}
-                    </select>
-                </div>
+                <Select
+                    icon={GraduationCap}
+                    options={[{ value: '', label: 'Select education level' }, ...EDUCATION_LEVELS.map(level => ({ value: level, label: level }))]}
+                    value={formData.highest_education}
+                    onChange={(val) => handleChange({ target: { name: 'highest_education', value: val } })}
+                    placeholder="Select education level"
+                />
             </div>
 
             {/* School Name */}

@@ -23,6 +23,7 @@ import {
     Search,
     Calendar
 } from 'lucide-react'
+import Select from '../../components/common/Select'
 
 // Standardized skills by category
 const SKILL_CATEGORIES = {
@@ -635,20 +636,19 @@ const PostJobWizard = () => {
                             {/* Education Level */}
                             <div>
                                 <label className="label">Minimum Education</label>
-                                <div className="relative">
-                                    <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <select
-                                        value={jobData.educationLevel}
-                                        onChange={(e) => updateJobData('educationLevel', e.target.value)}
-                                        className="input-select pl-12"
-                                    >
-                                        <option value="none">No formal education required</option>
-                                        <option value="elementary">Elementary Graduate</option>
-                                        <option value="high-school">High School Graduate</option>
-                                        <option value="vocational">Vocational/TESDA Certificate</option>
-                                        <option value="college">College Graduate</option>
-                                    </select>
-                                </div>
+                                <Select
+                                    icon={GraduationCap}
+                                    options={[
+                                        { value: 'none', label: 'No formal education required' },
+                                        { value: 'elementary', label: 'Elementary Graduate' },
+                                        { value: 'high-school', label: 'High School Graduate' },
+                                        { value: 'vocational', label: 'Vocational/TESDA Certificate' },
+                                        { value: 'college', label: 'College Graduate' },
+                                    ]}
+                                    value={jobData.educationLevel}
+                                    onChange={(val) => updateJobData('educationLevel', val)}
+                                    placeholder="Select education level"
+                                />
                             </div>
 
                             {/* Vacancies */}

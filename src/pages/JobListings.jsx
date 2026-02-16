@@ -13,6 +13,7 @@ import {
     ArrowUpDown
 } from 'lucide-react'
 import { JobListingSkeleton } from '../components/LoadingSkeletons'
+import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
 import geminiService from '../services/geminiService'
 
@@ -129,34 +130,20 @@ const JobListings = () => {
                         </div>
 
                         {/* Category Filter */}
-                        <div className="relative">
-                            <select
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                className="input-select"
-                            >
-                                <option value="">All Categories</option>
-                                {categories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <Select
+                            options={[{ value: '', label: 'All Categories' }, ...categories.map(cat => ({ value: cat, label: cat }))]}
+                            value={categoryFilter}
+                            onChange={setCategoryFilter}
+                            placeholder="All Categories"
+                        />
 
                         {/* Type Filter */}
-                        <div className="relative">
-                            <select
-                                value={typeFilter}
-                                onChange={(e) => setTypeFilter(e.target.value)}
-                                className="input-select"
-                            >
-                                <option value="">All Types</option>
-                                {jobTypes.map(type => (
-                                    <option key={type} value={type} className="capitalize">
-                                        {type.replace('-', ' ')}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        <Select
+                            options={[{ value: '', label: 'All Types' }, ...jobTypes.map(type => ({ value: type, label: type.replace('-', ' ') }))]}
+                            value={typeFilter}
+                            onChange={setTypeFilter}
+                            placeholder="All Types"
+                        />
                     </div>
                 </div>
 

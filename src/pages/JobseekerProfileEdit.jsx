@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
+import Select from '../components/common/Select'
 
 const JobseekerProfileEdit = () => {
     const { userData, currentUser } = useAuth()
@@ -499,32 +500,32 @@ const JobseekerProfileEdit = () => {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="label">Gender</label>
-                                <select
-                                    name="gender"
+                                <Select
+                                    options={[
+                                        { value: '', label: 'Select gender' },
+                                        { value: 'Male', label: 'Male' },
+                                        { value: 'Female', label: 'Female' },
+                                        { value: 'Prefer not to say', label: 'Prefer not to say' },
+                                    ]}
                                     value={formData.gender}
-                                    onChange={handleChange}
-                                    className="input-select"
-                                >
-                                    <option value="">Select gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Prefer not to say">Prefer not to say</option>
-                                </select>
+                                    onChange={(val) => handleChange({ target: { name: 'gender', value: val } })}
+                                    placeholder="Select gender"
+                                />
                             </div>
                             <div>
                                 <label className="label">Civil Status</label>
-                                <select
-                                    name="civil_status"
+                                <Select
+                                    options={[
+                                        { value: '', label: 'Select civil status' },
+                                        { value: 'Single', label: 'Single' },
+                                        { value: 'Married', label: 'Married' },
+                                        { value: 'Widowed', label: 'Widowed' },
+                                        { value: 'Separated', label: 'Separated' },
+                                    ]}
                                     value={formData.civil_status}
-                                    onChange={handleChange}
-                                    className="input-select"
-                                >
-                                    <option value="">Select civil status</option>
-                                    <option value="Single">Single</option>
-                                    <option value="Married">Married</option>
-                                    <option value="Widowed">Widowed</option>
-                                    <option value="Separated">Separated</option>
-                                </select>
+                                    onChange={(val) => handleChange({ target: { name: 'civil_status', value: val } })}
+                                    placeholder="Select civil status"
+                                />
                             </div>
                         </div>
 
@@ -566,15 +567,17 @@ const JobseekerProfileEdit = () => {
                                 className="input-field flex-1"
                                 placeholder="e.g. Filipino, English"
                             />
-                            <select
+                            <Select
+                                options={[
+                                    { value: 'Basic', label: 'Basic' },
+                                    { value: 'Conversational', label: 'Conversational' },
+                                    { value: 'Fluent', label: 'Fluent' },
+                                ]}
                                 value={newLanguage.proficiency}
-                                onChange={(e) => setNewLanguage(prev => ({ ...prev, proficiency: e.target.value }))}
-                                className="input-select w-40"
-                            >
-                                <option value="Basic">Basic</option>
-                                <option value="Conversational">Conversational</option>
-                                <option value="Fluent">Fluent</option>
-                            </select>
+                                onChange={(val) => setNewLanguage(prev => ({ ...prev, proficiency: val }))}
+                                placeholder="Proficiency"
+                                className="w-40"
+                            />
                             <button
                                 type="button"
                                 onClick={addLanguage}
@@ -665,15 +668,15 @@ const JobseekerProfileEdit = () => {
                             </div>
                             <div>
                                 <label className="label">Willing to Relocate?</label>
-                                <select
-                                    name="willing_to_relocate"
+                                <Select
+                                    options={[
+                                        { value: 'no', label: 'No' },
+                                        { value: 'yes', label: 'Yes' },
+                                    ]}
                                     value={formData.willing_to_relocate}
-                                    onChange={handleChange}
-                                    className="input-select"
-                                >
-                                    <option value="no">No</option>
-                                    <option value="yes">Yes</option>
-                                </select>
+                                    onChange={(val) => handleChange({ target: { name: 'willing_to_relocate', value: val } })}
+                                    placeholder="Select"
+                                />
                             </div>
                         </div>
                     </div>
@@ -687,17 +690,12 @@ const JobseekerProfileEdit = () => {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="label">Highest Educational Attainment</label>
-                                <select
-                                    name="highest_education"
+                                <Select
+                                    options={[{ value: '', label: 'Select education level' }, ...educationLevels.map(level => ({ value: level, label: level }))]}
                                     value={formData.highest_education}
-                                    onChange={handleChange}
-                                    className="input-select"
-                                >
-                                    <option value="">Select education level</option>
-                                    {educationLevels.map(level => (
-                                        <option key={level} value={level}>{level}</option>
-                                    ))}
-                                </select>
+                                    onChange={(val) => handleChange({ target: { name: 'highest_education', value: val } })}
+                                    placeholder="Select education level"
+                                />
                             </div>
                             <div>
                                 <label className="label">School/Institution</label>

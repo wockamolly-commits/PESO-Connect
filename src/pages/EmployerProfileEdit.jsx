@@ -9,6 +9,7 @@ import {
     Loader2, CheckCircle, AlertCircle, Users, Calendar, FileText, Link as LinkIcon
 } from 'lucide-react'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
+import Select from '../components/common/Select'
 import ProfileCompletionBar from '../components/profile/ProfileCompletionBar'
 import { calculateCompletion } from '../utils/profileCompletion'
 
@@ -144,12 +145,17 @@ const EmployerProfileEdit = () => {
                             </div>
                             <div>
                                 <label className="label">Employer Type</label>
-                                <select name="employer_type" value={formData.employer_type} onChange={handleChange} className="input-select">
-                                    <option value="">Select type</option>
-                                    <option value="company">Company</option>
-                                    <option value="small_business">Small Business</option>
-                                    <option value="individual">Individual</option>
-                                </select>
+                                <Select
+                                    options={[
+                                        { value: '', label: 'Select type' },
+                                        { value: 'company', label: 'Company' },
+                                        { value: 'small_business', label: 'Small Business' },
+                                        { value: 'individual', label: 'Individual' },
+                                    ]}
+                                    value={formData.employer_type}
+                                    onChange={(val) => handleChange({ target: { name: 'employer_type', value: val } })}
+                                    placeholder="Select type"
+                                />
                             </div>
                             <div>
                                 <label className="label">Business Registration No. (DTI/SEC)</label>
@@ -175,14 +181,19 @@ const EmployerProfileEdit = () => {
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="label">Company Size</label>
-                                <select name="company_size" value={formData.company_size} onChange={handleChange} className="input-select">
-                                    <option value="">Select size</option>
-                                    <option value="1-10">1-10 employees</option>
-                                    <option value="11-50">11-50 employees</option>
-                                    <option value="51-200">51-200 employees</option>
-                                    <option value="201-500">201-500 employees</option>
-                                    <option value="500+">500+ employees</option>
-                                </select>
+                                <Select
+                                    options={[
+                                        { value: '', label: 'Select size' },
+                                        { value: '1-10', label: '1-10 employees' },
+                                        { value: '11-50', label: '11-50 employees' },
+                                        { value: '51-200', label: '51-200 employees' },
+                                        { value: '201-500', label: '201-500 employees' },
+                                        { value: '500+', label: '500+ employees' },
+                                    ]}
+                                    value={formData.company_size}
+                                    onChange={(val) => handleChange({ target: { name: 'company_size', value: val } })}
+                                    placeholder="Select size"
+                                />
                             </div>
                             <div>
                                 <label className="label">Year Established</label>
