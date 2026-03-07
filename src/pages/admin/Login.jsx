@@ -1,41 +1,21 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { signInWithEmailAndPassword } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
-import { auth, db } from '../../config/firebase'
-import { seedAdminAccount } from '../../utils/seedAdmin'
-import { Shield, Mail, Lock, Loader2, AlertCircle, ArrowLeft, UserPlus, CheckCircle } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import { Shield, Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 
 const AdminLogin = () => {
     const navigate = useNavigate()
+    const { login, isAdmin } = useAuth()
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     })
     const [loading, setLoading] = useState(false)
-    const [seeding, setSeeding] = useState(false)
     const [error, setError] = useState('')
-    const [seedSuccess, setSeedSuccess] = useState(false)
 
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData(prev => ({ ...prev, [name]: value }))
-    }
-
-    const handleSeedAdmin = async () => {
-        setSeeding(true)
-        setError('')
-        setSeedSuccess(false)
-
-        const result = await seedAdminAccount()
-
-        if (result.success) {
-            setSeedSuccess(true)
-        } else {
-            setError(result.message)
-        }
-
-        setSeeding(false)
     }
 
     const handleSubmit = async (e) => {
@@ -44,40 +24,18 @@ const AdminLogin = () => {
         setLoading(true)
 
         try {
-            const userCredential = await signInWithEmailAndPassword(
-                auth,
-                formData.email,
-                formData.password
-            )
+            await login(formData.email, formData.password)
 
-            const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid))
-
-            if (!userDoc.exists()) {
-                await auth.signOut()
-                setError('Account not found in the system.')
-                setLoading(false)
-                return
-            }
-
-            const userData = userDoc.data()
-
-            if (userData.role !== 'admin') {
-                await auth.signOut()
+            if (!isAdmin()) {
                 setError('Access denied. This login is for administrators only.')
                 setLoading(false)
                 return
             }
 
-            navigate('/admin')
+            navigate('/admin/dashboard')
         } catch (err) {
             console.error('Login error:', err)
-            if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-                setError('Invalid email or password.')
-            } else if (err.code === 'auth/invalid-credential') {
-                setError('Invalid credentials. Please check your email and password.')
-            } else {
-                setError('Login failed. Please try again.')
-            }
+            setError('Invalid credentials. Please check your email and password.')
         } finally {
             setLoading(false)
         }
@@ -104,37 +62,6 @@ const AdminLogin = () => {
                         <h1 className="text-2xl font-bold text-white mb-2">Admin Portal</h1>
                         <p className="text-gray-400">PESO Connect Command Center</p>
                     </div>
-
-                    {/* Seed Admin Button */}
-                    {!seedSuccess && (
-                        <button
-                            onClick={handleSeedAdmin}
-                            disabled={seeding}
-                            className="w-full mb-6 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold py-3 px-6 rounded-xl hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                            {seeding ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                    Creating Admin Account...
-                                </>
-                            ) : (
-                                <>
-                                    <UserPlus className="w-5 h-5" />
-                                    Create Default Admin Account
-                                </>
-                            )}
-                        </button>
-                    )}
-
-                    {seedSuccess && (
-                        <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 mb-6">
-                            <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                            <div>
-                                <p className="font-medium">Admin account created!</p>
-                                <p className="text-sm text-green-300 mt-1">Credentials have been filled in. Click login to continue.</p>
-                            </div>
-                        </div>
-                    )}
 
                     {error && (
                         <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 mb-6">

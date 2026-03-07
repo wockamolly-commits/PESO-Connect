@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
-import { db, auth } from '../../config/firebase'
-import { signOut } from 'firebase/auth'
+import { db } from '../../config/firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
     sendJobseekerVerifiedEmail,
@@ -24,7 +23,7 @@ import {
 } from '../../components/admin'
 
 const AdminDashboard = () => {
-    const { userData } = useAuth()
+    const { userData, logout } = useAuth()
     const navigate = useNavigate()
 
     // Data
@@ -162,7 +161,7 @@ const AdminDashboard = () => {
 
     const handleLogout = async () => {
         try {
-            await signOut(auth)
+            await logout()
             navigate('/admin/login')
         } catch (error) {
             console.error('Logout error:', error)
