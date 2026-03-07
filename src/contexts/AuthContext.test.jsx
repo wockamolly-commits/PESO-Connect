@@ -1,39 +1,45 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 
-// Define mock functions at module scope (hoisted with vi.mock)
-const mockSignInWithEmailAndPassword = vi.fn()
-const mockCreateUserWithEmailAndPassword = vi.fn()
+// ── Supabase auth mock functions ──────────────────────────────────────────────
+const mockSignInWithPassword = vi.fn()
+const mockSignUp = vi.fn()
 const mockSignOut = vi.fn()
-const mockOnAuthStateChanged = vi.fn()
-const mockSetDoc = vi.fn()
-const mockGetDoc = vi.fn()
-const mockOnSnapshot = vi.fn()
-const mockDoc = vi.fn((_db, _col, _id) => ({ _col, _id }))
+const mockOnAuthStateChange = vi.fn()
+const mockResetPasswordForEmail = vi.fn()
+const mockRpc = vi.fn()
 
-// Mock firebase config
-vi.mock('../config/firebase', () => ({
-  auth: { currentUser: null },
-  db: {},
+// ── Supabase DB mock (chained builder: from().select().eq().single()) ─────────
+const mockSingle = vi.fn()
+const mockEq = vi.fn()
+const mockSelect = vi.fn()
+const mockInsert = vi.fn()
+const mockUpdateEq = vi.fn()
+const mockUpdate = vi.fn()
+const mockFrom = vi.fn()
+
+mockSelect.mockReturnValue({ eq: mockEq })
+mockEq.mockReturnValue({ single: mockSingle, eq: mockEq })
+mockInsert.mockResolvedValue({ error: null })
+mockUpdateEq.mockResolvedValue({ error: null })
+mockUpdate.mockReturnValue({ eq: mockUpdateEq })
+mockFrom.mockReturnValue({ select: mockSelect, insert: mockInsert, update: mockUpdate })
+
+vi.mock('../config/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithPassword: (...args) => mockSignInWithPassword(...args),
+      signUp: (...args) => mockSignUp(...args),
+      signOut: (...args) => mockSignOut(...args),
+      onAuthStateChange: (...args) => mockOnAuthStateChange(...args),
+      resetPasswordForEmail: (...args) => mockResetPasswordForEmail(...args),
+    },
+    from: (...args) => mockFrom(...args),
+    rpc: (...args) => mockRpc(...args),
+  },
 }))
 
-// Mock firebase/auth
-vi.mock('firebase/auth', () => ({
-  signInWithEmailAndPassword: (...args) => mockSignInWithEmailAndPassword(...args),
-  createUserWithEmailAndPassword: (...args) => mockCreateUserWithEmailAndPassword(...args),
-  signOut: (...args) => mockSignOut(...args),
-  onAuthStateChanged: (...args) => mockOnAuthStateChanged(...args),
-}))
-
-// Mock firebase/firestore
-vi.mock('firebase/firestore', () => ({
-  doc: (...args) => mockDoc(...args),
-  setDoc: (...args) => mockSetDoc(...args),
-  getDoc: (...args) => mockGetDoc(...args),
-  onSnapshot: (...args) => mockOnSnapshot(...args),
-}))
-
-// Mock email service
+// Mock email service (unchanged)
 vi.mock('../services/emailService', () => ({
   sendJobseekerRegistrationEmail: vi.fn().mockResolvedValue(true),
   sendEmployerRegistrationEmail: vi.fn().mockResolvedValue(true),
@@ -49,10 +55,19 @@ function wrapper({ children }) {
 describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    // Reset builder chain mocks
+    mockSelect.mockReturnValue({ eq: mockEq })
+    mockEq.mockReturnValue({ single: mockSingle, eq: mockEq })
+    mockInsert.mockResolvedValue({ error: null })
+    mockUpdateEq.mockResolvedValue({ error: null })
+    mockUpdate.mockReturnValue({ eq: mockUpdateEq })
+    mockFrom.mockReturnValue({ select: mockSelect, insert: mockInsert, update: mockUpdate })
+
     // Default: no user signed in
-    mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
-      callback(null)
-      return vi.fn()
+    mockOnAuthStateChange.mockImplementation((callback) => {
+      callback('INITIAL_SESSION', null)
+      return { data: { subscription: { unsubscribe: vi.fn() } } }
     })
   })
 
@@ -68,9 +83,9 @@ describe('AuthContext', () => {
   })
 
   describe('login', () => {
-    it('calls signInWithEmailAndPassword with correct args', async () => {
-      const mockUser = { uid: 'user-1', email: 'test@test.com' }
-      mockSignInWithEmailAndPassword.mockResolvedValue({ user: mockUser })
+    it('calls signInWithPassword with correct args', async () => {
+      const mockUser = { id: 'user-1', email: 'test@test.com' }
+      mockSignInWithPassword.mockResolvedValue({ data: { user: mockUser }, error: null })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
@@ -80,43 +95,40 @@ describe('AuthContext', () => {
         expect(user.uid).toBe('user-1')
       })
 
-      expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith(
-        expect.anything(),
-        'test@test.com',
-        'password123'
-      )
+      expect(mockSignInWithPassword).toHaveBeenCalledWith({
+        email: 'test@test.com',
+        password: 'password123',
+      })
     })
 
     it('throws on invalid credentials', async () => {
-      const firebaseError = new Error('Invalid credential')
-      firebaseError.code = 'auth/invalid-credential'
-      mockSignInWithEmailAndPassword.mockRejectedValue(firebaseError)
+      mockSignInWithPassword.mockResolvedValue({
+        data: { user: null },
+        error: new Error('Invalid login credentials'),
+      })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
 
       await expect(
         act(() => result.current.login('bad@test.com', 'wrong'))
-      ).rejects.toThrow('Invalid credential')
+      ).rejects.toThrow('Invalid login credentials')
     })
   })
 
   describe('logout', () => {
     it('calls signOut and clears user state', async () => {
-      // Start with a signed-in user
-      const mockUser = { uid: 'user-1', email: 'test@test.com', reload: vi.fn() }
-      mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
-        callback(mockUser)
-        return vi.fn()
+      const mockUser = { id: 'user-1', email: 'test@test.com' }
+
+      mockOnAuthStateChange.mockImplementation((callback) => {
+        callback('SIGNED_IN', { user: mockUser })
+        return { data: { subscription: { unsubscribe: vi.fn() } } }
       })
-      mockOnSnapshot.mockImplementation((_ref, onNext) => {
-        onNext({
-          exists: () => true,
-          data: () => ({ uid: 'user-1', role: 'jobseeker', is_verified: false }),
-        })
-        return vi.fn()
+      mockSingle.mockResolvedValue({
+        data: { id: 'user-1', role: 'jobseeker', is_verified: false },
+        error: null,
       })
-      mockSignOut.mockResolvedValue(undefined)
+      mockSignOut.mockResolvedValue({ error: null })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
@@ -133,10 +145,10 @@ describe('AuthContext', () => {
   })
 
   describe('register (legacy)', () => {
-    it('creates user and Firestore document', async () => {
-      const mockUser = { uid: 'new-user-1', email: 'new@test.com' }
-      mockCreateUserWithEmailAndPassword.mockResolvedValue({ user: mockUser })
-      mockSetDoc.mockResolvedValue(undefined)
+    it('creates user and inserts profile row', async () => {
+      const mockUser = { id: 'new-user-1', email: 'new@test.com' }
+      mockSignUp.mockResolvedValue({ data: { user: mockUser }, error: null })
+      mockInsert.mockResolvedValue({ error: null })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
@@ -152,12 +164,8 @@ describe('AuthContext', () => {
         )
       })
 
-      expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalledWith(
-        expect.anything(),
-        'new@test.com',
-        'password123'
-      )
-      expect(mockSetDoc).toHaveBeenCalled()
+      expect(mockSignUp).toHaveBeenCalledWith({ email: 'new@test.com', password: 'password123' })
+      expect(mockInsert).toHaveBeenCalled()
       expect(response.user.uid).toBe('new-user-1')
       expect(response.userData.role).toBe('jobseeker')
       expect(response.userData.name).toBe('John Doe')
@@ -168,20 +176,14 @@ describe('AuthContext', () => {
 
   describe('role and verification helpers', () => {
     function setupSignedInUser(userData) {
-      const mockUser = { uid: userData.uid, email: userData.email || 'u@test.com', reload: vi.fn() }
+      const mockUser = { id: userData.uid || userData.id, email: userData.email || 'u@test.com' }
 
-      mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
-        callback(mockUser)
-        return vi.fn()
+      mockOnAuthStateChange.mockImplementation((callback) => {
+        callback('SIGNED_IN', { user: mockUser })
+        return { data: { subscription: { unsubscribe: vi.fn() } } }
       })
 
-      mockOnSnapshot.mockImplementation((_ref, onNext) => {
-        onNext({
-          exists: () => true,
-          data: () => userData,
-        })
-        return vi.fn()
-      })
+      mockSingle.mockResolvedValue({ data: userData, error: null })
     }
 
     it('detects employer role correctly', async () => {
@@ -245,8 +247,8 @@ describe('AuthContext', () => {
   describe('registerJobseeker', () => {
     it('creates jobseeker with full profile data', async () => {
       const mockUser = { uid: 'js-new', email: 'jobseeker@test.com' }
-      mockCreateUserWithEmailAndPassword.mockResolvedValue({ user: mockUser })
-      mockSetDoc.mockResolvedValue(undefined)
+      mockSignUp.mockResolvedValue({ data: { user: mockUser }, error: null })
+      mockInsert.mockResolvedValue({ error: null })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
@@ -265,8 +267,8 @@ describe('AuthContext', () => {
         })
       })
 
-      expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalled()
-      expect(mockSetDoc).toHaveBeenCalled()
+      expect(mockSignUp).toHaveBeenCalled()
+      expect(mockInsert).toHaveBeenCalled()
       expect(response.userData.role).toBe('jobseeker')
       expect(response.userData.full_name).toBe('Maria Santos')
       expect(response.userData.is_verified).toBe(false)
@@ -277,8 +279,8 @@ describe('AuthContext', () => {
   describe('registerEmployer', () => {
     it('creates employer with company data', async () => {
       const mockUser = { uid: 'emp-new', email: 'employer@test.com' }
-      mockCreateUserWithEmailAndPassword.mockResolvedValue({ user: mockUser })
-      mockSetDoc.mockResolvedValue(undefined)
+      mockSignUp.mockResolvedValue({ data: { user: mockUser }, error: null })
+      mockInsert.mockResolvedValue({ error: null })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))
@@ -295,8 +297,8 @@ describe('AuthContext', () => {
         })
       })
 
-      expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalled()
-      expect(mockSetDoc).toHaveBeenCalled()
+      expect(mockSignUp).toHaveBeenCalled()
+      expect(mockInsert).toHaveBeenCalled()
       expect(response.userData.role).toBe('employer')
       expect(response.userData.company_name).toBe('Acme Corp')
       expect(response.userData.is_verified).toBe(false)
