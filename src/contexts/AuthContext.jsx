@@ -70,7 +70,11 @@ export const AuthProvider = ({ children }) => {
             .select('*')
             .eq('id', userId)
             .single()
-        if (!error && data) {
+        if (error) {
+            console.error('Failed to fetch user profile:', error)
+            return
+        }
+        if (data) {
             setUserData(data)
         }
     }
@@ -105,7 +109,7 @@ export const AuthProvider = ({ children }) => {
         const { error } = await supabase
             .from('users')
             .update({ ...stepData, registration_step: stepNumber, updated_at: new Date().toISOString() })
-            .eq('id', currentUser.id)
+            .eq('id', currentUser.uid)
         if (error) throw error
         setUserData(prev => ({ ...prev, ...stepData, registration_step: stepNumber }))
     }
@@ -116,7 +120,7 @@ export const AuthProvider = ({ children }) => {
         const { error } = await supabase
             .from('users')
             .update({ ...finalData, registration_complete: true, registration_step: null, updated_at: new Date().toISOString() })
-            .eq('id', currentUser.id)
+            .eq('id', currentUser.uid)
         if (error) throw error
         setUserData(prev => ({ ...prev, ...finalData, registration_complete: true, registration_step: null }))
     }
