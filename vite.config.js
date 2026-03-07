@@ -19,6 +19,7 @@ export default defineConfig({
         'node_modules/',
         'src/test/',
         'src/config/firebase.js',
+        'src/config/supabase.js',
         '*.config.js'
       ]
     }
