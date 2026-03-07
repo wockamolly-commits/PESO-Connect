@@ -7,7 +7,6 @@ import {
     Briefcase,
     MapPin,
     Clock,
-    DollarSign,
     ArrowLeft,
     CheckCircle,
     AlertCircle,
@@ -275,7 +274,7 @@ const JobDetail = () => {
                                     </span>
                                     {job.salary_range && (
                                         <span className="flex items-center gap-1">
-                                            <DollarSign className="w-4 h-4" />
+                                            <span className="w-4 h-4 flex items-center justify-center text-sm font-bold">₱</span>
                                             {job.salary_range}
                                         </span>
                                     )}

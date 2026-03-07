@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PESO Connect - Email Templates Preview</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f3f4f6;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            background-color: #f9fafb;
+        }
+
+        .sidebar-header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #111827;
+        }
+
+        .template-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .template-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .template-item:hover {
+            background-color: #f3f4f6;
+        }
+
+        .template-item.active {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .template-name {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .template-subject {
+            font-size: 12px;
+            color: #6b7280;
+            display: block;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: flex;
+            justify-content: center;
+        }
+
+        .email-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 40px;
+            height: fit-content;
+        }
+
+        .preview-header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .preview-meta {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .preview-meta span {
+            font-weight: 600;
+            color: #111827;
+            width: 80px;
+            display: inline-block;
+        }
+
+        /* Email Content Styles */
+        h2 {
+            color: #1f2937;
+            margin-top: 0;
+        }
+
+        p {
+            color: #4b5563;
+            line-height: 1.6;
+        }
+
+        ul {
+            color: #4b5563;
+            line-height: 1.6;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        a.button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4F46E5;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>Email Templates</h1>
+        </div>
+        <ul class="template-list">
+            <li class="template-item active" onclick="showTemplate('jobseeker-reg')">
+                <span class="template-name">Jobseeker Registration</span>
+                <span class="template-subject">Welcome to PESO Connect...</span>
+            </li>
+            <li class="template-item" onclick="showTemplate('jobseeker-verified')">
+                <span class="template-name">Jobseeker Verified</span>
+                <span class="template-subject">Your Account Has Been Verified...</span>
+            </li>
+            <li class="template-item" onclick="showTemplate('jobseeker-rejected')">
+                <span class="template-name">Jobseeker Rejected</span>
+                <span class="template-subject">Registration Update...</span>
+            </li>
+            <li class="template-item" onclick="showTemplate('employer-reg')">
+                <span class="template-name">Employer Registration</span>
+                <span class="template-subject">Employer Registration Received...</span>
+            </li>
+            <li class="template-item" onclick="showTemplate('employer-approved')">
+                <span class="template-name">Employer Approved</span>
+                <span class="template-subject">Account Approved...</span>
+            </li>
+            <li class="template-item" onclick="showTemplate('employer-rejected')">
+                <span class="template-name">Employer Rejected</span>
+                <span class="template-subject">Registration Update...</span>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <!-- Jobseeker Registration -->
+        <div id="jobseeker-reg" class="email-container">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> juan.delacruz@example.com</div>
+                <div class="preview-meta"><span>Subject:</span> Welcome to PESO Connect - Registration Received</div>
+            </div>
+            <div class="email-body">
+                <h2>Welcome to PESO Connect!</h2>
+                <p>Dear Juan Dela Cruz,</p>
+                <p>Thank you for registering with PESO Connect San Carlos City.</p>
+                <p>Your jobseeker account has been created and is currently <strong>pending verification</strong> by our
+                    PESO personnel.</p>
+                <h3>What happens next?</h3>
+                <ul>
+                    <li>Our PESO team will review your profile and documents</li>
+                    <li>You will receive an email notification once your account is verified</li>
+                    <li>After verification, you can start applying for jobs</li>
+                </ul>
+                <p>This process typically takes 1-3 business days.</p>
+                <p>If you have any questions, please contact PESO San Carlos City.</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Jobseeker Verified -->
+        <div id="jobseeker-verified" class="email-container hidden">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> juan.delacruz@example.com</div>
+                <div class="preview-meta"><span>Subject:</span> Your PESO Connect Account Has Been Verified!</div>
+            </div>
+            <div class="email-body">
+                <h2>Congratulations! Your Account is Verified</h2>
+                <p>Dear Juan Dela Cruz,</p>
+                <p>Great news! Your PESO Connect account has been <strong>verified and activated</strong>.</p>
+                <h3>You can now:</h3>
+                <ul>
+                    <li>Browse all available job listings</li>
+                    <li>Submit job applications</li>
+                    <li>Update your profile and skills</li>
+                    <li>Track your application status</li>
+                </ul>
+                <p><a href="#" class="button">Browse Jobs Now</a></p>
+                <p>We wish you success in your job search!</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Jobseeker Rejected -->
+        <div id="jobseeker-rejected" class="email-container hidden">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> juan.delacruz@example.com</div>
+                <div class="preview-meta"><span>Subject:</span> PESO Connect Registration Update</div>
+            </div>
+            <div class="email-body">
+                <h2>Registration Status Update</h2>
+                <p>Dear Juan Dela Cruz,</p>
+                <p>We have reviewed your PESO Connect registration.</p>
+                <p>Unfortunately, we were unable to approve your account at this time.</p>
+                <h3>Reason:</h3>
+                <p
+                    style="background-color: #FEF3C7; padding: 10px; border-left: 4px solid #F59E0B; border-radius: 5px;">
+                    Ideally, uploaded documents must be clear and readable. Please re-upload your resume with better
+                    quality.
+                </p>
+                <h3>Next Steps:</h3>
+                <ul>
+                    <li>Please contact PESO San Carlos City for more information</li>
+                    <li>You may resubmit your registration after addressing the issues mentioned</li>
+                </ul>
+                <p>If you have questions, please visit our office or contact us directly.</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Employer Registration -->
+        <div id="employer-reg" class="email-container hidden">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> hr@techsolutions.ph</div>
+                <div class="preview-meta"><span>Subject:</span> PESO Connect - Employer Registration Received</div>
+            </div>
+            <div class="email-body">
+                <h2>Welcome to PESO Connect</h2>
+                <p>Dear Maria Santos,</p>
+                <p>Thank you for registering <strong>Tech Solutions Inc.</strong> with PESO Connect.</p>
+                <p>Your employer account is currently <strong>pending verification</strong> by PESO San Carlos City.</p>
+                <h3>What happens next?</h3>
+                <ul>
+                    <li>Our team will verify your business documents</li>
+                    <li>We will contact you if additional information is needed</li>
+                    <li>You will receive approval notification via email</li>
+                    <li>Once approved, you can post job openings</li>
+                </ul>
+                <p>Verification typically takes 2-5 business days.</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Employer Approved -->
+        <div id="employer-approved" class="email-container hidden">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> hr@techsolutions.ph</div>
+                <div class="preview-meta"><span>Subject:</span> Your PESO Connect Employer Account is Approved!</div>
+            </div>
+            <div class="email-body">
+                <h2>Employer Account Approved!</h2>
+                <p>Dear Maria Santos,</p>
+                <p>Excellent news! Your employer account for <strong>Tech Solutions Inc.</strong> has been approved.</p>
+                <h3>You can now:</h3>
+                <ul>
+                    <li>Post unlimited job openings</li>
+                    <li>Review applications from verified jobseekers</li>
+                    <li>Manage your job listings</li>
+                    <li>Connect with qualified candidates</li>
+                </ul>
+                <p><a href="#" class="button">Post Your First Job</a></p>
+                <p>Thank you for partnering with PESO San Carlos City!</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Employer Rejected -->
+        <div id="employer-rejected" class="email-container hidden">
+            <div class="preview-header">
+                <div class="preview-meta"><span>To:</span> hr@techsolutions.ph</div>
+                <div class="preview-meta"><span>Subject:</span> PESO Connect Employer Registration Update</div>
+            </div>
+            <div class="email-body">
+                <h2>Registration Status Update</h2>
+                <p>Dear Maria Santos,</p>
+                <p>We have reviewed the employer registration for <strong>Tech Solutions Inc.</strong>.</p>
+                <p>Unfortunately, we were unable to approve your account at this time.</p>
+                <h3>Reason:</h3>
+                <p
+                    style="background-color: #FEF3C7; padding: 10px; border-left: 4px solid #F59E0B; border-radius: 5px;">
+                    Business Permit uploaded appears to be expired. Please upload a valid business permit for the
+                    current year.
+                </p>
+                <h3>Next Steps:</h3>
+                <ul>
+                    <li>Please contact PESO San Carlos City for clarification</li>
+                    <li>Prepare any required additional documentation</li>
+                    <li>You may resubmit after addressing the concerns</li>
+                </ul>
+                <p>If you have questions, please visit our office or contact us directly.</p>
+                <p>Best regards,<br>PESO Connect Team</p>
+            </div>
+            <div class="footer">
+                &copy; 2024 PESO Connect San Carlos City. All rights reserved.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTemplate(id) {
+            // Hide all templates
+            document.querySelectorAll('.email-container').forEach(el => {
+                el.classList.add('hidden');
+            });
+
+            // Show selected template
+            document.getElementById(id).classList.remove('hidden');
+
+            // Update sidebar active state
+            document.querySelectorAll('.template-item').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Find the clicked item and add active class
+            const items = ['jobseeker-reg', 'jobseeker-verified', 'jobseeker-rejected', 'employer-reg', 'employer-approved', 'employer-rejected'];
+            /*
+               We need to find which "li" was clicked. But here I used onclick on the li, so I can just find the one that corresponds to the id.
+               Actually, the simpler way is to enhance the onclick to pass 'this' or just re-select by some logic.
+               For now, let's just loop and match.
+            */
+
+            // Re-implementing logic to highlight correct sidebar item
+            const allItems = document.querySelectorAll('.template-item');
+            // Mapping id to index
+            const idMap = {
+                'jobseeker-reg': 0,
+                'jobseeker-verified': 1,
+                'jobseeker-rejected': 2,
+                'employer-reg': 3,
+                'employer-approved': 4,
+                'employer-rejected': 5
+            };
+
+            if (idMap[id] !== undefined) {
+                allItems[idMap[id]].classList.add('active');
+            }
+        }
+    </script>
+
+</body>
+
+</html>
