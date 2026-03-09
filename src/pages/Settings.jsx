@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doc, updateDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import {
     Settings as SettingsIcon,
@@ -179,10 +178,11 @@ const Settings = () => {
         if (!currentUser) return
         setSaving(true)
         try {
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-                [field]: value,
-                updated_at: new Date().toISOString()
-            })
+            const { error } = await supabase
+                .from('users')
+                .update({ [field]: value, updated_at: new Date().toISOString() })
+                .eq('id', currentUser.uid)
+            if (error) throw error
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
         } catch (error) {
