@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import {
     User,
@@ -64,10 +63,29 @@ const Profile = () => {
         setSaving(true)
 
         try {
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-                ...formData,
-                updated_at: new Date().toISOString()
-            })
+            const now = new Date().toISOString()
+            const { error: baseErr } = await supabase
+                .from('users')
+                .update({ name: formData.full_name, updated_at: now })
+                .eq('id', currentUser.uid)
+            if (baseErr) throw baseErr
+
+            const profileTable = {
+                jobseeker: 'jobseeker_profiles',
+                employer: 'employer_profiles',
+                individual: 'individual_profiles',
+            }[userData?.role]
+
+            if (profileTable) {
+                const { error: profileErr } = await supabase
+                    .from(profileTable)
+                    .upsert({
+                        id: currentUser.uid,
+                        full_name: formData.full_name,
+                        updated_at: now,
+                    }, { onConflict: 'id' })
+                if (profileErr) throw profileErr
+            }
             setSaved(true)
             setTimeout(() => setSaved(false), 3000)
         } catch (error) {
