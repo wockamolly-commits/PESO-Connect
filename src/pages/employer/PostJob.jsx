@@ -55,8 +55,6 @@ const SKILL_CATEGORIES = {
 // Flatten all skills for autocomplete
 const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flatMap(cat => cat.skills)
 
-// Generate skill ID for matching vector
-const getSkillId = (skill) => skill.toLowerCase().replace(/\s+/g, '_')
 
 const PostJobWizard = () => {
     const { currentUser, userData, isVerified } = useAuth()
@@ -238,12 +236,6 @@ const PostJobWizard = () => {
                 filter_mode: jobData.filterMode,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
-            }
-
-            // If AI matching is enabled, create match vector for faster queries
-            if (jobData.aiMatchingEnabled) {
-                jobDocument.matchVector = jobData.requiredSkills.map(skill => getSkillId(skill))
-                jobDocument.matchVectorCount = jobData.requiredSkills.length
             }
 
             const { error } = await supabase
