@@ -205,8 +205,32 @@ const Settings = () => {
             updated.new_applicant_alerts = false
             updated.message_notifications = false
         }
+        // If master toggle is back on, reset role-appropriate sub-toggles to true
+        if (key === 'email_notifications' && value) {
+            updated.message_notifications = true
+            if (isJobseeker()) {
+                updated.job_match_alerts = true
+                updated.application_updates = true
+            }
+            if (isEmployer()) {
+                updated.new_applicant_alerts = true
+            }
+        }
         setNotifications(updated)
-        saveSettings('notification_preferences', updated)
+
+        // Only save role-relevant fields to DB
+        const toSave = {
+            email_notifications: updated.email_notifications,
+            message_notifications: updated.message_notifications,
+            ...(isJobseeker() && {
+                job_match_alerts: updated.job_match_alerts,
+                application_updates: updated.application_updates,
+            }),
+            ...(isEmployer() && {
+                new_applicant_alerts: updated.new_applicant_alerts,
+            }),
+        }
+        saveSettings('notification_preferences', toSave)
     }
 
     const updatePrivacy = (key, value) => {
@@ -474,17 +498,19 @@ const Settings = () => {
 
                                     <hr className="border-gray-100" />
 
-                                    {/* Show skills */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="font-medium text-gray-900">Show Skills</p>
-                                            <p className="text-sm text-gray-500">Display your skills on your public profile</p>
+                                    {/* Show skills — jobseekers only */}
+                                    {isJobseeker() && (
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-medium text-gray-900">Show Skills</p>
+                                                <p className="text-sm text-gray-500">Display your skills on your public profile</p>
+                                            </div>
+                                            <Toggle
+                                                enabled={privacy.show_skills}
+                                                onChange={(v) => updatePrivacy('show_skills', v)}
+                                            />
                                         </div>
-                                        <Toggle
-                                            enabled={privacy.show_skills}
-                                            onChange={(v) => updatePrivacy('show_skills', v)}
-                                        />
-                                    </div>
+                                    )}
 
                                     {/* Show contact info */}
                                     <div className="flex items-center justify-between">
