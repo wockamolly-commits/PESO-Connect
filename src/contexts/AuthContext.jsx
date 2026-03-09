@@ -247,7 +247,10 @@ export const AuthProvider = ({ children }) => {
     }
 
     const logout = async () => {
-        await supabase.auth.signOut()
+        // scope: 'local' clears the session from localStorage instantly
+        // with no network round-trip, eliminating the 1-3s delay on free tier.
+        // The access token expires naturally on the server (~1 hour).
+        await supabase.auth.signOut({ scope: 'local' })
         // Don't clear the profile cache — it's keyed by user ID and helps
         // the navbar load instantly on the user's next login
         window.location.href = '/login'
