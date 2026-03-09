@@ -143,6 +143,9 @@ export const AuthProvider = ({ children }) => {
             credentials_url: '',
         }
 
+        // Seed cache immediately so onAuthStateChange finds it on SIGNED_IN
+        try { localStorage.setItem(`peso-profile-${user.id}`, JSON.stringify(minimalDoc)) } catch {}
+
         return { user: { ...user, uid: user.id }, userData: minimalDoc }
     }
 
@@ -178,7 +181,11 @@ export const AuthProvider = ({ children }) => {
             if (profileError) throw profileError
         }
 
-        setUserData(prev => ({ ...prev, ...stepData, registration_step: stepNumber }))
+        setUserData(prev => {
+            const next = { ...prev, ...stepData, registration_step: stepNumber }
+            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(next)) } catch {}
+            return next
+        })
     }
 
     // Mark registration as complete
@@ -202,7 +209,11 @@ export const AuthProvider = ({ children }) => {
             if (profileError) throw profileError
         }
 
-        setUserData(prev => ({ ...prev, ...finalData, registration_complete: true, registration_step: null }))
+        setUserData(prev => {
+            const next = { ...prev, ...finalData, registration_complete: true, registration_step: null }
+            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(next)) } catch {}
+            return next
+        })
     }
 
     // Register new user — legacy function kept for backward compatibility
@@ -237,7 +248,8 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         await supabase.auth.signOut()
-        localStorage.clear()
+        // Don't clear the profile cache — it's keyed by user ID and helps
+        // the navbar load instantly on the user's next login
         window.location.href = '/login'
     }
 
