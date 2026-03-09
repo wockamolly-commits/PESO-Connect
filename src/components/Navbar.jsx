@@ -135,7 +135,7 @@ const Navbar = () => {
                                         </p>
                                     </div>
                                     <Link
-                                        to="/profile"
+                                        to="/dashboard"
                                         className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-primary-500/25 overflow-hidden"
                                     >
                                         {userData?.profile_photo ? (
