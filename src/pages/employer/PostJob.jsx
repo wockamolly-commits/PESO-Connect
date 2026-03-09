@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
     Briefcase,
@@ -247,7 +246,10 @@ const PostJobWizard = () => {
                 jobDocument.matchVectorCount = jobData.requiredSkills.length
             }
 
-            await addDoc(collection(db, 'job_postings'), jobDocument)
+            const { error } = await supabase
+                .from('job_postings')
+                .insert(jobDocument)
+            if (error) throw error
 
             setSuccess(true)
             setTimeout(() => {
