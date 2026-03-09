@@ -31,7 +31,7 @@ const PublicProfile = () => {
                     .maybeSingle()
 
                 if (error) throw error
-                if (!baseData) return // profile not found — setProfile stays null
+                if (!baseData) return // profile not found — setProfile stays null, finally still runs
 
                 // Fetch role-specific profile
                 const profileTable = PROFILE_TABLE[baseData.role]
