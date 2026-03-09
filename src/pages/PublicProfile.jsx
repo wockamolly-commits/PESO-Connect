@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import {
     MapPin, Briefcase, GraduationCap, Award, Globe, Calendar, Users,
@@ -18,10 +17,43 @@ const PublicProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const userDoc = await getDoc(doc(db, 'users', userId))
-                if (userDoc.exists()) {
-                    setProfile(userDoc.data())
+                const PROFILE_TABLE = {
+                    jobseeker: 'jobseeker_profiles',
+                    employer: 'employer_profiles',
+                    individual: 'individual_profiles',
                 }
+
+                // Fetch base user row
+                const { data: baseData, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', userId)
+                    .maybeSingle()
+
+                if (error) throw error
+                if (!baseData) return // profile not found — setProfile stays null
+
+                // Fetch role-specific profile
+                const profileTable = PROFILE_TABLE[baseData.role]
+                let profileData = {}
+                if (profileTable) {
+                    const { data: roleProfile } = await supabase
+                        .from(profileTable)
+                        .select('*')
+                        .eq('id', userId)
+                        .maybeSingle()
+                    if (roleProfile) profileData = roleProfile
+                }
+
+                // Merge: base fields first, then overlay non-empty profile fields
+                const merged = { ...baseData }
+                Object.entries(profileData).forEach(([key, val]) => {
+                    const isEmpty = val === null || val === '' ||
+                        (Array.isArray(val) && val.length === 0)
+                    if (!isEmpty) merged[key] = val
+                })
+
+                setProfile(merged)
             } catch (error) {
                 console.error('Error fetching profile:', error)
             } finally {
@@ -274,7 +306,7 @@ const EmployerProfile = ({ profile }) => (
             </div>
         )}
         <div className="card">
-            <Link to={`/jobs?employer=${profile.uid}`} className="btn-secondary w-full flex items-center justify-center gap-2">
+            <Link to={`/jobs?employer=${profile.id}`} className="btn-secondary w-full flex items-center justify-center gap-2">
                 <Briefcase className="w-5 h-5" /> View Job Listings
             </Link>
         </div>
