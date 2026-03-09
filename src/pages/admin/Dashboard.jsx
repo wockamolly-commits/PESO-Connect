@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
     sendJobseekerVerifiedEmail,
@@ -53,11 +52,32 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const usersSnapshot = await getDocs(collection(db, 'users'))
-            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-            setAllUsers(usersData)
-            setEmployers(usersData.filter(u => u.role === 'employer'))
-            setJobseekers(usersData.filter(u => u.role === 'jobseeker'))
+            const { data: users, error } = await supabase.from('users').select('*')
+            if (error) throw error
+
+            // Fetch all profile tables in parallel
+            const [
+                { data: empProfiles },
+                { data: jsProfiles },
+                { data: indProfiles },
+            ] = await Promise.all([
+                supabase.from('employer_profiles').select('*'),
+                supabase.from('jobseeker_profiles').select('*'),
+                supabase.from('individual_profiles').select('*'),
+            ])
+
+            // Index profiles by id for fast lookup
+            const profileMap = {}
+            for (const p of [...(empProfiles || []), ...(jsProfiles || []), ...(indProfiles || [])]) {
+                profileMap[p.id] = p
+            }
+
+            // Merge each user with their profile
+            const merged = users.map(u => ({ ...u, ...(profileMap[u.id] || {}) }))
+
+            setAllUsers(merged)
+            setEmployers(merged.filter(u => u.role === 'employer'))
+            setJobseekers(merged.filter(u => u.role === 'jobseeker'))
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
@@ -65,22 +85,33 @@ const AdminDashboard = () => {
         }
     }
 
+    const PROFILE_TABLE = { employer: 'employer_profiles', jobseeker: 'jobseeker_profiles' }
+
     const handleApprove = async (userId, userRole) => {
         setActionLoading(userId)
         try {
-            const updateData = {
-                is_verified: true,
-                rejection_reason: '',
-                updated_at: new Date().toISOString()
-            }
+            const now = new Date().toISOString()
 
-            if (userRole === 'employer') {
-                updateData.employer_status = 'approved'
-            } else if (userRole === 'jobseeker') {
-                updateData.jobseeker_status = 'verified'
-            }
+            // Update base user record
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ is_verified: true, updated_at: now })
+                .eq('id', userId)
+            if (updateError) throw updateError
 
-            await updateDoc(doc(db, 'users', userId), updateData)
+            // Update role-specific profile
+            const profileTable = PROFILE_TABLE[userRole]
+            if (profileTable) {
+                const profileUpdate = { rejection_reason: '', updated_at: now }
+                if (userRole === 'employer') profileUpdate.employer_status = 'approved'
+                else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'verified'
+
+                const { error: profileErr } = await supabase
+                    .from(profileTable)
+                    .update(profileUpdate)
+                    .eq('id', userId)
+                if (profileErr) throw profileErr
+            }
 
             try {
                 const user = allUsers.find(u => u.id === userId)
@@ -113,19 +144,28 @@ const AdminDashboard = () => {
     const handleReject = async (userId, userRole) => {
         setActionLoading(userId)
         try {
-            const updateData = {
-                is_verified: false,
-                rejection_reason: rejectReason,
-                updated_at: new Date().toISOString()
-            }
+            const now = new Date().toISOString()
 
-            if (userRole === 'employer') {
-                updateData.employer_status = 'rejected'
-            } else if (userRole === 'jobseeker') {
-                updateData.jobseeker_status = 'rejected'
-            }
+            // Update base user record
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ is_verified: false, updated_at: now })
+                .eq('id', userId)
+            if (updateError) throw updateError
 
-            await updateDoc(doc(db, 'users', userId), updateData)
+            // Update role-specific profile
+            const profileTable = PROFILE_TABLE[userRole]
+            if (profileTable) {
+                const profileUpdate = { rejection_reason: rejectReason, updated_at: now }
+                if (userRole === 'employer') profileUpdate.employer_status = 'rejected'
+                else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'rejected'
+
+                const { error: profileErr } = await supabase
+                    .from(profileTable)
+                    .update(profileUpdate)
+                    .eq('id', userId)
+                if (profileErr) throw profileErr
+            }
 
             try {
                 const user = allUsers.find(u => u.id === userId)

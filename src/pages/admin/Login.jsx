@@ -5,7 +5,7 @@ import { Shield, Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-reac
 
 const AdminLogin = () => {
     const navigate = useNavigate()
-    const { login, isAdmin } = useAuth()
+    const { login } = useAuth()
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -25,14 +25,7 @@ const AdminLogin = () => {
 
         try {
             await login(formData.email, formData.password)
-
-            if (!isAdmin()) {
-                setError('Access denied. This login is for administrators only.')
-                setLoading(false)
-                return
-            }
-
-            navigate('/admin/dashboard')
+            navigate('/admin')
         } catch (err) {
             console.error('Login error:', err)
             setError('Invalid credentials. Please check your email and password.')

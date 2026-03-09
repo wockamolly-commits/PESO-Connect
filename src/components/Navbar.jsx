@@ -126,7 +126,7 @@ const Navbar = () => {
                                 {/* User Menu */}
                                 <div className="flex items-center gap-3">
                                     <div className="hidden sm:block text-right">
-                                        <p className="text-sm font-medium text-gray-900">{userData?.name || 'User'}</p>
+                                        <p className="text-sm font-medium text-gray-900">{userData?.full_name || userData?.name || 'User'}</p>
                                         <p className="text-xs text-gray-500 capitalize flex items-center gap-1">
                                             {userData?.role}
                                             {userData?.is_verified && (
@@ -146,7 +146,7 @@ const Navbar = () => {
                                             />
                                         ) : (
                                             <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                                {userData?.name?.charAt(0).toUpperCase() || 'U'}
+                                                {(userData?.full_name || userData?.name)?.charAt(0).toUpperCase() || 'U'}
                                             </div>
                                         )}
                                     </Link>

@@ -1,9 +1,8 @@
 // src/pages/EmployerProfileEdit.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { doc, updateDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import {
     Building, Phone, Mail, MapPin, Briefcase, Globe, Save,
     Loader2, CheckCircle, AlertCircle, Users, Calendar, FileText, Link as LinkIcon
@@ -40,9 +39,12 @@ const EmployerProfileEdit = () => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+    const restoredRef = useRef(false)
 
     useEffect(() => {
+        if (restoredRef.current) return
         if (userData) {
+            restoredRef.current = true
             setFormData({
                 company_name: userData.company_name || '',
                 employer_type: userData.employer_type || '',
@@ -81,10 +83,30 @@ const EmployerProfileEdit = () => {
                 throw new Error('Company name and contact email are required.')
             }
 
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-                ...formData,
-                updated_at: new Date().toISOString()
-            })
+            const now = new Date().toISOString()
+
+            // Fields that belong in public.users
+            const baseUpdate = {
+                name: formData.company_name,
+                profile_photo: formData.profile_photo,
+                updated_at: now,
+            }
+            const { error: baseErr } = await supabase
+                .from('users')
+                .update(baseUpdate)
+                .eq('id', currentUser.uid)
+            if (baseErr) throw baseErr
+
+            // All other fields go to employer_profiles
+            const { profile_photo, ...profileFields } = formData
+            const { error: profileErr } = await supabase
+                .from('employer_profiles')
+                .upsert({
+                    id: currentUser.uid,
+                    ...profileFields,
+                    updated_at: now,
+                }, { onConflict: 'id' })
+            if (profileErr) throw profileErr
 
             setSuccess('Profile updated successfully!')
             setTimeout(() => navigate('/dashboard'), 2000)

@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { doc, updateDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import {
     User, Phone, MapPin, FileText, Save, Loader2, CheckCircle, AlertCircle, Plus, X, Home
 } from 'lucide-react'
@@ -29,9 +28,12 @@ const IndividualProfileEdit = () => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+    const restoredRef = useRef(false)
 
     useEffect(() => {
+        if (restoredRef.current) return
         if (userData) {
+            restoredRef.current = true
             setFormData({
                 full_name: userData.full_name || userData.name || '',
                 contact_number: userData.contact_number || '',
@@ -78,11 +80,29 @@ const IndividualProfileEdit = () => {
                 throw new Error('Full name is required.')
             }
 
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-                ...formData,
-                name: formData.full_name,
-                updated_at: new Date().toISOString()
-            })
+            const now = new Date().toISOString()
+
+            // Fields that belong in public.users
+            const { error: baseErr } = await supabase
+                .from('users')
+                .update({
+                    name: formData.full_name,
+                    profile_photo: formData.profile_photo,
+                    updated_at: now,
+                })
+                .eq('id', currentUser.uid)
+            if (baseErr) throw baseErr
+
+            // All other fields go to individual_profiles
+            const { profile_photo, ...profileFields } = formData
+            const { error: profileErr } = await supabase
+                .from('individual_profiles')
+                .upsert({
+                    id: currentUser.uid,
+                    ...profileFields,
+                    updated_at: now,
+                }, { onConflict: 'id' })
+            if (profileErr) throw profileErr
 
             setSuccess('Profile updated successfully!')
             setTimeout(() => navigate('/dashboard'), 2000)

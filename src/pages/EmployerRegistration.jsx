@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { sendEmployerRegistrationEmail } from '../services/emailService'
@@ -38,6 +38,7 @@ const EmployerRegistration = () => {
 
     const { createAccount, saveRegistrationStep, completeRegistration, compressAndEncode, currentUser, userData } = useAuth()
     const navigate = useNavigate()
+    const restoredRef = useRef(false)
 
     // Form data
     const [formData, setFormData] = useState({
@@ -72,9 +73,11 @@ const EmployerRegistration = () => {
 
     const passwordStrength = validators.passwordStrength(formData.password)
 
-    // Resume from saved step
+    // Resume from saved step (only once on initial load)
     useEffect(() => {
+        if (restoredRef.current) return
         if (userData && userData.registration_complete === false && userData.role === 'employer') {
+            restoredRef.current = true
             setAccountCreated(true)
             setFormData(prev => ({
                 ...prev,
@@ -183,9 +186,9 @@ const EmployerRegistration = () => {
                 setAccountCreated(true)
                 setCurrentStep(2)
             } catch (err) {
-                if (err.code === 'auth/email-already-in-use') {
-                    setError('An account with this email already exists.')
-                } else if (err.code === 'auth/weak-password') {
+                if (err.message?.toLowerCase().includes('already registered') || err.status === 422) {
+                    setError('An account with this email already exists. Please sign in instead.')
+                } else if (err.message?.toLowerCase().includes('password')) {
                     setError('Password is too weak.')
                 } else {
                     setError(err.message || 'Failed to create account.')

@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { doc, updateDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
     Plus, X, ChevronRight, CheckCircle, Upload, Home, GraduationCap,
@@ -105,9 +104,13 @@ const JobseekerProfileEdit = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }, [isDirty])
 
-    // Pre-populate form with existing user data
+    const restoredRef = useRef(false)
+
+    // Pre-populate form with existing user data (only once)
     useEffect(() => {
+        if (restoredRef.current) return
         if (userData) {
+            restoredRef.current = true
             const initial = {
                 full_name: userData.full_name || '',
                 date_of_birth: userData.date_of_birth || '',
@@ -288,8 +291,29 @@ const JobseekerProfileEdit = () => {
                 updateData.certificate_urls = [...existingCerts, ...newCertsData]
             }
 
-            // Update Firestore document
-            await updateDoc(doc(db, 'users', currentUser.uid), updateData)
+            const now = new Date().toISOString()
+
+            // Fields that belong in public.users
+            const { error: baseErr } = await supabase
+                .from('users')
+                .update({
+                    name: updateData.full_name,
+                    profile_photo: updateData.profile_photo,
+                    updated_at: now,
+                })
+                .eq('id', currentUser.uid)
+            if (baseErr) throw baseErr
+
+            // All other fields go to jobseeker_profiles
+            const { profile_photo, ...profileFields } = updateData
+            const { error: profileErr } = await supabase
+                .from('jobseeker_profiles')
+                .upsert({
+                    id: currentUser.uid,
+                    ...profileFields,
+                    updated_at: now,
+                }, { onConflict: 'id' })
+            if (profileErr) throw profileErr
 
             setSuccess('Profile updated successfully!')
             setTimeout(() => {

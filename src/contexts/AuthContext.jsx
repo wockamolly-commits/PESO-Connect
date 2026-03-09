@@ -64,25 +64,71 @@ export const AuthProvider = ({ children }) => {
         })
     }
 
-    const fetchUserData = async (userId) => {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single()
-        if (error) {
-            console.error('Failed to fetch user profile:', error)
-            return
-        }
-        if (data) {
-            setUserData(data)
-        }
+    const PROFILE_TABLE = {
+        jobseeker: 'jobseeker_profiles',
+        employer: 'employer_profiles',
+        individual: 'individual_profiles',
     }
 
-    // Create Supabase Auth account and insert minimal users row (Step 1 of registration)
+    const BASE_FIELDS = new Set([
+        'id', 'email', 'role', 'name', 'is_verified',
+        'registration_complete', 'registration_step', 'profile_photo',
+        'created_at', 'updated_at',
+    ])
+
+    const fetchUserData = async (userId) => {
+        let timedOut = false
+        const timeoutPromise = new Promise((resolve) =>
+            setTimeout(() => { timedOut = true; resolve(null) }, 8000)
+        )
+
+        const baseData = await Promise.race([
+            supabase.from('users').select('*').eq('id', userId).maybeSingle()
+                .then(({ data, error }) => {
+                    if (error) { console.error('fetchUserData error:', error.message); return null }
+                    return data
+                }),
+            timeoutPromise,
+        ])
+
+        if (timedOut) return 'timeout'
+        if (!baseData) return null
+
+        // Fetch role-specific profile
+        const profileTable = PROFILE_TABLE[baseData.role]
+        let profileData = {}
+        if (profileTable) {
+            const { data: profile } = await supabase
+                .from(profileTable).select('*').eq('id', userId).maybeSingle()
+            if (profile) profileData = profile
+        }
+
+        // Merge: start with baseData, overlay non-empty profile values
+        // This ensures existing data in public.users shows as fallback
+        const merged = { ...baseData }
+        Object.entries(profileData).forEach(([key, val]) => {
+            const isEmpty = val === null || val === '' ||
+                (Array.isArray(val) && val.length === 0)
+            if (!isEmpty) merged[key] = val
+            else if (merged[key] === undefined) merged[key] = val
+        })
+
+        setUserData(merged)
+        try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(merged)) } catch {}
+        return merged
+    }
+
+    // Create Supabase Auth account — the DB trigger auto-creates the public.users row
     const createAccount = async (email, password, role) => {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        // Sign out any stale session first to prevent Web Locks conflicts
+        await supabase.auth.signOut()
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { role } },
+        })
         if (error) throw error
+        if (!data.user) throw new Error('Account creation failed. Please try again.')
 
         const user = data.user
         const minimalDoc = {
@@ -97,37 +143,76 @@ export const AuthProvider = ({ children }) => {
             credentials_url: '',
         }
 
-        const { error: insertError } = await supabase.from('users').insert(minimalDoc)
-        if (insertError) throw insertError
-
         return { user: { ...user, uid: user.id }, userData: minimalDoc }
+    }
+
+    // Split stepData into base (public.users) and profile-specific fields
+    const splitFields = (data) => {
+        const base = {}
+        const profile = {}
+        Object.entries(data).forEach(([key, val]) => {
+            if (BASE_FIELDS.has(key)) base[key] = val
+            else profile[key] = val
+        })
+        return { base, profile }
     }
 
     // Save registration step data to Supabase
     const saveRegistrationStep = async (stepData, stepNumber) => {
         if (!currentUser) throw new Error('No authenticated user')
+        const { base, profile } = splitFields(stepData)
+
+        const now = new Date().toISOString()
         const { error } = await supabase
             .from('users')
-            .update({ ...stepData, registration_step: stepNumber, updated_at: new Date().toISOString() })
+            .update({ ...base, registration_step: stepNumber, updated_at: now })
             .eq('id', currentUser.uid)
         if (error) throw error
+
+        const role = userData?.role || currentUser?.user_metadata?.role
+        const profileTable = PROFILE_TABLE[role]
+        if (profileTable && Object.keys(profile).length > 0) {
+            const { error: profileError } = await supabase
+                .from(profileTable)
+                .upsert({ id: currentUser.uid, ...profile, updated_at: now }, { onConflict: 'id' })
+            if (profileError) throw profileError
+        }
+
         setUserData(prev => ({ ...prev, ...stepData, registration_step: stepNumber }))
     }
 
     // Mark registration as complete
     const completeRegistration = async (finalData = {}) => {
         if (!currentUser) throw new Error('No authenticated user')
+        const { base, profile } = splitFields(finalData)
+
+        const now = new Date().toISOString()
         const { error } = await supabase
             .from('users')
-            .update({ ...finalData, registration_complete: true, registration_step: null, updated_at: new Date().toISOString() })
+            .update({ ...base, registration_complete: true, registration_step: null, updated_at: now })
             .eq('id', currentUser.uid)
         if (error) throw error
+
+        const role = userData?.role || currentUser?.user_metadata?.role
+        const profileTable = PROFILE_TABLE[role]
+        if (profileTable && Object.keys(profile).length > 0) {
+            const { error: profileError } = await supabase
+                .from(profileTable)
+                .upsert({ id: currentUser.uid, ...profile, updated_at: now }, { onConflict: 'id' })
+            if (profileError) throw profileError
+        }
+
         setUserData(prev => ({ ...prev, ...finalData, registration_complete: true, registration_step: null }))
     }
 
     // Register new user — legacy function kept for backward compatibility
     const register = async (email, password, role, name, skills = []) => {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        await supabase.auth.signOut()
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { role } },
+        })
         if (error) throw error
 
         const user = data.user
@@ -141,9 +226,6 @@ export const AuthProvider = ({ children }) => {
             credentials_url: '',
         }
 
-        const { error: insertError } = await supabase.from('users').insert(userDoc)
-        if (insertError) throw insertError
-
         return { user: { ...user, uid: user.id }, userData: userDoc }
     }
 
@@ -154,10 +236,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     const logout = async () => {
-        const { error } = await supabase.auth.signOut()
-        if (error) throw error
-        setCurrentUser(null)
-        setUserData(null)
+        await supabase.auth.signOut()
+        localStorage.clear()
+        window.location.href = '/login'
     }
 
     const resetPassword = async (email) => {
@@ -195,20 +276,43 @@ export const AuthProvider = ({ children }) => {
     const isIndividual = () => userData?.role === 'individual'
 
     useEffect(() => {
+        let mounted = true
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (session?.user) {
-                const user = session.user
-                // uid shim: all consumers use currentUser.uid — Supabase uses .id
-                setCurrentUser({ ...user, uid: user.id })
-                await fetchUserData(user.id)
-            } else {
-                setCurrentUser(null)
-                setUserData(null)
+            try {
+                if (session?.user) {
+                    const user = session.user
+                    setCurrentUser({ ...user, uid: user.id })
+                    // Restore cached profile instantly so Navbar never shows "User"
+                    try {
+                        const cached = localStorage.getItem(`peso-profile-${user.id}`)
+                        if (cached) setUserData(JSON.parse(cached))
+                    } catch {}
+                    // Fetch fresh data — DB may be slow/paused on free tier
+                    const result = await fetchUserData(user.id)
+                    if (result === 'timeout') {
+                        // DB hung (e.g. Supabase project paused) — keep cached data, stay logged in
+                    } else if (!result && mounted) {
+                        // Null = no DB row → stale session, sign out
+                        await supabase.auth.signOut()
+                        localStorage.clear()
+                        window.location.href = '/login'
+                        return
+                    }
+                } else {
+                    setCurrentUser(null)
+                    setUserData(null)
+                }
+            } catch (err) {
+                console.error('Auth state change error:', err)
+            } finally {
+                if (mounted) setLoading(false)
             }
-            setLoading(false)
         })
 
-        return () => subscription.unsubscribe()
+        return () => {
+            mounted = false
+            subscription.unsubscribe()
+        }
     }, [])
 
     const value = {

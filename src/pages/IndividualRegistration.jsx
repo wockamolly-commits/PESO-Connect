@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -35,9 +35,12 @@ const IndividualRegistration = () => {
     const [success, setSuccess] = useState(false)
     const [currentStep, setCurrentStep] = useState(1)
     const [accountCreated, setAccountCreated] = useState(false)
+    const restoredRef = useRef(false)
 
     useEffect(() => {
+        if (restoredRef.current) return
         if (userData && userData.registration_complete === false && userData.role === 'individual') {
+            restoredRef.current = true
             setAccountCreated(true)
             setFormData(prev => ({
                 ...prev,
@@ -79,7 +82,7 @@ const IndividualRegistration = () => {
             setAccountCreated(true)
             setCurrentStep(2)
         } catch (err) {
-            if (err.code === 'auth/email-already-in-use') {
+            if (err.message?.toLowerCase().includes('already registered') || err.status === 422) {
                 setError('This email is already registered. Try signing in instead.')
             } else {
                 setError(err.message || 'Registration failed. Please try again.')
