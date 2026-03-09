@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import {
     Search,
     MapPin,
@@ -45,17 +44,13 @@ const JobListings = () => {
 
     const fetchJobs = async () => {
         try {
-            const q = query(
-                collection(db, 'job_postings'),
-                where('status', '==', 'open')
-            )
-            const snapshot = await getDocs(q)
-            const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-
-            // Sort by created_at descending
-            jobsData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-
-            setJobs(jobsData)
+            const { data: jobsData, error } = await supabase
+                .from('job_postings')
+                .select('*')
+                .eq('status', 'open')
+                .order('created_at', { ascending: false })
+            if (error) throw error
+            setJobs(jobsData || [])
         } catch (error) {
             console.error('Error fetching jobs:', error)
         } finally {
