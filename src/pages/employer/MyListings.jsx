@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, query, where, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
     Briefcase,
@@ -41,27 +40,28 @@ const MyListings = () => {
         if (!currentUser) return
 
         try {
-            const jobsQuery = query(
-                collection(db, 'job_postings'),
-                where('employer_id', '==', currentUser.uid)
-            )
-            const snapshot = await getDocs(jobsQuery)
-            const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            const { data: jobsData, error: jobsError } = await supabase
+                .from('job_postings')
+                .select('*')
+                .eq('employer_id', currentUser.uid)
+                .order('created_at', { ascending: false })
+            if (jobsError) throw jobsError
 
-            // Sort by created_at desc
-            jobsData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            setJobs(jobsData || [])
 
-            setJobs(jobsData)
-
-            // Fetch applications for each job
+            const jobIds = (jobsData || []).map(j => j.id)
             const appsData = {}
-            for (const job of jobsData) {
-                const appsQuery = query(
-                    collection(db, 'applications'),
-                    where('job_id', '==', job.id)
-                )
-                const appsSnapshot = await getDocs(appsQuery)
-                appsData[job.id] = appsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            if (jobIds.length > 0) {
+                const { data: appsRows } = await supabase
+                    .from('applications')
+                    .select('*')
+                    .in('job_id', jobIds)
+                if (appsRows) {
+                    appsRows.forEach(app => {
+                        if (!appsData[app.job_id]) appsData[app.job_id] = []
+                        appsData[app.job_id].push(app)
+                    })
+                }
             }
             setApplications(appsData)
         } catch (error) {
@@ -74,10 +74,11 @@ const MyListings = () => {
     const updateJobStatus = async (jobId, newStatus) => {
         setActionLoading(jobId)
         try {
-            await updateDoc(doc(db, 'job_postings', jobId), {
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            })
+            const { error } = await supabase
+                .from('job_postings')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .eq('id', jobId)
+            if (error) throw error
             setJobs(jobs.map(job =>
                 job.id === jobId ? { ...job, status: newStatus } : job
             ))
@@ -96,10 +97,11 @@ const MyListings = () => {
     const saveDeadline = async (jobId) => {
         setActionLoading(jobId)
         try {
-            await updateDoc(doc(db, 'job_postings', jobId), {
-                deadline: newDeadline,
-                updated_at: new Date().toISOString()
-            })
+            const { error } = await supabase
+                .from('job_postings')
+                .update({ deadline: newDeadline, updated_at: new Date().toISOString() })
+                .eq('id', jobId)
+            if (error) throw error
             setJobs(jobs.map(job =>
                 job.id === jobId ? { ...job, deadline: newDeadline } : job
             ))
@@ -116,7 +118,11 @@ const MyListings = () => {
 
         setActionLoading(jobId)
         try {
-            await deleteDoc(doc(db, 'job_postings', jobId))
+            const { error } = await supabase
+                .from('job_postings')
+                .delete()
+                .eq('id', jobId)
+            if (error) throw error
             setJobs(jobs.filter(job => job.id !== jobId))
         } catch (error) {
             console.error('Error deleting job:', error)
