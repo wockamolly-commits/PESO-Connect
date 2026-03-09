@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS public.job_postings (
   location       text,
   salary_min     numeric,
   salary_max     numeric,
+  salary_range       text,
+  experience_level   text,
+  vacancies          integer DEFAULT 1,
+  ai_matching_enabled boolean DEFAULT false,
+  applications_count  integer DEFAULT 0,
   requirements   text[]  DEFAULT '{}',
   education_level text,
   filter_mode    text    DEFAULT 'flexible',  -- strict | flexible

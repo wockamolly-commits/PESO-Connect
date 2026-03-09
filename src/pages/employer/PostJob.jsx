@@ -232,10 +232,7 @@ const PostJobWizard = () => {
                 employer_id: currentUser.uid,
                 employer_name: userData?.name || 'Unknown',
                 status: 'open',
-                applications_count: 0,
                 filter_mode: jobData.filterMode,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
             }
 
             const { error } = await supabase
