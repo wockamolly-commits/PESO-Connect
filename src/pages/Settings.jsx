@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -161,9 +161,13 @@ const Settings = () => {
         show_skills: true,
     })
 
-    // Load saved preferences from userData
+    const restoredRef = useRef(false)
+
+    // Load saved preferences from userData — only once on first available data
+    // to prevent fetchUserData completing after a toggle click from reverting state
     useEffect(() => {
-        if (userData) {
+        if (userData && !restoredRef.current) {
+            restoredRef.current = true
             if (userData.notification_preferences) {
                 setNotifications(prev => ({ ...prev, ...userData.notification_preferences }))
             }
