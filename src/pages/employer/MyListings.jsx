@@ -52,10 +52,11 @@ const MyListings = () => {
             const jobIds = (jobsData || []).map(j => j.id)
             const appsData = {}
             if (jobIds.length > 0) {
-                const { data: appsRows } = await supabase
+                const { data: appsRows, error: appsError } = await supabase
                     .from('applications')
                     .select('*')
                     .in('job_id', jobIds)
+                if (appsError) console.error('Error fetching applications:', appsError)
                 if (appsRows) {
                     appsRows.forEach(app => {
                         if (!appsData[app.job_id]) appsData[app.job_id] = []
