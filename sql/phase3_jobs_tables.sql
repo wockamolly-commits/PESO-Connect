@@ -5,7 +5,7 @@
 -- 1. job_postings table
 CREATE TABLE IF NOT EXISTS public.job_postings (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  employer_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  employer_id    uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   employer_name  text,
   title          text NOT NULL,
   description    text,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.job_postings (
   deadline       date,
   status         text    DEFAULT 'open',      -- open | filled | closed
   created_at     timestamptz DEFAULT now(),
-  updated_at     timestamptz
+  updated_at     timestamptz DEFAULT now()
 );
 
 ALTER TABLE public.job_postings ENABLE ROW LEVEL SECURITY;
@@ -30,6 +30,11 @@ ALTER TABLE public.job_postings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read job postings"
   ON public.job_postings FOR SELECT
   USING (true);
+
+-- Admins can read all job postings
+CREATE POLICY "Admins can read all job postings"
+  ON public.job_postings FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Only the owning employer can insert
 CREATE POLICY "Employers can insert their own job postings"
@@ -51,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.applications (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id           uuid NOT NULL REFERENCES public.job_postings(id) ON DELETE CASCADE,
   job_title        text,
-  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id          uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   applicant_name   text,
   applicant_email  text,
   applicant_skills text[]  DEFAULT '{}',
@@ -59,7 +64,8 @@ CREATE TABLE IF NOT EXISTS public.applications (
   resume_url       text,
   status           text    DEFAULT 'pending',  -- pending | shortlisted | hired | rejected
   created_at       timestamptz DEFAULT now(),
-  updated_at       timestamptz
+  updated_at       timestamptz DEFAULT now(),
+  UNIQUE (job_id, user_id)
 );
 
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
@@ -79,6 +85,11 @@ CREATE POLICY "Employers can read applications for their jobs"
         AND employer_id = auth.uid()
     )
   );
+
+-- Admins can read all applications
+CREATE POLICY "Admins can read all applications"
+  ON public.applications FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Applicants can insert their own applications
 CREATE POLICY "Applicants can insert their own applications"
