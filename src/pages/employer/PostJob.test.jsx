@@ -3,12 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 
-// Mock Firebase
-const mockAddDoc = vi.fn()
-vi.mock('../../config/firebase', () => ({ db: {} }))
-vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(),
-  addDoc: (...args) => mockAddDoc(...args),
+// Mock Supabase
+const mockInsert = vi.fn().mockReturnValue({ data: null, error: null })
+const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ data: null, error: null }) })
+vi.mock('../../config/supabase', () => ({
+  supabase: {
+    from: () => ({ insert: mockInsert, update: mockUpdate }),
+  },
 }))
 
 // Mock useAuth

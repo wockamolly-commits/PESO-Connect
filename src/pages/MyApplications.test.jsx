@@ -2,14 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 
-// Mock Firebase
-const mockGetDocs = vi.fn()
-vi.mock('../config/firebase', () => ({ db: {} }))
-vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(),
-  query: vi.fn(),
-  where: vi.fn(),
-  getDocs: (...args) => mockGetDocs(...args),
+// Mock Supabase
+const mockSupabaseResponse = vi.fn()
+vi.mock('../config/supabase', () => ({
+  supabase: {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          order: () => mockSupabaseResponse(),
+        }),
+      }),
+    }),
+  },
 }))
 
 // Mock useAuth
@@ -35,7 +39,7 @@ describe('MyApplications', () => {
 
   it('shows empty state when no applications exist', async () => {
     mockUseAuth.mockReturnValue({ currentUser: { uid: 'user-1' } })
-    mockGetDocs.mockResolvedValue({ docs: [] })
+    mockSupabaseResponse.mockReturnValue({ data: [], error: null })
 
     renderMyApplications()
 
@@ -48,29 +52,26 @@ describe('MyApplications', () => {
 
   it('displays applications with correct data', async () => {
     mockUseAuth.mockReturnValue({ currentUser: { uid: 'user-1' } })
-    mockGetDocs.mockResolvedValue({
-      docs: [
+    mockSupabaseResponse.mockReturnValue({
+      data: [
         {
           id: 'app-1',
-          data: () => ({
-            job_id: 'job-1',
-            job_title: 'Senior Plumber',
-            user_id: 'user-1',
-            status: 'pending',
-            created_at: '2026-01-15T00:00:00.000Z',
-          }),
+          job_id: 'job-1',
+          job_title: 'Senior Plumber',
+          user_id: 'user-1',
+          status: 'pending',
+          created_at: '2026-01-15T00:00:00.000Z',
         },
         {
           id: 'app-2',
-          data: () => ({
-            job_id: 'job-2',
-            job_title: 'Electrician',
-            user_id: 'user-1',
-            status: 'shortlisted',
-            created_at: '2026-01-10T00:00:00.000Z',
-          }),
+          job_id: 'job-2',
+          job_title: 'Electrician',
+          user_id: 'user-1',
+          status: 'shortlisted',
+          created_at: '2026-01-10T00:00:00.000Z',
         },
       ],
+      error: null,
     })
 
     renderMyApplications()
@@ -84,12 +85,13 @@ describe('MyApplications', () => {
 
   it('displays correct stats', async () => {
     mockUseAuth.mockReturnValue({ currentUser: { uid: 'user-1' } })
-    mockGetDocs.mockResolvedValue({
-      docs: [
-        { id: 'a1', data: () => ({ job_title: 'Job 1', status: 'pending', created_at: '2026-01-01' }) },
-        { id: 'a2', data: () => ({ job_title: 'Job 2', status: 'shortlisted', created_at: '2026-01-02' }) },
-        { id: 'a3', data: () => ({ job_title: 'Job 3', status: 'hired', created_at: '2026-01-03' }) },
+    mockSupabaseResponse.mockReturnValue({
+      data: [
+        { id: 'a1', job_title: 'Job 1', status: 'pending', created_at: '2026-01-01' },
+        { id: 'a2', job_title: 'Job 2', status: 'shortlisted', created_at: '2026-01-02' },
+        { id: 'a3', job_title: 'Job 3', status: 'hired', created_at: '2026-01-03' },
       ],
+      error: null,
     })
 
     renderMyApplications()
@@ -105,12 +107,14 @@ describe('MyApplications', () => {
     expect(screen.getByText('Hired')).toBeInTheDocument()
   })
 
-  it('shows loading state initially', () => {
+  it('shows loading skeleton initially', () => {
     mockUseAuth.mockReturnValue({ currentUser: { uid: 'user-1' } })
-    mockGetDocs.mockImplementation(() => new Promise(() => {})) // never resolves
+    mockSupabaseResponse.mockReturnValue(new Promise(() => {})) // never resolves
 
     renderMyApplications()
 
-    expect(screen.getByText(/loading your applications/i)).toBeInTheDocument()
+    // Skeleton loading cards have animate-pulse class
+    const skeletons = document.querySelectorAll('.animate-pulse')
+    expect(skeletons.length).toBeGreaterThan(0)
   })
 })
