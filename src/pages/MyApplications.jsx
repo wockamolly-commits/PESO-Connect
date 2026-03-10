@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import {
     FileText,
@@ -28,16 +27,13 @@ const MyApplications = () => {
         if (!currentUser) return
 
         try {
-            const appsQuery = query(
-                collection(db, 'applications'),
-                where('user_id', '==', currentUser.uid)
-            )
-            const snapshot = await getDocs(appsQuery)
-            const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-
-            // Sort by created_at descending
-            appsData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            setApplications(appsData)
+            const { data, error } = await supabase
+                .from('applications')
+                .select('*')
+                .eq('user_id', currentUser.uid)
+                .order('created_at', { ascending: false })
+            if (error) throw error
+            setApplications(data || [])
         } catch (error) {
             console.error('Error fetching applications:', error)
         } finally {
