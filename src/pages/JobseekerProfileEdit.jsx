@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
+import ResumeUpload from '../components/common/ResumeUpload'
 import Select from '../components/common/Select'
 
 const JobseekerProfileEdit = () => {
@@ -74,6 +75,7 @@ const JobseekerProfileEdit = () => {
             languages: prev.languages.filter(l => l.language !== lang)
         }))
     }
+    const [resumeUrl, setResumeUrl] = useState(userData?.resume_url || '')
     const [resumeFile, setResumeFile] = useState(null)
     const [certificateFiles, setCertificateFiles] = useState([])
     const [loading, setLoading] = useState(false)
@@ -268,11 +270,8 @@ const JobseekerProfileEdit = () => {
                 updated_at: new Date().toISOString()
             }
 
-            // Handle resume update if new file uploaded
-            if (resumeFile) {
-                const resumeData = await compressAndEncode(resumeFile)
-                updateData.resume_url = resumeData
-            }
+            // Use Supabase Storage URL for resume
+            updateData.resume_url = resumeUrl
 
             // Handle certificate updates if new files uploaded
             if (certificateFiles.length > 0) {
@@ -932,18 +931,15 @@ const JobseekerProfileEdit = () => {
                         </p>
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="label">New Resume/CV</label>
-                                <input
-                                    type="file"
-                                    accept=".pdf,.doc,.docx"
-                                    onChange={(e) => setResumeFile(e.target.files[0])}
-                                    className="input-field"
-                                />
-                                {resumeFile && (
-                                    <p className="text-sm text-green-600 mt-1">✓ {resumeFile.name}</p>
-                                )}
-                            </div>
+                            <ResumeUpload
+                                userId={currentUser.uid}
+                                storagePath={`${currentUser.uid}/resume.pdf`}
+                                currentUrl={resumeUrl}
+                                onUploaded={(url) => setResumeUrl(url)}
+                                onRemoved={() => setResumeUrl('')}
+                                label="Resume"
+                                optional={true}
+                            />
 
                             <div>
                                 <label className="label">Additional Certificates</label>
