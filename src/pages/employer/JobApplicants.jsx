@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore'
-import { db } from '../../config/firebase'
+import { supabase } from '../../config/supabase'
 import {
     User,
     Mail,
@@ -34,24 +33,14 @@ const JobApplicants = () => {
 
     const fetchJobAndApplicants = async () => {
         try {
-            // Fetch job details
-            const jobDoc = await getDoc(doc(db, 'job_postings', jobId))
-            if (jobDoc.exists()) {
-                setJob({ id: jobDoc.id, ...jobDoc.data() })
-            }
-
-            // Fetch applications
-            const q = query(
-                collection(db, 'applications'),
-                where('job_id', '==', jobId)
-            )
-            const snapshot = await getDocs(q)
-            const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-
-            // Sort by date (newest first)
-            appsData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-
-            setApplicants(appsData)
+            const [{ data: jobData, error: jobError }, { data: appsData, error: appsError }] = await Promise.all([
+                supabase.from('job_postings').select('*').eq('id', jobId).maybeSingle(),
+                supabase.from('applications').select('*').eq('job_id', jobId).order('created_at', { ascending: false })
+            ])
+            if (jobError) throw jobError
+            if (appsError) throw appsError
+            if (jobData) setJob(jobData)
+            setApplicants(appsData || [])
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
@@ -62,10 +51,11 @@ const JobApplicants = () => {
     const updateStatus = async (appId, newStatus) => {
         setActionLoading(appId)
         try {
-            await updateDoc(doc(db, 'applications', appId), {
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            })
+            const { error } = await supabase
+                .from('applications')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .eq('id', appId)
+            if (error) throw error
             setApplicants(applicants.map(app =>
                 app.id === appId ? { ...app, status: newStatus } : app
             ))
