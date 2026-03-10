@@ -164,6 +164,14 @@ function AppContent() {
                             }
                         />
                         <Route
+                            path="/edit-job/:id"
+                            element={
+                                <ProtectedRoute allowedRoles={['employer']} requireVerified>
+                                    <ErrorBoundary><PostJob /></ErrorBoundary>
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
                             path="/my-listings"
                             element={
                                 <ProtectedRoute allowedRoles={['employer']}>

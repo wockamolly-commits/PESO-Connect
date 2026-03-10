@@ -290,6 +290,13 @@ const MyListings = () => {
                                                 View Applicants
                                             </Link>
                                             <Link
+                                                to={`/edit-job/${job.id}`}
+                                                className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-primary-600 transition-colors"
+                                                title="Edit Posting"
+                                            >
+                                                <Edit className="w-5 h-5" />
+                                            </Link>
+                                            <Link
                                                 to={`/jobs/${job.id}`}
                                                 className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-primary-600 transition-colors"
                                                 title="View Public Posting"

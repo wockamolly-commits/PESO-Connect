@@ -12,7 +12,7 @@ import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import Select from '../components/common/Select'
 
 const JobseekerProfileEdit = () => {
-    const { userData, currentUser } = useAuth()
+    const { userData, currentUser, fetchUserData } = useAuth()
     const navigate = useNavigate()
 
     const [formData, setFormData] = useState({
@@ -314,6 +314,9 @@ const JobseekerProfileEdit = () => {
                     updated_at: now,
                 }, { onConflict: 'id' })
             if (profileErr) throw profileErr
+
+            // Refresh AuthContext + localStorage cache with saved data
+            await fetchUserData(currentUser.uid)
 
             setSuccess('Profile updated successfully!')
             setTimeout(() => {

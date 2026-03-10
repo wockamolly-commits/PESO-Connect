@@ -349,6 +349,7 @@ export const AuthProvider = ({ children }) => {
         isEmployer,
         isJobseeker,
         isIndividual,
+        fetchUserData,
     }
 
     return (

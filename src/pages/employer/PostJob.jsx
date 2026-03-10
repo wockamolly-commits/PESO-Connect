@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -59,9 +59,12 @@ const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flatMap(cat => cat.skills)
 const PostJobWizard = () => {
     const { currentUser, userData, isVerified } = useAuth()
     const navigate = useNavigate()
+    const { id: editId } = useParams()
+    const isEditMode = Boolean(editId)
 
     // Current step (1-4)
     const [currentStep, setCurrentStep] = useState(1)
+    const [fetchingJob, setFetchingJob] = useState(false)
 
     // Global job data state
     const [jobData, setJobData] = useState({
@@ -124,6 +127,51 @@ const PostJobWizard = () => {
             setShowSuggestions(false)
         }
     }, [skillInput, jobData.requiredSkills])
+
+    // Fetch existing job data when editing
+    useEffect(() => {
+        if (!isEditMode || !currentUser) return
+
+        const fetchJob = async () => {
+            setFetchingJob(true)
+            try {
+                const { data, error } = await supabase
+                    .from('job_postings')
+                    .select('*')
+                    .eq('id', editId)
+                    .eq('employer_id', currentUser.uid)
+                    .maybeSingle()
+                if (error) throw error
+                if (!data) {
+                    setError('Job not found or you do not have permission to edit it.')
+                    return
+                }
+                setJobData({
+                    title: data.title || '',
+                    category: data.category || '',
+                    type: data.type || 'full-time',
+                    location: data.location || 'San Carlos City',
+                    salaryMin: data.salary_min != null ? String(data.salary_min) : '',
+                    salaryMax: data.salary_max != null ? String(data.salary_max) : '',
+                    description: data.description || '',
+                    requiredSkills: data.requirements || [],
+                    experienceLevel: data.experience_level || 'entry',
+                    educationLevel: data.education_level || 'high-school',
+                    vacancies: data.vacancies || 1,
+                    deadline: data.deadline || '',
+                    filterMode: data.filter_mode || 'strict',
+                    aiMatchingEnabled: data.ai_matching_enabled ?? true,
+                })
+            } catch (err) {
+                console.error('Error fetching job for edit:', err)
+                setError('Failed to load job data.')
+            } finally {
+                setFetchingJob(false)
+            }
+        }
+
+        fetchJob()
+    }, [isEditMode, editId, currentUser])
 
     const updateJobData = (field, value) => {
         setJobData(prev => ({ ...prev, [field]: value }))
@@ -205,7 +253,7 @@ const PostJobWizard = () => {
         setCurrentStep(prev => Math.max(prev - 1, 1))
     }
 
-    // Publish job with AI matching vector
+    // Publish or update job
     const publishJob = async () => {
         if (!validateStep(3)) return
 
@@ -213,7 +261,6 @@ const PostJobWizard = () => {
         setError('')
 
         try {
-            // Build the job document
             const jobDocument = {
                 title: jobData.title,
                 category: jobData.category,
@@ -231,22 +278,32 @@ const PostJobWizard = () => {
                 ai_matching_enabled: jobData.aiMatchingEnabled,
                 employer_id: currentUser.uid,
                 employer_name: userData?.name || 'Unknown',
-                status: 'open',
                 filter_mode: jobData.filterMode,
             }
 
-            const { error } = await supabase
-                .from('job_postings')
-                .insert(jobDocument)
-            if (error) throw error
+            if (isEditMode) {
+                jobDocument.updated_at = new Date().toISOString()
+                const { error } = await supabase
+                    .from('job_postings')
+                    .update(jobDocument)
+                    .eq('id', editId)
+                    .eq('employer_id', currentUser.uid)
+                if (error) throw error
+            } else {
+                jobDocument.status = 'open'
+                const { error } = await supabase
+                    .from('job_postings')
+                    .insert(jobDocument)
+                if (error) throw error
+            }
 
             setSuccess(true)
             setTimeout(() => {
                 navigate('/my-listings')
             }, 2000)
         } catch (err) {
-            console.error('Error posting job:', err)
-            setError('Failed to post job. Please try again.')
+            console.error('Error saving job:', err)
+            setError(isEditMode ? 'Failed to update job. Please try again.' : 'Failed to post job. Please try again.')
         } finally {
             setLoading(false)
         }
@@ -280,6 +337,17 @@ const PostJobWizard = () => {
         )
     }
 
+    if (fetchingJob) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-white p-4">
+                <div className="card max-w-md text-center">
+                    <Loader2 className="w-8 h-8 text-primary-600 animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600">Loading job data...</p>
+                </div>
+            </div>
+        )
+    }
+
     // Success screen
     if (success) {
         return (
@@ -288,11 +356,15 @@ const PostJobWizard = () => {
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Job Posted Successfully!</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        {isEditMode ? 'Job Updated Successfully!' : 'Job Posted Successfully!'}
+                    </h2>
                     <p className="text-gray-600">
-                        {jobData.aiMatchingEnabled
-                            ? 'AI matching is enabled. Qualified candidates will be notified automatically.'
-                            : 'Your job listing is now live. Redirecting to your listings...'}
+                        {isEditMode
+                            ? 'Your changes have been saved. Redirecting to your listings...'
+                            : jobData.aiMatchingEnabled
+                                ? 'AI matching is enabled. Qualified candidates will be notified automatically.'
+                                : 'Your job listing is now live. Redirecting to your listings...'}
                     </p>
                 </div>
             </div>
@@ -304,7 +376,7 @@ const PostJobWizard = () => {
             <div className="max-w-3xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Post a New Job</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{isEditMode ? 'Edit Job Listing' : 'Post a New Job'}</h1>
                     <p className="text-gray-600">Complete all steps to publish your job listing.</p>
                 </div>
 
@@ -880,12 +952,12 @@ const PostJobWizard = () => {
                                 {loading ? (
                                     <>
                                         <Loader2 className="w-5 h-5 animate-spin" />
-                                        Publishing...
+                                        {isEditMode ? 'Saving...' : 'Publishing...'}
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle className="w-5 h-5" />
-                                        Publish Job
+                                        {isEditMode ? 'Save Changes' : 'Publish Job'}
                                     </>
                                 )}
                             </button>
