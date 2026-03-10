@@ -1,7 +1,7 @@
 const MessageBubble = ({ message, isOwn }) => {
     const formatTime = (timestamp) => {
         if (!timestamp) return ''
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+        const date = new Date(timestamp)
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
@@ -20,7 +20,7 @@ const MessageBubble = ({ message, isOwn }) => {
                         isOwn ? 'text-primary-100' : 'text-gray-400'
                     }`}
                 >
-                    {formatTime(message.timestamp)}
+                    {formatTime(message.created_at)}
                 </p>
             </div>
         </div>

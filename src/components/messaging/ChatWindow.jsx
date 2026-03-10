@@ -9,7 +9,7 @@ const ChatWindow = ({ conversation, currentUserId, onBack }) => {
     const messagesEndRef = useRef(null)
 
     const otherUserId = conversation.participants.find(p => p !== currentUserId)
-    const otherUser = conversation.participantInfo?.[otherUserId]
+    const otherUser = conversation.participant_info?.[otherUserId]
 
     useEffect(() => {
         if (!conversation.id) return
@@ -34,7 +34,7 @@ const ChatWindow = ({ conversation, currentUserId, onBack }) => {
         await sendMessage(
             conversation.id,
             currentUserId,
-            conversation.participantInfo?.[currentUserId]?.name || 'You',
+            conversation.participant_info?.[currentUserId]?.name || 'You',
             text,
             otherUserId
         )
@@ -59,10 +59,10 @@ const ChatWindow = ({ conversation, currentUserId, onBack }) => {
                     <h3 className="font-semibold text-gray-900 truncate">{otherUser?.name || 'User'}</h3>
                     <p className="text-xs text-gray-500 capitalize">{otherUser?.role || ''}</p>
                 </div>
-                {conversation.jobTitle && (
+                {conversation.job_title && (
                     <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
                         <Briefcase className="w-3 h-3" />
-                        <span className="truncate max-w-[150px]">{conversation.jobTitle}</span>
+                        <span className="truncate max-w-[150px]">{conversation.job_title}</span>
                     </div>
                 )}
             </div>
@@ -78,7 +78,7 @@ const ChatWindow = ({ conversation, currentUserId, onBack }) => {
                     <MessageBubble
                         key={msg.id}
                         message={msg}
-                        isOwn={msg.senderId === currentUserId}
+                        isOwn={msg.sender_id === currentUserId}
                     />
                 ))}
                 <div ref={messagesEndRef} />

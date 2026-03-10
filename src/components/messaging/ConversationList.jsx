@@ -6,7 +6,7 @@ const ConversationList = ({ conversations, currentUserId, activeConversationId, 
 
     const formatTime = (timestamp) => {
         if (!timestamp) return ''
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000)
+        const date = new Date(timestamp)
         const now = new Date()
         const diff = now - date
 
@@ -20,7 +20,7 @@ const ConversationList = ({ conversations, currentUserId, activeConversationId, 
     const filtered = conversations.filter(conv => {
         if (!searchQuery.trim()) return true
         const otherUserId = conv.participants.find(p => p !== currentUserId)
-        const otherName = conv.participantInfo?.[otherUserId]?.name || ''
+        const otherName = conv.participant_info?.[otherUserId]?.name || ''
         return otherName.toLowerCase().includes(searchQuery.toLowerCase())
     })
 
@@ -52,8 +52,8 @@ const ConversationList = ({ conversations, currentUserId, activeConversationId, 
                 ) : (
                     filtered.map((conv) => {
                         const otherUserId = conv.participants.find(p => p !== currentUserId)
-                        const otherUser = conv.participantInfo?.[otherUserId]
-                        const unread = conv.unreadCount?.[currentUserId] || 0
+                        const otherUser = conv.participant_info?.[otherUserId]
+                        const unread = conv.unread_count?.[currentUserId] || 0
                         const isActive = conv.id === activeConversationId
 
                         return (
@@ -76,13 +76,13 @@ const ConversationList = ({ conversations, currentUserId, activeConversationId, 
                                             {otherUser?.name || 'User'}
                                         </span>
                                         <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                                            {formatTime(conv.lastMessage?.timestamp || conv.updatedAt)}
+                                            {formatTime(conv.last_message?.timestamp || conv.updated_at)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <p className={`text-xs truncate ${unread > 0 ? 'font-semibold text-gray-700' : 'text-gray-500'}`}>
-                                            {conv.lastMessage
-                                                ? `${conv.lastMessage.senderId === currentUserId ? 'You: ' : ''}${conv.lastMessage.text}`
+                                            {conv.last_message
+                                                ? `${conv.last_message.senderId === currentUserId ? 'You: ' : ''}${conv.last_message.text}`
                                                 : 'No messages yet'
                                             }
                                         </p>
