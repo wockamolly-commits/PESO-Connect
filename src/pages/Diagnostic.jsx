@@ -1,7 +1,6 @@
 import { useState, useReducer } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { analyzeWithAI, tradeKeywords, getTradeSkills } from '../services/diagnosticService'
 import { getOrCreateConversation } from '../services/messagingService'
@@ -274,17 +273,32 @@ const Diagnostic = () => {
     const fetchMatchingWorkers = async (tradeId) => {
         const requiredSkills = getTradeSkills(tradeId)
 
-        const usersQuery = query(
-            collection(db, 'users'),
-            where('role', '==', 'jobseeker'),
-            where('is_verified', '==', true)
-        )
-        const snapshot = await getDocs(usersQuery)
+        // Fetch verified jobseekers
+        const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, name, role')
+            .eq('role', 'jobseeker')
+            .eq('is_verified', true)
+        if (usersError) throw usersError
 
-        return snapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
+        const userIds = (usersData || []).map(u => u.id)
+        if (userIds.length === 0) return []
+
+        // Fetch their skills from jobseeker_profiles
+        const { data: profiles, error: profilesError } = await supabase
+            .from('jobseeker_profiles')
+            .select('id, skills')
+            .in('id', userIds)
+        if (profilesError) throw profilesError
+
+        // Merge users with their skills and filter by matching skills
+        const profileMap = {}
+        ;(profiles || []).forEach(p => { profileMap[p.id] = p.skills || [] })
+
+        return (usersData || [])
+            .map(user => ({ ...user, skills: profileMap[user.id] || [] }))
             .filter(user => {
-                if (!user.skills || user.skills.length === 0) return false
+                if (user.skills.length === 0) return false
                 const userSkillsLower = user.skills.map(s => s.toLowerCase())
                 return requiredSkills.some(reqSkill =>
                     userSkillsLower.some(userSkill =>
