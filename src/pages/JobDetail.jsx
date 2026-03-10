@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { doc, getDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import {
     Briefcase,
@@ -63,10 +62,13 @@ const JobDetail = () => {
 
     const fetchJob = async () => {
         try {
-            const jobDoc = await getDoc(doc(db, 'job_postings', id))
-            if (jobDoc.exists()) {
-                setJob({ id: jobDoc.id, ...jobDoc.data() })
-            }
+            const { data, error } = await supabase
+                .from('job_postings')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle()
+            if (error) throw error
+            if (data) setJob(data)
         } catch (error) {
             console.error('Error fetching job:', error)
         } finally {
@@ -76,13 +78,14 @@ const JobDetail = () => {
 
     const checkExistingApplication = async () => {
         try {
-            const appQuery = query(
-                collection(db, 'applications'),
-                where('job_id', '==', id),
-                where('user_id', '==', currentUser.uid)
-            )
-            const snapshot = await getDocs(appQuery)
-            setHasApplied(!snapshot.empty)
+            const { data, error } = await supabase
+                .from('applications')
+                .select('id')
+                .eq('job_id', id)
+                .eq('user_id', currentUser.uid)
+                .maybeSingle()
+            if (error) throw error
+            setHasApplied(!!data)
         } catch (error) {
             console.error('Error checking application:', error)
         }
@@ -158,17 +161,20 @@ const JobDetail = () => {
         setApplying(true)
 
         try {
-            await addDoc(collection(db, 'applications'), {
-                job_id: id,
-                job_title: job.title,
-                user_id: currentUser.uid,
-                applicant_name: userData?.name || 'Unknown',
-                applicant_email: userData?.email || '',
-                applicant_skills: userData?.skills || [],
-                justification_text: justification || null,
-                status: 'pending',
-                created_at: new Date().toISOString()
-            })
+            const { error: insertError } = await supabase
+                .from('applications')
+                .insert({
+                    job_id: id,
+                    job_title: job.title,
+                    user_id: currentUser.uid,
+                    applicant_name: userData?.full_name || userData?.name || 'Unknown',
+                    applicant_email: userData?.email || '',
+                    applicant_skills: userData?.skills || [],
+                    justification_text: justification || null,
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                })
+            if (insertError) throw insertError
 
             setSuccess(true)
             setHasApplied(true)
