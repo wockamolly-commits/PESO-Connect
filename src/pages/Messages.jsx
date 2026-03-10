@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '../config/firebase'
+import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { subscribeToConversations, getOrCreateConversation } from '../services/messagingService'
 import ConversationList from '../components/messaging/ConversationList'
@@ -62,8 +61,11 @@ const Messages = () => {
         const initConversation = async () => {
             try {
                 // Fetch the other user's info
-                const userDoc = await getDoc(doc(db, 'users', startWith))
-                const otherUserData = userDoc.exists() ? userDoc.data() : null
+                const { data: otherUserData } = await supabase
+                    .from('users')
+                    .select('name, role')
+                    .eq('id', startWith)
+                    .maybeSingle()
 
                 const conversation = await getOrCreateConversation(
                     { uid: currentUser.uid, name: userData.name, role: userData.role },
