@@ -23,6 +23,7 @@ import {
     ArrowUpRight
 } from 'lucide-react'
 import geminiService from '../services/geminiService'
+import ResumeUpload from '../components/common/ResumeUpload'
 
 const JobDetail = () => {
     const { id } = useParams()
@@ -35,6 +36,8 @@ const JobDetail = () => {
     const [hasApplied, setHasApplied] = useState(false)
     const [showApplyForm, setShowApplyForm] = useState(false)
     const [justification, setJustification] = useState('')
+    const [applicationResumeUrl, setApplicationResumeUrl] = useState('')
+    const [useProfileResume, setUseProfileResume] = useState(true)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
     const [matchData, setMatchData] = useState(null)
@@ -171,6 +174,9 @@ const JobDetail = () => {
                     applicant_email: userData?.email || '',
                     applicant_skills: userData?.skills || [],
                     justification_text: justification || null,
+                    resume_url: useProfileResume
+                        ? (userData?.resume_url || null)
+                        : (applicationResumeUrl || null),
                     status: 'pending',
                     created_at: new Date().toISOString()
                 })
@@ -179,6 +185,8 @@ const JobDetail = () => {
             setSuccess(true)
             setHasApplied(true)
             setShowApplyForm(false)
+            setApplicationResumeUrl('')
+            setUseProfileResume(true)
         } catch (err) {
             console.error('Error applying:', err)
             setError('Failed to submit application. Please try again.')
@@ -599,9 +607,64 @@ const JobDetail = () => {
                                         </div>
                                     )}
 
+                                    {/* Resume Section */}
+                                    <div className="mb-4">
+                                        {userData?.resume_url && useProfileResume ? (
+                                            <div>
+                                                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+                                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                                    <span className="text-sm text-green-700 flex-1">Using your saved resume</span>
+                                                    <a
+                                                        href={userData.resume_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm text-primary-600 hover:underline"
+                                                    >
+                                                        View
+                                                    </a>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setUseProfileResume(false)}
+                                                    className="text-sm text-primary-600 hover:text-primary-700 mt-2"
+                                                >
+                                                    Upload a different resume
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                {userData?.resume_url && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setUseProfileResume(true)
+                                                            setApplicationResumeUrl('')
+                                                        }}
+                                                        className="text-sm text-primary-600 hover:text-primary-700 mb-2"
+                                                    >
+                                                        Use saved resume instead
+                                                    </button>
+                                                )}
+                                                <ResumeUpload
+                                                    userId={currentUser.uid}
+                                                    storagePath={`${currentUser.uid}/${id}.pdf`}
+                                                    currentUrl={applicationResumeUrl}
+                                                    onUploaded={(url) => setApplicationResumeUrl(url)}
+                                                    onRemoved={() => setApplicationResumeUrl('')}
+                                                    label={userData?.resume_url ? 'Upload different resume' : 'Resume'}
+                                                    optional={true}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => setShowApplyForm(false)}
+                                            onClick={() => {
+                                                setShowApplyForm(false)
+                                                setApplicationResumeUrl('')
+                                                setUseProfileResume(true)
+                                            }}
                                             className="btn-secondary flex-1"
                                         >
                                             Cancel
