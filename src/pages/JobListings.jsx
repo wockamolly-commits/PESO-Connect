@@ -9,7 +9,8 @@ import {
     Filter,
     Loader2,
     Sparkles,
-    ArrowUpDown
+    ArrowUpDown,
+    AlertCircle
 } from 'lucide-react'
 import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import Select from '../components/common/Select'
@@ -26,6 +27,20 @@ const JobListings = () => {
     const [categoryFilter, setCategoryFilter] = useState('')
     const [typeFilter, setTypeFilter] = useState('')
     const [sortByMatch, setSortByMatch] = useState(false)
+    const [appliedJobIds, setAppliedJobIds] = useState(new Set())
+
+    // Calculate profile completeness for jobseekers
+    const profileCompleteness = (() => {
+        if (!currentUser || !isJobseeker() || !userData) return 100
+        let filled = 0
+        let total = 5
+        if (userData.skills?.length > 0) filled++
+        if (userData.resume_url) filled++
+        if (userData.work_experiences?.length > 0) filled++
+        if (userData.education || userData.educational_background) filled++
+        if (userData.certifications?.length > 0) filled++
+        return Math.round((filled / total) * 100)
+    })()
 
     const categories = [
         'Agriculture',
@@ -41,6 +56,19 @@ const JobListings = () => {
     useEffect(() => {
         fetchJobs()
     }, [])
+
+    // Fetch user's applied job IDs
+    useEffect(() => {
+        if (!currentUser) return
+        const fetchAppliedJobs = async () => {
+            const { data } = await supabase
+                .from('applications')
+                .select('job_id')
+                .eq('user_id', currentUser.uid)
+            if (data) setAppliedJobIds(new Set(data.map(a => a.job_id)))
+        }
+        fetchAppliedJobs()
+    }, [currentUser])
 
     const fetchJobs = async () => {
         try {
@@ -179,6 +207,30 @@ const JobListings = () => {
                     )}
                 </div>
 
+                {/* Profile Completeness Nudge */}
+                {currentUser && isJobseeker() && profileCompleteness < 80 && (
+                    <Link
+                        to="/profile/edit"
+                        className="flex items-center gap-3 p-4 mb-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors"
+                    >
+                        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-amber-800">
+                                Your profile is {profileCompleteness}% complete
+                            </p>
+                            <p className="text-xs text-amber-600">
+                                Complete your profile to improve your match scores and stand out to employers.
+                            </p>
+                        </div>
+                        <div className="w-16 h-2 bg-amber-200 rounded-full overflow-hidden flex-shrink-0">
+                            <div
+                                className="h-full bg-amber-500 rounded-full"
+                                style={{ width: `${profileCompleteness}%` }}
+                            />
+                        </div>
+                    </Link>
+                )}
+
                 {/* Job Cards */}
                 {loading ? (
                     <JobListingSkeleton count={4} />
@@ -209,6 +261,11 @@ const JobListings = () => {
                                                 }`}>
                                                 {job.filter_mode === 'strict' ? 'Strict' : 'Flexible'}
                                             </span>
+                                            {appliedJobIds.has(job.id) && (
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                                    Applied
+                                                </span>
+                                            )}
 
                                             {/* AI Match Badge */}
                                             {isJobseeker() && (
