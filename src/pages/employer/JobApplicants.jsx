@@ -18,6 +18,7 @@ import {
     ExternalLink
 } from 'lucide-react'
 import { ApplicationsSkeleton } from '../../components/LoadingSkeletons'
+import { insertNotification } from '../../services/notificationService'
 
 const JobApplicants = () => {
     const { jobId } = useParams()
@@ -48,6 +49,50 @@ const JobApplicants = () => {
         }
     }
 
+    const NOTIFICATION_CONFIG = {
+        shortlisted: {
+            title: (jobTitle) => `You've been shortlisted for ${jobTitle}`,
+            message: (employerName, jobTitle) =>
+                `${employerName} has shortlisted your application for ${jobTitle}. Log in to view details.`,
+        },
+        hired: {
+            title: (jobTitle) => `Congratulations! You've been hired for ${jobTitle}`,
+            message: (employerName, jobTitle) =>
+                `${employerName} has accepted your application for ${jobTitle}!`,
+        },
+        rejected: {
+            title: (jobTitle) => `Update on your application for ${jobTitle}`,
+            message: (employerName, jobTitle) =>
+                `Unfortunately, your application for ${jobTitle} was not selected at this time. Keep applying!`,
+        },
+    }
+
+    const sendStatusNotification = async (applicant, newStatus) => {
+        const config = NOTIFICATION_CONFIG[newStatus]
+        if (!config || !job) return
+
+        const employerName = job.company_name || 'An employer'
+
+        try {
+            await insertNotification(
+                applicant.user_id,
+                'application_status_change',
+                config.title(job.title),
+                config.message(employerName, job.title),
+                {
+                    application_id: applicant.id,
+                    job_id: jobId,
+                    job_title: job.title,
+                    status: newStatus,
+                    employer_name: employerName,
+                }
+            )
+        } catch (err) {
+            // Don't block status update if notification fails
+            console.error('Failed to send notification:', err)
+        }
+    }
+
     const updateStatus = async (appId, newStatus) => {
         setActionLoading(appId)
         try {
@@ -59,6 +104,12 @@ const JobApplicants = () => {
             setApplicants(applicants.map(app =>
                 app.id === appId ? { ...app, status: newStatus } : app
             ))
+
+            // Send notification for key status changes
+            if (['shortlisted', 'hired', 'rejected'].includes(newStatus)) {
+                const applicant = applicants.find(app => app.id === appId)
+                if (applicant) sendStatusNotification(applicant, newStatus)
+            }
         } catch (error) {
             console.error('Error updating status:', error)
         } finally {
