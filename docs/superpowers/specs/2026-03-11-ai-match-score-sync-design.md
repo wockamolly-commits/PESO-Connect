@@ -23,13 +23,24 @@
   - `onProgress(jobId, result, completedCount, totalCount)` callback fires after each job resolves
   - Returns `{ [jobId]: fullMatchResult }`
   - Individual failures: `console.warn`, skip (no badge for that job)
-- **Keep** existing `calculateJobMatch` with 10-minute cache (key: `job.id + profile.skills`)
+- **Keep** existing `calculateJobMatch` with 10-minute cache (key: `job.id + sorted skills`)
+  - Sort skills alphabetically in cache key so order doesn't matter
+  - Known limitation: job content edits within TTL window return stale scores
+
+### Concurrency
+
+- Use manual chunking: split jobs into groups of 3, `Promise.allSettled` each group sequentially
+- On HTTP 429 (rate limit): abort all remaining calls, return whatever scores completed so far
+- No external dependencies needed
 
 ### JobListings.jsx
 
 - Replace `geminiService.batchCalculateMatches(jobs, userData)` with `geminiService.calculateAllJobMatches(jobs, userData, onProgress)`
 - `onProgress` updates `matchScores` state incrementally — badges appear one by one
-- Button text shows progress: "Analyzing 3/15..."
+- Use a mounted ref to guard `onProgress` calls (prevent setState on unmounted component)
+- Initial state after click: "Analyzing 0/{total}..." before first result arrives
+- Button text updates: "Analyzing 3/15..." as results come in
+- If `calculateAllJobMatches` returns empty object (all failed), show brief error message
 - All other display logic (color-coded badges, sort by match) unchanged
 
 ### JobDetail.jsx
@@ -49,6 +60,12 @@
 
 ### Error Handling
 
-- Individual job failures: skip silently (`console.warn`), no badge shown
-- All calls fail: show brief error message on JobListings
+- Individual job failures: `console.warn`, skip (no badge for that job), `Promise.allSettled` ensures others continue
+- HTTP 429: abort remaining calls, return partial results
+- All calls fail: `calculateAllJobMatches` returns `{}`, JobListings checks `Object.keys(result).length === 0` to show error
 - JobDetail: existing error handling unchanged
+
+### Cleanup
+
+- Remove `batchCalculateMatches` from function body and module exports
+- No test file exists for geminiService, so no test updates needed
