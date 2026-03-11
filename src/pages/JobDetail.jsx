@@ -24,6 +24,8 @@ import {
 } from 'lucide-react'
 import geminiService from '../services/geminiService'
 import ResumeUpload from '../components/common/ResumeUpload'
+import { insertNotification } from '../services/notificationService'
+import { XCircle } from 'lucide-react'
 
 const JobDetail = () => {
     const { id } = useParams()
@@ -42,6 +44,7 @@ const JobDetail = () => {
     const [success, setSuccess] = useState(false)
     const [matchData, setMatchData] = useState(null)
     const [calculatingMatch, setCalculatingMatch] = useState(false)
+    const [showConfirmModal, setShowConfirmModal] = useState(false)
 
     useEffect(() => {
         fetchJob()
@@ -143,6 +146,19 @@ const JobDetail = () => {
         return job?.filter_mode === 'flexible' && !checkSkillMatch()
     }
 
+    // Compute skill gap for inline display
+    const getSkillGap = () => {
+        if (!job?.requirements || !userData?.skills) return { matched: [], missing: [] }
+        const matched = []
+        const missing = []
+        for (const req of job.requirements) {
+            const hasMatch = userData.skills.some(skill => skillMatchesRequirement(skill, req))
+            if (hasMatch) matched.push(req)
+            else missing.push(req)
+        }
+        return { matched, missing }
+    }
+
     const handleApply = async () => {
         setError('')
 
@@ -185,8 +201,22 @@ const JobDetail = () => {
             setSuccess(true)
             setHasApplied(true)
             setShowApplyForm(false)
+            setShowConfirmModal(false)
             setApplicationResumeUrl('')
             setUseProfileResume(true)
+
+            // Send application confirmation notification
+            try {
+                await insertNotification(
+                    currentUser.uid,
+                    'application_submitted',
+                    `Application submitted for ${job.title}`,
+                    `Your application for ${job.title} has been submitted successfully. You'll be notified when the employer reviews it.`,
+                    { job_id: id, job_title: job.title }
+                )
+            } catch (err) {
+                console.error('Failed to send confirmation notification:', err)
+            }
         } catch (err) {
             console.error('Error applying:', err)
             setError('Failed to submit application. Please try again.')
@@ -553,6 +583,33 @@ const JobDetail = () => {
                             </div>
                         )}
 
+                        {/* Skill Gap Analysis */}
+                        {currentUser && isJobseeker() && job?.requirements?.length > 0 && userData?.skills?.length > 0 && !hasApplied && (() => {
+                            const { matched, missing } = getSkillGap()
+                            return (
+                                <div className="card">
+                                    <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skill Match</h3>
+                                    <div className="space-y-2">
+                                        {matched.map((skill, i) => (
+                                            <div key={`m-${i}`} className="flex items-center gap-2 text-sm">
+                                                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                                <span className="text-gray-700">{skill}</span>
+                                            </div>
+                                        ))}
+                                        {missing.map((skill, i) => (
+                                            <div key={`x-${i}`} className="flex items-center gap-2 text-sm">
+                                                <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                                <span className="text-gray-500">{skill}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-3">
+                                        {matched.length} of {matched.length + missing.length} requirements matched
+                                    </p>
+                                </div>
+                            )
+                        })()}
+
                         {/* Apply Card */}
                         <div className="card">
                             {!currentUser ? (
@@ -670,18 +727,27 @@ const JobDetail = () => {
                                             Cancel
                                         </button>
                                         <button
-                                            onClick={handleApply}
+                                            onClick={() => {
+                                                setError('')
+                                                if (!isVerified()) {
+                                                    setError('Your account must be verified to apply for jobs.')
+                                                    return
+                                                }
+                                                if (job?.filter_mode === 'strict' && !checkSkillMatch()) {
+                                                    setError('Your skills do not match the requirements for this position.')
+                                                    return
+                                                }
+                                                if (needsJustification() && !justification.trim()) {
+                                                    setError('Please provide a justification for applying without matching skills.')
+                                                    return
+                                                }
+                                                setShowConfirmModal(true)
+                                            }}
                                             disabled={applying}
                                             className="btn-primary flex-1 flex items-center justify-center gap-2"
                                         >
-                                            {applying ? (
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                            ) : (
-                                                <>
-                                                    <Send className="w-4 h-4" />
-                                                    Submit
-                                                </>
-                                            )}
+                                            <Send className="w-4 h-4" />
+                                            Review & Submit
                                         </button>
                                     </div>
                                 </div>
@@ -737,6 +803,96 @@ const JobDetail = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Confirmation Modal */}
+                {showConfirmModal && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Application</h3>
+
+                            <div className="space-y-3 mb-6">
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <p className="text-xs text-gray-500">Position</p>
+                                    <p className="font-medium text-gray-900">{job.title}</p>
+                                </div>
+
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <p className="text-xs text-gray-500">Applicant</p>
+                                    <p className="font-medium text-gray-900">{userData?.full_name || userData?.name}</p>
+                                    <p className="text-sm text-gray-600">{userData?.email}</p>
+                                </div>
+
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <p className="text-xs text-gray-500">Resume</p>
+                                    <p className="font-medium text-gray-900">
+                                        {useProfileResume && userData?.resume_url
+                                            ? 'Profile resume'
+                                            : applicationResumeUrl
+                                                ? 'Uploaded resume'
+                                                : 'No resume attached'}
+                                    </p>
+                                </div>
+
+                                {userData?.skills?.length > 0 && (
+                                    <div className="p-3 bg-gray-50 rounded-lg">
+                                        <p className="text-xs text-gray-500 mb-1">Skills being shared</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {userData.skills.map((skill, i) => (
+                                                <span key={i} className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-xs">
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {justification && (
+                                    <div className="p-3 bg-gray-50 rounded-lg">
+                                        <p className="text-xs text-gray-500">Justification</p>
+                                        <p className="text-sm text-gray-700">{justification}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowConfirmModal(false)}
+                                    className="btn-secondary flex-1"
+                                >
+                                    Go Back
+                                </button>
+                                <button
+                                    onClick={handleApply}
+                                    disabled={applying}
+                                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                                >
+                                    {applying ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Send className="w-4 h-4" />
+                                            Confirm & Submit
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sticky Mobile Apply Button */}
+                {currentUser && isJobseeker() && !hasApplied && job?.status === 'open' && !showApplyForm && !showConfirmModal && (
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg md:hidden z-40">
+                        <button
+                            onClick={() => setShowApplyForm(true)}
+                            disabled={!isVerified() || (job.filter_mode === 'strict' && !checkSkillMatch())}
+                            className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Send className="w-5 h-5" />
+                            Apply Now
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     )
