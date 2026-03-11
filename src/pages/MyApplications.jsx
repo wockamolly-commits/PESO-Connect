@@ -144,11 +144,14 @@ const MyApplications = () => {
                 </div>
 
                 {/* Filter Tabs */}
-                <div className="flex bg-gray-100 p-1 rounded-lg mb-6 overflow-x-auto">
+                <div className="flex bg-gray-100 p-1 rounded-lg mb-6 overflow-x-auto" role="tablist" aria-label="Filter applications by status">
                     {filterTabs.map(status => (
                         <button
                             key={status}
                             onClick={() => setFilterStatus(status)}
+                            role="tab"
+                            aria-selected={filterStatus === status}
+                            aria-current={filterStatus === status ? 'true' : undefined}
                             className={`px-4 py-2 rounded-md text-sm font-medium transition-all capitalize whitespace-nowrap ${
                                 filterStatus === status
                                     ? 'bg-white text-primary-700 shadow-sm'

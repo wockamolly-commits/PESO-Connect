@@ -149,6 +149,7 @@ const JobListings = () => {
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="input pl-12 w-full"
+                                aria-label="Search jobs by title or description"
                             />
                         </div>
 
@@ -158,6 +159,7 @@ const JobListings = () => {
                             value={categoryFilter}
                             onChange={setCategoryFilter}
                             placeholder="All Categories"
+                            aria-label="Filter by job category"
                         />
 
                         {/* Type Filter */}
@@ -166,6 +168,7 @@ const JobListings = () => {
                             value={typeFilter}
                             onChange={setTypeFilter}
                             placeholder="All Types"
+                            aria-label="Filter by job type"
                         />
                     </div>
                 </div>
@@ -181,6 +184,7 @@ const JobListings = () => {
                                 <button
                                     onClick={() => calculateAiMatches(jobs, userData)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-xs font-medium hover:shadow-lg transition-all"
+                                    aria-label="Calculate AI match scores for all jobs"
                                 >
                                     <Sparkles className="w-3.5 h-3.5" />
                                     AI Match Scores
@@ -198,6 +202,8 @@ const JobListings = () => {
                                             ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
                                     }`}
+                                    aria-label={sortByMatch ? 'Disable sort by match score' : 'Sort jobs by match score'}
+                                    aria-pressed={sortByMatch}
                                 >
                                     <Sparkles className="w-3.5 h-3.5" />
                                     {sortByMatch ? 'Sorted by Match' : 'Sort by Match'}
@@ -240,7 +246,7 @@ const JobListings = () => {
                         <p className="text-gray-600">No jobs found matching your criteria</p>
                     </div>
                 ) : (
-                    <div className="grid gap-4">
+                    <div className="grid gap-4" role="list" aria-label="Job listings">
                         {filteredJobs.map((job) => (
                             <Link
                                 key={job.id}

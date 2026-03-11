@@ -767,6 +767,7 @@ const JobDetail = () => {
                                         onClick={() => setShowApplyForm(true)}
                                         disabled={!isVerified() || (job.filter_mode === 'strict' && !checkSkillMatch())}
                                         className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        aria-label={`Apply now for ${job.title}`}
                                     >
                                         <Send className="w-5 h-5" />
                                         Apply Now
@@ -806,7 +807,7 @@ const JobDetail = () => {
 
                 {/* Confirmation Modal */}
                 {showConfirmModal && (
-                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm application">
                         <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
                             <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Application</h3>
 
@@ -887,6 +888,7 @@ const JobDetail = () => {
                             onClick={() => setShowApplyForm(true)}
                             disabled={!isVerified() || (job.filter_mode === 'strict' && !checkSkillMatch())}
                             className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label={`Apply now for ${job.title}`}
                         >
                             <Send className="w-5 h-5" />
                             Apply Now

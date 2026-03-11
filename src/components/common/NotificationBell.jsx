@@ -116,6 +116,9 @@ export default function NotificationBell() {
             <button
                 onClick={() => setOpen(!open)}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors relative"
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                aria-expanded={open}
+                aria-haspopup="true"
             >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -127,7 +130,7 @@ export default function NotificationBell() {
 
             {/* Dropdown */}
             {open && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden" role="menu" aria-label="Notifications">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <h3 className="font-semibold text-gray-900">Notifications</h3>
@@ -165,6 +168,7 @@ export default function NotificationBell() {
                                 <button
                                     key={notification.id}
                                     onClick={() => handleNotificationClick(notification)}
+                                    role="menuitem"
                                     className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 ${
                                         !notification.is_read ? 'bg-primary-50/50' : ''
                                     }`}
