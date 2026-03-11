@@ -8,7 +8,6 @@ import {
     LogOut,
     Menu,
     X,
-    Bell,
     User,
     Search,
     Shield,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getTotalUnreadCount } from '../services/messagingService'
+import NotificationBell from './common/NotificationBell'
 
 const Navbar = () => {
     const { currentUser, userData, logout, isAdmin, isEmployer, isJobseeker } = useAuth()
@@ -119,9 +119,7 @@ const Navbar = () => {
                                 </Link>
 
                                 {/* Notification Bell */}
-                                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <Bell className="w-5 h-5" />
-                                </button>
+                                <NotificationBell />
 
                                 {/* User Menu */}
                                 <div className="flex items-center gap-3">
