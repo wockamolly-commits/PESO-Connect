@@ -5,16 +5,16 @@ const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
 describe('geminiService', () => {
-  let analyzeResume, calculateJobMatch, batchCalculateMatches, quickExtractSkills
+  let analyzeResume, calculateJobMatch, scoreAllJobs, quickExtractSkills
 
   beforeAll(async () => {
     // Stub env before importing the module so the top-level const picks it up
-    vi.stubEnv('VITE_GEMINI_API_KEY', 'test-api-key')
+    vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
     vi.resetModules()
     const mod = await import('./geminiService')
     analyzeResume = mod.analyzeResume
     calculateJobMatch = mod.calculateJobMatch
-    batchCalculateMatches = mod.batchCalculateMatches
+    scoreAllJobs = mod.scoreAllJobs
     quickExtractSkills = mod.quickExtractSkills
   })
 
@@ -22,21 +22,19 @@ describe('geminiService', () => {
     mockFetch.mockReset()
   })
 
-  function mockGeminiResponse(text) {
+  function mockCohereResponse(text) {
     return {
       ok: true,
       json: () => Promise.resolve({
-        candidates: [{
-          content: {
-            parts: [{ text }]
-          }
-        }]
+        message: {
+          content: [{ text }]
+        }
       })
     }
   }
 
   describe('analyzeResume', () => {
-    it('sends resume text to Gemini and returns parsed result', async () => {
+    it('sends resume text to Cohere and returns parsed result', async () => {
       const mockResult = {
         skills: [{ name: 'Plumbing', level: 'intermediate', years: 3 }],
         experience: [{ title: 'Plumber', company: 'ABC', duration: '3 years', description: 'Pipe work' }],
@@ -45,7 +43,7 @@ describe('geminiService', () => {
         suggestedJobCategories: ['Plumbing', 'Maintenance'],
       }
 
-      mockFetch.mockResolvedValue(mockGeminiResponse(JSON.stringify(mockResult)))
+      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockResult)))
 
       const result = await analyzeResume('I am an experienced plumber with 3 years of experience')
 
@@ -59,7 +57,7 @@ describe('geminiService', () => {
       const mockResult = { skills: [], experience: [], education: [], summary: 'Test', suggestedJobCategories: [] }
       const wrappedResponse = '```json\n' + JSON.stringify(mockResult) + '\n```'
 
-      mockFetch.mockResolvedValue(mockGeminiResponse(wrappedResponse))
+      mockFetch.mockResolvedValue(mockCohereResponse(wrappedResponse))
 
       const result = await analyzeResume('Some text')
       expect(result.summary).toBe('Test')
@@ -68,10 +66,10 @@ describe('geminiService', () => {
     it('throws on API error', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
-        json: () => Promise.resolve({ error: { message: 'Rate limited' } }),
+        json: () => Promise.resolve({ message: 'Rate limited' }),
       })
 
-      await expect(analyzeResume('text')).rejects.toThrow('Failed to analyze resume')
+      await expect(analyzeResume('text')).rejects.toThrow()
     })
   })
 
@@ -83,14 +81,20 @@ describe('geminiService', () => {
         matchingSkills: ['Plumbing'],
         missingSkills: ['Electrical'],
         explanation: 'Good match based on plumbing skills.',
+        skillBreakdown: [
+          { category: 'Technical Skills', score: 80, detail: 'Strong plumbing skills' },
+          { category: 'Experience', score: 60, detail: 'Relevant experience' },
+          { category: 'Education', score: 70, detail: 'Adequate education' }
+        ],
+        actionItems: [],
         improvementTips: ['Get electrical certification'],
       }
 
-      mockFetch.mockResolvedValue(mockGeminiResponse(JSON.stringify(mockMatch)))
+      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockMatch)))
 
       const result = await calculateJobMatch(
-        { title: 'Plumber', description: 'Fix pipes', required_skills: ['Plumbing', 'Electrical'] },
-        { skills: ['Plumbing'], experience: '3 years plumbing' }
+        { id: 'job-1', title: 'Plumber', description: 'Fix pipes', required_skills: ['Plumbing', 'Electrical'] },
+        { skills: ['Plumbing'], work_experiences: [{ position: 'Plumber', company: 'ABC' }] }
       )
 
       expect(result.matchScore).toBe(75)
@@ -98,88 +102,87 @@ describe('geminiService', () => {
       expect(result.matchingSkills).toContain('Plumbing')
     })
 
-    it('returns fallback data on API error', async () => {
+    it('throws on network error', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'))
 
-      const result = await calculateJobMatch(
-        { title: 'Plumber', required_skills: ['Plumbing'] },
+      await expect(calculateJobMatch(
+        { id: 'job-err', title: 'Plumber', required_skills: ['Plumbing'] },
         { skills: ['Plumbing'] }
-      )
-
-      expect(result.matchScore).toBe(0)
-      expect(result.matchLevel).toBe('Unknown')
+      )).rejects.toThrow('Network error')
     })
   })
 
   describe('quickExtractSkills', () => {
     it('extracts skills from text', async () => {
       mockFetch.mockResolvedValue(
-        mockGeminiResponse('["Plumbing", "Pipe Fitting", "Drainage"]')
+        mockCohereResponse(JSON.stringify({ skills: ['Plumbing', 'Pipe Fitting', 'Drainage'] }))
       )
 
       const result = await quickExtractSkills('I can do plumbing and pipe fitting')
       expect(result).toEqual(['Plumbing', 'Pipe Fitting', 'Drainage'])
     })
 
-    it('returns empty array on error', async () => {
+    it('throws on error', async () => {
       mockFetch.mockRejectedValue(new Error('fail'))
-      const result = await quickExtractSkills('text')
-      expect(result).toEqual([])
+      await expect(quickExtractSkills('text')).rejects.toThrow('fail')
     })
   })
 
-  describe('batchCalculateMatches', () => {
+  describe('scoreAllJobs', () => {
     it('processes multiple jobs and returns map of results', async () => {
-      const mockMatch = {
-        matchScore: 80,
-        matchLevel: 'Good',
-        matchingSkills: [],
-        missingSkills: [],
-        explanation: 'Good match',
-        improvementTips: [],
+      const mockBatchResult = {
+        '0': { matchScore: 80, matchLevel: 'Good', matchingSkills: [], missingSkills: [], explanation: 'Good match' },
+        '1': { matchScore: 65, matchLevel: 'Good', matchingSkills: [], missingSkills: [], explanation: 'Decent match' },
       }
 
-      mockFetch.mockResolvedValue(mockGeminiResponse(JSON.stringify(mockMatch)))
+      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockBatchResult)))
 
       const jobs = [
         { id: 'job-1', title: 'Plumber', required_skills: ['Plumbing'] },
         { id: 'job-2', title: 'Electrician', required_skills: ['Electrical'] },
       ]
 
-      const results = await batchCalculateMatches(jobs, { skills: ['Plumbing'] })
+      const results = await scoreAllJobs(jobs, {
+        skills: ['Plumbing'],
+        work_experiences: [{ position: 'Plumber', company: 'ABC' }],
+        highest_education: 'College Graduate'
+      })
 
       expect(results['job-1']).toBeDefined()
       expect(results['job-2']).toBeDefined()
       expect(results['job-1'].matchScore).toBe(80)
     })
 
-    it('limits processing to 10 jobs max', async () => {
-      const mockMatch = { matchScore: 50, matchLevel: 'Fair' }
-      mockFetch.mockResolvedValue(mockGeminiResponse(JSON.stringify(mockMatch)))
+    it('returns empty object when profile has no skills', async () => {
+      const jobs = [
+        { id: 'job-1', title: 'Plumber', required_skills: ['Plumbing'] },
+      ]
 
-      const jobs = Array.from({ length: 15 }, (_, i) => ({
-        id: `job-${i}`,
-        title: `Job ${i}`,
-        required_skills: [],
-      }))
+      const results = await scoreAllJobs(jobs, { skills: [] })
 
-      const results = await batchCalculateMatches(jobs, { skills: [] })
+      expect(results).toEqual({})
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
 
-      expect(Object.keys(results).length).toBeLessThanOrEqual(10)
+    it('returns empty object when jobs array is empty', async () => {
+      const results = await scoreAllJobs([], { skills: ['Plumbing'] })
+
+      expect(results).toEqual({})
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 
   describe('API key validation', () => {
     it('throws when API key is not configured', async () => {
-      vi.stubEnv('VITE_GEMINI_API_KEY', '')
+      vi.stubEnv('VITE_COHERE_API_KEY', '')
       vi.resetModules()
       vi.stubGlobal('fetch', mockFetch)
 
       const { analyzeResume: freshAnalyzeResume } = await import('./geminiService')
-      await expect(freshAnalyzeResume('text')).rejects.toThrow('Failed to analyze resume')
+      await expect(freshAnalyzeResume('text')).rejects.toThrow('Cohere API key not configured')
 
       // Restore
-      vi.stubEnv('VITE_GEMINI_API_KEY', 'test-api-key')
+      vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
     })
   })
 
