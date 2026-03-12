@@ -6,30 +6,24 @@ import {
     MapPin,
     Briefcase,
     Clock,
-    Filter,
-    Loader2,
     Sparkles,
-    ArrowUpDown,
-    AlertCircle,
-    RefreshCw
+    AlertCircle
 } from 'lucide-react'
 import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
-import geminiService, { getSessionScores, setSessionScores, clearSessionScores } from '../services/geminiService'
+import { calculateDeterministicScore } from '../services/geminiService'
 import { calculateCompletion } from '../utils/profileCompletion'
 
 const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(true)
-    const [calculatingMatches, setCalculatingMatches] = useState(false)
     const [matchScores, setMatchScores] = useState({})
     const [searchTerm, setSearchTerm] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
     const [typeFilter, setTypeFilter] = useState('')
     const [sortByMatch, setSortByMatch] = useState(false)
-    const [matchError, setMatchError] = useState(false)
     const [appliedJobIds, setAppliedJobIds] = useState(new Set())
 
     // Calculate profile completeness for jobseekers (shared utility)
@@ -82,66 +76,16 @@ const JobListings = () => {
         }
     }
 
-    // Auto-score jobs when they load
+    // Calculate deterministic scores instantly when jobs load
     useEffect(() => {
         if (!jobs.length || !currentUser || !isJobseeker() || !userData?.skills?.length) return
 
-        const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
-
-        // Check sessionStorage cache first
-        const cached = getSessionScores(currentUser.uid, skillsHash)
-        if (cached && Object.keys(cached).length > 0) {
-            setMatchScores(cached)
-            return
+        const scores = {}
+        for (const job of jobs) {
+            scores[job.id] = calculateDeterministicScore(job, userData)
         }
-
-        // No cache — call API
-        let cancelled = false
-        const runScoring = async () => {
-            setCalculatingMatches(true)
-            setMatchError(false)
-            try {
-                const results = await geminiService.scoreAllJobs(jobs, userData)
-                if (cancelled) return
-                if (Object.keys(results).length > 0) {
-                    setMatchScores(results)
-                    setSessionScores(currentUser.uid, skillsHash, results)
-                } else {
-                    setMatchError(true)
-                }
-            } catch (err) {
-                console.error('AI Match error:', err)
-                if (!cancelled) setMatchError(true)
-            } finally {
-                if (!cancelled) setCalculatingMatches(false)
-            }
-        }
-        runScoring()
-        return () => { cancelled = true }
+        setMatchScores(scores)
     }, [jobs, currentUser, userData])
-
-    const handleRefreshScores = async () => {
-        if (!currentUser || !userData?.skills?.length) return
-        clearSessionScores(currentUser.uid)
-        setMatchScores({})
-        setCalculatingMatches(true)
-        setMatchError(false)
-        try {
-            const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
-            const results = await geminiService.scoreAllJobs(jobs, userData)
-            if (Object.keys(results).length > 0) {
-                setMatchScores(results)
-                setSessionScores(currentUser.uid, skillsHash, results)
-            } else {
-                setMatchError(true)
-            }
-        } catch (err) {
-            console.error('AI Match refresh error:', err)
-            setMatchError(true)
-        } finally {
-            setCalculatingMatches(false)
-        }
-    }
 
     const filteredJobs = jobs.filter(job => {
         const matchesSearch = job.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,38 +167,21 @@ const JobListings = () => {
                     <p className="text-gray-600">
                         Showing <span className="font-semibold text-gray-900">{filteredJobs.length}</span> jobs
                     </p>
-                    {currentUser && isJobseeker() && userData?.skills?.length > 0 && (
+                    {currentUser && isJobseeker() && userData?.skills?.length > 0 && Object.keys(matchScores).length > 0 && (
                         <div className="flex items-center gap-2">
-                            {calculatingMatches ? (
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium animate-pulse">
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    Analyzing matches...
-                                </div>
-                            ) : Object.keys(matchScores).length > 0 ? (
-                                <>
-                                    <button
-                                        onClick={() => setSortByMatch(!sortByMatch)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                            sortByMatch
-                                                ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
-                                        }`}
-                                        aria-label={sortByMatch ? 'Disable sort by match score' : 'Sort jobs by match score'}
-                                        aria-pressed={sortByMatch}
-                                    >
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                        {sortByMatch ? 'Sorted by Match' : 'Sort by Match'}
-                                    </button>
-                                    <button
-                                        onClick={handleRefreshScores}
-                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                        aria-label="Refresh match scores"
-                                        title="Refresh match scores"
-                                    >
-                                        <RefreshCw className="w-3.5 h-3.5" />
-                                    </button>
-                                </>
-                            ) : null}
+                            <button
+                                onClick={() => setSortByMatch(!sortByMatch)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                    sortByMatch
+                                        ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                                }`}
+                                aria-label={sortByMatch ? 'Disable sort by match score' : 'Sort jobs by match score'}
+                                aria-pressed={sortByMatch}
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                {sortByMatch ? 'Sorted by Match' : 'Sort by Match'}
+                            </button>
                         </div>
                     )}
                 </div>
@@ -281,19 +208,6 @@ const JobListings = () => {
                             />
                         </div>
                     </Link>
-                )}
-
-                {/* Match Score Error Banner */}
-                {matchError && !calculatingMatches && (
-                    <div className="flex items-center justify-between p-3 mb-4 bg-red-50 border border-red-200 rounded-xl">
-                        <p className="text-sm text-red-700">Match scores unavailable right now.</p>
-                        <button
-                            onClick={() => setMatchError(false)}
-                            className="text-red-400 hover:text-red-600 text-xs font-medium ml-4"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
                 )}
 
                 {/* Job Cards */}
@@ -332,24 +246,15 @@ const JobListings = () => {
                                                 </span>
                                             )}
 
-                                            {/* AI Match Badge */}
-                                            {isJobseeker() && (
-                                                <div className="flex items-center gap-1 ml-auto md:ml-0">
-                                                    {calculatingMatches && !matchScores[job.id] ? (
-                                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs animate-pulse">
-                                                            <Sparkles className="w-3 h-3" />
-                                                            Matching...
-                                                        </div>
-                                                    ) : matchScores[job.id] ? (
-                                                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ${matchScores[job.id].matchScore >= 80 ? 'bg-green-50 text-green-700 border-green-200' :
-                                                                matchScores[job.id].matchScore >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                                    matchScores[job.id].matchScore >= 40 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                                                        'bg-gray-50 text-gray-700 border-gray-200'
-                                                            }`} title={matchScores[job.id].explanation}>
-                                                            <Sparkles className="w-3 h-3" />
-                                                            {matchScores[job.id].matchScore}% Match
-                                                        </div>
-                                                    ) : null}
+                                            {/* Match Badge */}
+                                            {isJobseeker() && matchScores[job.id] && (
+                                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border ml-auto md:ml-0 ${matchScores[job.id].matchScore >= 80 ? 'bg-green-50 text-green-700 border-green-200' :
+                                                        matchScores[job.id].matchScore >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                            matchScores[job.id].matchScore >= 40 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                                                'bg-gray-50 text-gray-700 border-gray-200'
+                                                    }`} title={`Skills: ${matchScores[job.id].matchingSkills.join(', ') || 'None'}`}>
+                                                    <Sparkles className="w-3 h-3" />
+                                                    {matchScores[job.id].matchScore}% Match
                                                 </div>
                                             )}
                                         </div>
