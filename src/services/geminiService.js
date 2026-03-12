@@ -26,43 +26,6 @@ const setCache = (key, data) => {
 
 // --- sessionStorage cache for match scores ---
 const SESSION_KEY_PREFIX = 'peso-match-scores-'
-const SESSION_TTL = 10 * 60 * 1000 // 10 minutes
-
-export const getSessionScores = (userId, skillsHash) => {
-    try {
-        const raw = sessionStorage.getItem(`${SESSION_KEY_PREFIX}${userId}`)
-        if (!raw) return null
-        const parsed = JSON.parse(raw)
-        if (parsed.skillsHash !== skillsHash) return null
-        if (Date.now() - parsed.timestamp > SESSION_TTL) {
-            sessionStorage.removeItem(`${SESSION_KEY_PREFIX}${userId}`)
-            return null
-        }
-        return parsed.scores
-    } catch {
-        return null
-    }
-}
-
-export const setSessionScores = (userId, skillsHash, newScores) => {
-    try {
-        const raw = sessionStorage.getItem(`${SESSION_KEY_PREFIX}${userId}`)
-        let existing = {}
-        if (raw) {
-            const parsed = JSON.parse(raw)
-            if (parsed.skillsHash === skillsHash && Date.now() - parsed.timestamp < SESSION_TTL) {
-                existing = parsed.scores || {}
-            }
-        }
-        sessionStorage.setItem(`${SESSION_KEY_PREFIX}${userId}`, JSON.stringify({
-            timestamp: Date.now(),
-            skillsHash,
-            scores: { ...existing, ...newScores }
-        }))
-    } catch {
-        // sessionStorage full or unavailable — ignore
-    }
-}
 
 export const clearSessionScores = (userId) => {
     try {
@@ -489,7 +452,7 @@ Return valid JSON in this exact format:
     return matched
 }
 
-// Shared scoring rubric used by both batch and single-job scoring for consistency
+// Scoring rubric used by calculateJobMatch for consistent AI scoring
 const SCORING_RUBRIC = `SCORING RULES:
 - Use semantic skill matching: recognize related skills even if names differ (e.g. "Welding" ↔ "Metal Fabrication", "Driving" ↔ "Logistics", "Cooking" ↔ "Food Preparation", "React" ↔ "Frontend Development")
 - Weight: Skills 50%, Experience 30%, Education 20%
@@ -498,87 +461,6 @@ const SCORING_RUBRIC = `SCORING RULES:
 - Education scoring: meets or exceeds requirement = full points, one level below = partial
 - Final score rubric: 80-100 Excellent, 60-79 Good, 40-59 Fair, 0-39 Low
 - Be strict: only score 80+ when candidate has strong direct skill matches AND relevant experience`
-
-/**
- * Score a small batch of jobs (up to 5) in one lean API call.
- */
-const scoreBatch = async (jobsBatch, skillsList, expList, eduLevel) => {
-    const jobLines = jobsBatch.map((job, i) => {
-        const reqs = job.requirements?.join(', ') || job.required_skills?.join(', ') || 'None'
-        return `${i}: "${job.title}" — needs: ${reqs}`
-    }).join('\n')
-
-    const prompt = `You are a job matching assistant for PESO (Public Employment Service Office) in the Philippines. Match this candidate to each job.
-
-${SCORING_RUBRIC}
-
-Candidate: skills=[${skillsList}] | experience=[${expList}] | education=${eduLevel}
-
-Jobs:
-${jobLines}
-
-JSON — keys are job indices. Keep explanation under 15 words:
-{"0":{"matchScore":75,"matchLevel":"Good","matchingSkills":["x"],"missingSkills":["y"],"explanation":"brief reason"}}`
-
-    const response = await callAI(prompt, { timeoutMs: 20000, maxTokens: 2048 })
-    return safeParseAIJSON(response)
-}
-
-/**
- * Score all jobs in small batches (5 at a time) with delays to respect rate limits.
- * Returns { [jobId]: { matchScore, matchLevel, matchingSkills, missingSkills, explanation } }
- */
-export const scoreAllJobs = async (jobs, profile) => {
-    if (!jobs.length || !profile.skills?.length) return {}
-
-    const skillsList = profile.skills.map(s => typeof s === 'string' ? s : s.name).join(', ')
-    const skillsKey = profile.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
-    const expList = profile.work_experiences?.map(w => `${w.position} at ${w.company}`).join('; ') || profile.experience || 'None'
-    const eduLevel = profile.highest_education || profile.education || 'Not specified'
-
-    const BATCH_SIZE = 5
-    const results = {}
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
-    for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
-        if (i > 0) await delay(3000) // 3s gap between batches to stay under TPM limit
-
-        const batch = jobs.slice(i, i + BATCH_SIZE)
-        try {
-            const parsed = await scoreBatch(batch, skillsList, expList, eduLevel)
-            if (!parsed.ok) {
-                console.warn(`scoreAllJobs: batch ${i} parse failed`)
-                continue
-            }
-            for (const [index, data] of Object.entries(parsed.data)) {
-                const idx = parseInt(index)
-                if (isNaN(idx) || idx < 0 || idx >= batch.length) continue
-                const job = batch[idx]
-                const normalized = {
-                    matchScore: Math.min(100, Math.max(0, parseInt(data.matchScore) || 0)),
-                    matchLevel: data.matchLevel || 'Unknown',
-                    matchingSkills: data.matchingSkills || [],
-                    missingSkills: data.missingSkills || [],
-                    explanation: data.explanation || '',
-                    skillBreakdown: [],
-                    actionItems: [],
-                    improvementTips: []
-                }
-                results[job.id] = normalized
-                setCache(`match_${job.id}_${skillsKey}`, normalized)
-            }
-        } catch (err) {
-            const errMsg = err?.message || ''
-            if (errMsg.includes('rate limit') || errMsg.includes('429')) {
-                console.warn('Rate limited — stopping remaining batches')
-                break
-            }
-            console.warn(`scoreAllJobs: batch ${i} failed:`, errMsg)
-        }
-    }
-
-    return results
-}
 
 /**
  * Quick skill extraction without full analysis (faster, simpler)
@@ -603,7 +485,6 @@ export { normalizeSkillName, deduplicateSkills, normalizeEducationLevel, VALID_E
 export default {
     analyzeResume,
     calculateJobMatch,
-    scoreAllJobs,
     quickExtractSkills,
     normalizeSkillName,
     deduplicateSkills,
