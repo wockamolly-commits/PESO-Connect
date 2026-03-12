@@ -21,7 +21,7 @@ When a jobseeker saves their profile, a single AI call expands their skills and 
     "Welding": ["Metal Fabrication", "Arc Welding", "Metalwork", "SMAW", "MIG Welding"],
     "Driving": ["Logistics", "Delivery", "Vehicle Operation", "Transportation"]
   },
-  "experienceCategories": ["Skilled Trades", "Construction", "Manufacturing"]
+  "experienceCategories": ["trades", "energy"]
 }
 ```
 
@@ -36,7 +36,7 @@ Note: A separate `normalized_education` column is **not** needed. The existing `
 
 **AI prompt design:** The prompt asks the AI to:
 - Generate 4-6 semantic aliases per skill (related terms, abbreviations, broader/narrower terms relevant to Philippine blue-collar and service jobs)
-- Classify the user's work history into the app's exact job categories: `Agriculture`, `Energy & Utilities`, `Retail & Service`, `Information Technology`, `Skilled Trades`, `Hospitality` (must use these exact strings)
+- Classify the user's work history into the app's exact job category **database keys**: `agriculture`, `energy`, `retail`, `it`, `trades`, `hospitality` (must use these exact lowercase strings — these are what `job_postings.category` stores, not the display names)
 
 **When to regenerate:** Only when the user saves profile changes (skills or work experiences). The alias expansion is cached in the database — no TTL needed since it only changes when the source data changes.
 
@@ -70,7 +70,7 @@ skillScore = (matchedRequirements / totalRequirements) × 100
 
 #### Experience Component (30% weight)
 
-Compare the job's `category` field against the user's pre-computed `experience_categories` array (exact string match, case-insensitive):
+Compare the job's `category` field against the user's pre-computed `experience_categories` array (exact string match — both use the same lowercase database keys):
 
 - Job category found in user's `experience_categories` → `experienceScore = 100`
 - No match → `experienceScore = 20` (baseline — not zero, since partial transferable skills always exist)
