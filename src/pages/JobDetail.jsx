@@ -22,7 +22,7 @@ import {
     Award,
     ArrowUpRight
 } from 'lucide-react'
-import geminiService, { getSessionScores } from '../services/geminiService'
+import geminiService, { calculateDeterministicScore } from '../services/geminiService'
 import ResumeUpload from '../components/common/ResumeUpload'
 import { insertNotification } from '../services/notificationService'
 import { XCircle } from 'lucide-react'
@@ -53,26 +53,29 @@ const JobDetail = () => {
         }
     }, [id, currentUser])
 
-    // Load cached match score from sessionStorage
+    // Calculate deterministic score instantly
     useEffect(() => {
         if (!job || !currentUser || !isJobseeker() || !userData?.skills?.length) return
-        if (matchData) return // already have data
-
-        const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
-        const cached = getSessionScores(currentUser.uid, skillsHash)
-        if (cached && cached[job.id]) {
-            setMatchData(cached[job.id])
-        }
+        const score = calculateDeterministicScore(job, userData)
+        setMatchData(prev => prev ? { ...prev, ...score } : score)
     }, [job, currentUser, userData])
 
     const calculateMatch = async () => {
         if (!job || !userData) return
         setCalculatingMatch(true)
         try {
-            const result = await geminiService.calculateJobMatch(job, userData)
-            setMatchData(result)
+            const aiDetail = await geminiService.calculateJobMatch(job, userData)
+            // Keep deterministic score, overlay AI qualitative data only
+            setMatchData(prev => ({
+                ...prev,
+                explanation: aiDetail.explanation,
+                skillBreakdown: aiDetail.skillBreakdown,
+                actionItems: aiDetail.actionItems,
+                improvementTips: aiDetail.improvementTips,
+            }))
         } catch {
-            setMatchData({ error: true })
+            // Score is still shown from deterministic calc, just no detail text
+            setMatchData(prev => ({ ...prev, detailError: true }))
         } finally {
             setCalculatingMatch(false)
         }
@@ -357,29 +360,9 @@ const JobDetail = () => {
                                 </div>
 
                                 <div className="px-5 pb-5">
-                                    {!matchData && !calculatingMatch ? (
+                                    {!matchData ? (
                                         <div className="text-center py-4">
-                                            <p className="text-xs text-gray-500 mb-3">See how well your profile matches this job</p>
-                                            <button
-                                                onClick={calculateMatch}
-                                                disabled={!job || !userData}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-                                            >
-                                                <Sparkles className="w-4 h-4" />
-                                                Analyze Match
-                                            </button>
-                                        </div>
-                                    ) : matchData && !matchData.error && matchData.skillBreakdown?.length === 0 && !calculatingMatch ? (
-                                        <div className="text-center py-4">
-                                            <p className="text-xs text-gray-500 mb-3">Cached score loaded — get the full analysis</p>
-                                            <button
-                                                onClick={calculateMatch}
-                                                disabled={!job || !userData}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-                                            >
-                                                <Sparkles className="w-4 h-4" />
-                                                Detailed Breakdown
-                                            </button>
+                                            <p className="text-xs text-gray-500">Log in as a jobseeker with skills to see your match score</p>
                                         </div>
                                     ) : calculatingMatch ? (
 
@@ -431,9 +414,25 @@ const JobDetail = () => {
                                             </div>
 
                                             {/* Explanation */}
-                                            <p className="text-xs text-gray-600 leading-relaxed text-center">
-                                                {matchData.explanation}
-                                            </p>
+                                            {matchData.explanation && (
+                                                <p className="text-xs text-gray-600 leading-relaxed text-center">
+                                                    {matchData.explanation}
+                                                </p>
+                                            )}
+
+                                            {/* Detailed Breakdown Button (no AI detail yet) */}
+                                            {!matchData.skillBreakdown?.length && !matchData.detailError && (
+                                                <div className="text-center pt-2">
+                                                    <button
+                                                        onClick={calculateMatch}
+                                                        disabled={!job || !userData}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                                                    >
+                                                        <Sparkles className="w-4 h-4" />
+                                                        Detailed Breakdown
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             {/* Skill Breakdown Progress Bars */}
                                             {matchData.skillBreakdown?.length > 0 && (
@@ -539,20 +538,21 @@ const JobDetail = () => {
                                                     </div>
                                                 </div>
                                             )}
+
+                                            {/* Detail error with retry */}
+                                            {matchData?.detailError && (
+                                                <div className="text-center pt-2">
+                                                    <p className="text-xs text-gray-400 mb-2">Detailed analysis unavailable right now</p>
+                                                    <button
+                                                        onClick={calculateMatch}
+                                                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                                    >
+                                                        Retry
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="text-center py-4">
-                                            <AlertCircle className="w-8 h-8 text-red-300 mx-auto mb-2" />
-                                            <p className="text-xs text-red-500 font-medium mb-1">Gemini API quota exceeded</p>
-                                            <p className="text-[10px] text-gray-400 mb-3">Create a new API key in a NEW Google Cloud project</p>
-                                            <button
-                                                onClick={calculateMatch}
-                                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                                            >
-                                                Retry
-                                            </button>
-                                        </div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </div>
                         )}
