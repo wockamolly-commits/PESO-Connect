@@ -240,6 +240,46 @@ describe('geminiService', () => {
     })
   })
 
+  describe('expandProfileAliases', () => {
+    let expandProfileAliases
+
+    beforeAll(async () => {
+      vi.resetModules()
+      vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
+      vi.stubGlobal('fetch', mockFetch)
+      const mod = await import('./geminiService')
+      expandProfileAliases = mod.expandProfileAliases
+    })
+
+    beforeEach(() => {
+      mockFetch.mockReset()
+    })
+
+    it('returns skill aliases and experience categories', async () => {
+      const mockResult = {
+        skillAliases: { 'Welding': ['Metal Fabrication', 'Arc Welding', 'SMAW'] },
+        experienceCategories: ['trades'],
+      }
+      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockResult)))
+
+      const result = await expandProfileAliases(
+        [{ name: 'Welding' }],
+        [{ position: 'Welder', company: 'ABC Corp' }]
+      )
+      expect(result.skillAliases).toBeDefined()
+      expect(result.skillAliases['Welding']).toContain('Metal Fabrication')
+      expect(result.experienceCategories).toContain('trades')
+    })
+
+    it('returns empty fallback on API error', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'))
+
+      const result = await expandProfileAliases([{ name: 'Welding' }], [])
+      expect(result.skillAliases).toEqual({})
+      expect(result.experienceCategories).toEqual([])
+    })
+  })
+
   describe('calculateDeterministicScore', () => {
     let calculateDeterministicScore
 

@@ -287,6 +287,54 @@ export const calculateDeterministicScore = (job, userData) => {
     return { matchScore, matchLevel, matchingSkills, missingSkills }
 }
 
+export const expandProfileAliases = async (skills, workExperiences) => {
+    const FALLBACK = { skillAliases: {}, experienceCategories: [] }
+
+    const skillNames = (skills || []).map(s => typeof s === 'string' ? s : s.name).filter(Boolean)
+    if (skillNames.length === 0) return FALLBACK
+
+    const expList = (workExperiences || []).map(w => `${w.position || w.title || ''} at ${w.company || ''}`).filter(s => s.trim() !== 'at')
+
+    const prompt = `You are a career matching assistant for PESO (Public Employment Service Office) in the Philippines. Analyze this jobseeker's profile and generate matching data.
+
+SKILLS: ${skillNames.join(', ')}
+WORK EXPERIENCE: ${expList.length > 0 ? expList.join('; ') : 'None provided'}
+
+Generate:
+1. For each skill, provide 4-6 semantic aliases (related terms, abbreviations, broader/narrower terms relevant to Philippine blue-collar, service, and technical jobs)
+2. Based on the work experience, classify into the applicable job categories. ONLY use these exact values: agriculture, energy, retail, it, trades, hospitality
+
+Return JSON:
+{"skillAliases":{"Skill Name":["alias1","alias2"]},"experienceCategories":["trades","energy"]}`
+
+    try {
+        const response = await callAI(prompt, { timeoutMs: 15000, maxTokens: 1024 })
+        const parsed = parseAIJSON(response)
+
+        const result = { skillAliases: {}, experienceCategories: [] }
+        const validCategories = ['agriculture', 'energy', 'retail', 'it', 'trades', 'hospitality']
+
+        if (parsed.skillAliases && typeof parsed.skillAliases === 'object') {
+            for (const [skill, aliases] of Object.entries(parsed.skillAliases)) {
+                if (Array.isArray(aliases)) {
+                    result.skillAliases[skill] = aliases.map(a => String(a).trim()).filter(Boolean)
+                }
+            }
+        }
+
+        if (Array.isArray(parsed.experienceCategories)) {
+            result.experienceCategories = parsed.experienceCategories
+                .map(c => String(c).toLowerCase().trim())
+                .filter(c => validCategories.includes(c))
+        }
+
+        return result
+    } catch (err) {
+        console.warn('expandProfileAliases failed:', err.message)
+        return FALLBACK
+    }
+}
+
 /**
  * Analyze resume/profile text and extract structured data with normalization
  */
@@ -560,5 +608,6 @@ export default {
     normalizeSkillName,
     deduplicateSkills,
     normalizeEducationLevel,
-    calculateDeterministicScore
+    calculateDeterministicScore,
+    expandProfileAliases
 }
