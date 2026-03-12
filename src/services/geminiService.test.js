@@ -239,4 +239,140 @@ describe('geminiService', () => {
       expect(result.ok).toBe(false)
     })
   })
+
+  describe('calculateDeterministicScore', () => {
+    let calculateDeterministicScore
+
+    beforeAll(async () => {
+      vi.resetModules()
+      const mod = await import('./geminiService')
+      calculateDeterministicScore = mod.calculateDeterministicScore
+    })
+
+    it('scores 100% when all requirements match exactly', () => {
+      const job = { requirements: ['Plumbing', 'Pipe Fitting'], category: 'trades', education_level: 'vocational' }
+      const userData = {
+        skills: [{ name: 'Plumbing' }, { name: 'Pipe Fitting' }],
+        skill_aliases: { 'Plumbing': ['Pipe Work'], 'Pipe Fitting': ['Pipe Installation'] },
+        experience_categories: ['trades'],
+        highest_education: 'Vocational/Technical Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(100)
+      expect(result.matchLevel).toBe('Excellent')
+      expect(result.matchingSkills).toEqual(['Plumbing', 'Pipe Fitting'])
+      expect(result.missingSkills).toEqual([])
+    })
+
+    it('matches via aliases (semantic matching)', () => {
+      const job = { requirements: ['Metal Fabrication'], category: 'trades', education_level: null }
+      const userData = {
+        skills: [{ name: 'Welding' }],
+        skill_aliases: { 'Welding': ['Metal Fabrication', 'Arc Welding', 'SMAW'] },
+        experience_categories: ['trades'],
+        highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBeGreaterThanOrEqual(80)
+      expect(result.matchingSkills).toContain('Metal Fabrication')
+    })
+
+    it('uses word-boundary matching not raw substring', () => {
+      const job = { requirements: ['Hospitality Management'], category: 'hospitality', education_level: null }
+      const userData = {
+        skills: [{ name: 'IT Support' }],
+        skill_aliases: { 'IT Support': ['IT', 'Technical Support'] },
+        experience_categories: ['it'],
+        highest_education: 'College Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchingSkills).not.toContain('Hospitality Management')
+    })
+
+    it('returns skillScore=100 when job has no requirements', () => {
+      const job = { requirements: [], category: 'trades', education_level: null }
+      const userData = {
+        skills: [{ name: 'Welding' }], skill_aliases: {},
+        experience_categories: ['trades'], highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(100)
+    })
+
+    it('gives experienceScore=20 when category does not match', () => {
+      const job = { requirements: ['Cooking'], category: 'hospitality', education_level: null }
+      const userData = {
+        skills: [{ name: 'Cooking' }],
+        skill_aliases: { 'Cooking': ['Food Preparation'] },
+        experience_categories: ['trades'],
+        highest_education: 'College Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(76)
+      expect(result.matchLevel).toBe('Good')
+    })
+
+    it('scores education correctly when user is below requirement', () => {
+      const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
+      const userData = {
+        skills: [{ name: 'Plumbing' }], skill_aliases: {},
+        experience_categories: ['trades'], highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(86)
+    })
+
+    it('scores education=60 when user is one level below', () => {
+      const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
+      const userData = {
+        skills: [{ name: 'Plumbing' }], skill_aliases: {},
+        experience_categories: ['trades'], highest_education: 'College Undergraduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(92)
+    })
+
+    it('handles null skill_aliases gracefully (pre-migration user)', () => {
+      const job = { requirements: ['Plumbing', 'Electrical'], category: 'trades', education_level: null }
+      const userData = {
+        skills: [{ name: 'Plumbing' }],
+        skill_aliases: null, experience_categories: null,
+        highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(51)
+      expect(result.matchLevel).toBe('Fair')
+    })
+
+    it('handles string skills (not objects)', () => {
+      const job = { requirements: ['Welding'], category: 'trades', education_level: null }
+      const userData = {
+        skills: ['Welding', 'Plumbing'],
+        skill_aliases: null, experience_categories: ['trades'],
+        highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchingSkills).toContain('Welding')
+    })
+
+    it('handles null requirements gracefully', () => {
+      const job = { requirements: null, category: 'trades', education_level: null }
+      const userData = {
+        skills: [{ name: 'Welding' }], skill_aliases: {},
+        experience_categories: ['trades'], highest_education: 'High School Graduate',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(100)
+    })
+
+    it('defaults to ordinal 0 for unknown highest_education', () => {
+      const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
+      const userData = {
+        skills: [{ name: 'Plumbing' }], skill_aliases: {},
+        experience_categories: ['trades'], highest_education: 'Some Unknown Value',
+      }
+      const result = calculateDeterministicScore(job, userData)
+      expect(result.matchScore).toBe(86)
+    })
+  })
 })
