@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import {
@@ -10,12 +10,13 @@ import {
     Loader2,
     Sparkles,
     ArrowUpDown,
-    AlertCircle
+    AlertCircle,
+    RefreshCw
 } from 'lucide-react'
 import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
-import geminiService from '../services/geminiService'
+import geminiService, { getSessionScores, setSessionScores, clearSessionScores } from '../services/geminiService'
 import { calculateCompletion } from '../utils/profileCompletion'
 
 const JobListings = () => {
@@ -28,9 +29,7 @@ const JobListings = () => {
     const [categoryFilter, setCategoryFilter] = useState('')
     const [typeFilter, setTypeFilter] = useState('')
     const [sortByMatch, setSortByMatch] = useState(false)
-    const [matchProgress, setMatchProgress] = useState({ completed: 0, total: 0 })
-    const mountedRef = useRef(true)
-    useEffect(() => { return () => { mountedRef.current = false } }, [])
+    const [matchError, setMatchError] = useState(false)
     const [appliedJobIds, setAppliedJobIds] = useState(new Set())
 
     // Calculate profile completeness for jobseekers (shared utility)
@@ -83,28 +82,64 @@ const JobListings = () => {
         }
     }
 
-    const calculateAiMatches = async (jobsList, user) => {
-        setCalculatingMatches(true)
-        setMatchProgress({ completed: 0, total: jobsList.length })
-        try {
-            const results = await geminiService.calculateAllJobMatches(
-                jobsList,
-                user,
-                (jobId, result, completed, total) => {
-                    if (!mountedRef.current) return
-                    setMatchProgress({ completed, total })
-                    if (jobId && result) {
-                        setMatchScores(prev => ({ ...prev, [jobId]: result }))
-                    }
+    // Auto-score jobs when they load
+    useEffect(() => {
+        if (!jobs.length || !currentUser || !isJobseeker() || !userData?.skills?.length) return
+
+        const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
+
+        // Check sessionStorage cache first
+        const cached = getSessionScores(currentUser.uid, skillsHash)
+        if (cached && Object.keys(cached).length > 0) {
+            setMatchScores(cached)
+            return
+        }
+
+        // No cache — call API
+        let cancelled = false
+        const runScoring = async () => {
+            setCalculatingMatches(true)
+            setMatchError(false)
+            try {
+                const results = await geminiService.scoreAllJobs(jobs, userData)
+                if (cancelled) return
+                if (Object.keys(results).length > 0) {
+                    setMatchScores(results)
+                    setSessionScores(currentUser.uid, skillsHash, results)
+                } else {
+                    setMatchError(true)
                 }
-            )
-            if (mountedRef.current && Object.keys(results).length === 0) {
-                console.error('All AI match calculations failed')
+            } catch (err) {
+                console.error('AI Match error:', err)
+                if (!cancelled) setMatchError(true)
+            } finally {
+                if (!cancelled) setCalculatingMatches(false)
             }
-        } catch (error) {
-            console.error('AI Match error:', error)
+        }
+        runScoring()
+        return () => { cancelled = true }
+    }, [jobs, currentUser, userData])
+
+    const handleRefreshScores = async () => {
+        if (!currentUser || !userData?.skills?.length) return
+        clearSessionScores(currentUser.uid)
+        setMatchScores({})
+        setCalculatingMatches(true)
+        setMatchError(false)
+        try {
+            const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
+            const results = await geminiService.scoreAllJobs(jobs, userData)
+            if (Object.keys(results).length > 0) {
+                setMatchScores(results)
+                setSessionScores(currentUser.uid, skillsHash, results)
+            } else {
+                setMatchError(true)
+            }
+        } catch (err) {
+            console.error('AI Match refresh error:', err)
+            setMatchError(true)
         } finally {
-            if (mountedRef.current) setCalculatingMatches(false)
+            setCalculatingMatches(false)
         }
     }
 
@@ -190,35 +225,36 @@ const JobListings = () => {
                     </p>
                     {currentUser && isJobseeker() && userData?.skills?.length > 0 && (
                         <div className="flex items-center gap-2">
-                            {Object.keys(matchScores).length === 0 && !calculatingMatches ? (
-                                <button
-                                    onClick={() => calculateAiMatches(jobs, userData)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-xs font-medium hover:shadow-lg transition-all"
-                                    aria-label="Calculate AI match scores for all jobs"
-                                >
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    AI Match Scores
-                                </button>
-                            ) : calculatingMatches ? (
+                            {calculatingMatches ? (
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium animate-pulse">
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    Analyzing {matchProgress.completed}/{matchProgress.total}...
+                                    Analyzing matches...
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={() => setSortByMatch(!sortByMatch)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                        sortByMatch
-                                            ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
-                                    }`}
-                                    aria-label={sortByMatch ? 'Disable sort by match score' : 'Sort jobs by match score'}
-                                    aria-pressed={sortByMatch}
-                                >
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    {sortByMatch ? 'Sorted by Match' : 'Sort by Match'}
-                                </button>
-                            )}
+                            ) : Object.keys(matchScores).length > 0 ? (
+                                <>
+                                    <button
+                                        onClick={() => setSortByMatch(!sortByMatch)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                            sortByMatch
+                                                ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                                        }`}
+                                        aria-label={sortByMatch ? 'Disable sort by match score' : 'Sort jobs by match score'}
+                                        aria-pressed={sortByMatch}
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        {sortByMatch ? 'Sorted by Match' : 'Sort by Match'}
+                                    </button>
+                                    <button
+                                        onClick={handleRefreshScores}
+                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                        aria-label="Refresh match scores"
+                                        title="Refresh match scores"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                    </button>
+                                </>
+                            ) : null}
                         </div>
                     )}
                 </div>
@@ -245,6 +281,19 @@ const JobListings = () => {
                             />
                         </div>
                     </Link>
+                )}
+
+                {/* Match Score Error Banner */}
+                {matchError && !calculatingMatches && (
+                    <div className="flex items-center justify-between p-3 mb-4 bg-red-50 border border-red-200 rounded-xl">
+                        <p className="text-sm text-red-700">Match scores unavailable right now.</p>
+                        <button
+                            onClick={() => setMatchError(false)}
+                            className="text-red-400 hover:text-red-600 text-xs font-medium ml-4"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
                 )}
 
                 {/* Job Cards */}

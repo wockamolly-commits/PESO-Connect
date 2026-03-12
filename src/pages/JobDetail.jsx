@@ -22,7 +22,7 @@ import {
     Award,
     ArrowUpRight
 } from 'lucide-react'
-import geminiService from '../services/geminiService'
+import geminiService, { getSessionScores } from '../services/geminiService'
 import ResumeUpload from '../components/common/ResumeUpload'
 import { insertNotification } from '../services/notificationService'
 import { XCircle } from 'lucide-react'
@@ -52,6 +52,18 @@ const JobDetail = () => {
             checkExistingApplication()
         }
     }, [id, currentUser])
+
+    // Load cached match score from sessionStorage
+    useEffect(() => {
+        if (!job || !currentUser || !isJobseeker() || !userData?.skills?.length) return
+        if (matchData) return // already have data
+
+        const skillsHash = userData.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
+        const cached = getSessionScores(currentUser.uid, skillsHash)
+        if (cached && cached[job.id]) {
+            setMatchData(cached[job.id])
+        }
+    }, [job, currentUser, userData])
 
     const calculateMatch = async () => {
         if (!job || !userData) return
@@ -355,6 +367,18 @@ const JobDetail = () => {
                                             >
                                                 <Sparkles className="w-4 h-4" />
                                                 Analyze Match
+                                            </button>
+                                        </div>
+                                    ) : matchData && !matchData.error && matchData.skillBreakdown?.length === 0 && !calculatingMatch ? (
+                                        <div className="text-center py-4">
+                                            <p className="text-xs text-gray-500 mb-3">Cached score loaded — get the full analysis</p>
+                                            <button
+                                                onClick={calculateMatch}
+                                                disabled={!job || !userData}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                                            >
+                                                <Sparkles className="w-4 h-4" />
+                                                Detailed Breakdown
                                             </button>
                                         </div>
                                     ) : calculatingMatch ? (

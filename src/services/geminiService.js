@@ -24,10 +24,58 @@ const setCache = (key, data) => {
     cache.set(key, { data, timestamp: Date.now() })
 }
 
+// --- sessionStorage cache for match scores ---
+const SESSION_KEY_PREFIX = 'peso-match-scores-'
+const SESSION_TTL = 10 * 60 * 1000 // 10 minutes
+
+export const getSessionScores = (userId, skillsHash) => {
+    try {
+        const raw = sessionStorage.getItem(`${SESSION_KEY_PREFIX}${userId}`)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (parsed.skillsHash !== skillsHash) return null
+        if (Date.now() - parsed.timestamp > SESSION_TTL) {
+            sessionStorage.removeItem(`${SESSION_KEY_PREFIX}${userId}`)
+            return null
+        }
+        return parsed.scores
+    } catch {
+        return null
+    }
+}
+
+export const setSessionScores = (userId, skillsHash, newScores) => {
+    try {
+        const raw = sessionStorage.getItem(`${SESSION_KEY_PREFIX}${userId}`)
+        let existing = {}
+        if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed.skillsHash === skillsHash && Date.now() - parsed.timestamp < SESSION_TTL) {
+                existing = parsed.scores || {}
+            }
+        }
+        sessionStorage.setItem(`${SESSION_KEY_PREFIX}${userId}`, JSON.stringify({
+            timestamp: Date.now(),
+            skillsHash,
+            scores: { ...existing, ...newScores }
+        }))
+    } catch {
+        // sessionStorage full or unavailable — ignore
+    }
+}
+
+export const clearSessionScores = (userId) => {
+    try {
+        sessionStorage.removeItem(`${SESSION_KEY_PREFIX}${userId}`)
+    } catch {
+        // ignore
+    }
+}
+
 /**
  * Call Groq API with a prompt
  */
-export const callAI = async (prompt, timeoutMs = 15000) => {
+export const callAI = async (prompt, { timeoutMs = 15000, maxTokens = 2048 } = {}, _retryCount = 0) => {
     if (!GROQ_API_KEY) {
         throw new Error('Groq API key not configured. Add VITE_GROQ_API_KEY to your .env file.')
     }
@@ -49,7 +97,7 @@ export const callAI = async (prompt, timeoutMs = 15000) => {
                     { role: 'user', content: prompt }
                 ],
                 temperature: 0.3,
-                max_tokens: 2048,
+                max_tokens: maxTokens,
                 response_format: { type: 'json_object' }
             }),
             signal: controller.signal
@@ -61,6 +109,11 @@ export const callAI = async (prompt, timeoutMs = 15000) => {
             const error = await response.json().catch(() => ({}))
 
             if (response.status === 429) {
+                // Retry once after a short backoff
+                if (_retryCount < 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000))
+                    return callAI(prompt, { timeoutMs, maxTokens }, _retryCount + 1)
+                }
                 throw new Error('AI rate limit reached. Please wait a moment and try again.')
             }
 
@@ -251,7 +304,7 @@ export const calculateJobMatch = async (job, profile) => {
 
     const jobRequirements = job.requirements?.join(', ') || job.required_skills?.join(', ') || 'Not specified'
 
-    const prompt = `You are an expert career coach and job matching assistant for PESO (Public Employment Service Office) in the Philippines. Analyze how well this candidate matches the job. Be specific and actionable.
+    const prompt = `You are an expert career coach and job matching assistant for PESO (Public Employment Service Office) in the Philippines. Analyze how well this candidate matches the job. Use semantic skill matching — recognize related skills even if names differ (e.g. "React" matches "Frontend Development", "Welding" matches "Metal Fabrication"). Be specific and actionable.
 
 JOB POSTING:
 Title: ${job.title}
@@ -310,47 +363,75 @@ Return valid JSON in this exact format:
 }
 
 /**
- * Calculate match scores for all jobs using parallel single-job calls.
- * @param {Array} jobs - Array of job objects
- * @param {Object} profile - User profile object
- * @param {Function} onProgress - Callback: (jobId, result, completedCount, totalCount) => void
- * @returns {Object} Map of jobId → full match result
+ * Score all jobs in a single API call using index-based matching.
+ * Returns { [jobId]: { matchScore, matchLevel, matchingSkills, missingSkills, explanation } }
  */
-export const calculateAllJobMatches = async (jobs, profile, onProgress) => {
+export const scoreAllJobs = async (jobs, profile) => {
+    if (!jobs.length || !profile.skills?.length) return {}
+
+    const jobsToScore = jobs.slice(0, 30)
+    if (jobs.length > 30) {
+        console.warn(`scoreAllJobs: scoring first 30 of ${jobs.length} jobs`)
+    }
+
+    const skillsList = profile.skills.map(s => typeof s === 'string' ? s : s.name).join(', ')
+    const skillsKey = profile.skills.map(s => typeof s === 'string' ? s : s.name).sort().join(',')
+    const expList = profile.work_experiences?.map(w => `${w.position} at ${w.company}`).join('; ') || profile.experience || 'Not specified'
+    const eduLevel = profile.highest_education || profile.education || 'Not specified'
+
+    const jobLines = jobsToScore.map((job, i) => {
+        const reqs = job.requirements?.join(', ') || job.required_skills?.join(', ') || 'Not specified'
+        return `JOB_${i}: title="${job.title}" | required_skills="${reqs}"`
+    }).join('\n')
+
+    const prompt = `You are a job matching assistant for PESO (Public Employment Service Office) in the Philippines. Score how well this candidate matches EACH job below.
+
+RULES:
+- Use semantic skill matching: recognize related skills even if names differ (e.g. "Welding" ↔ "Metal Fabrication", "Driving" ↔ "Logistics", "Cooking" ↔ "Food Preparation")
+- Weight practical/vocational skills and TESDA certifications appropriately
+- Scoring rubric: 80-100 Excellent (strong match), 60-79 Good (relevant skills), 40-59 Fair (some transferable), 0-39 Low (weak match)
+- Keep each explanation under 15 words
+
+CANDIDATE:
+Skills: ${skillsList}
+Experience: ${expList}
+Education: ${eduLevel}
+
+JOBS:
+${jobLines}
+
+Return valid JSON with numeric index keys matching each JOB_N:
+{
+  "0": {"matchScore": 75, "matchLevel": "Good", "matchingSkills": ["skill1"], "missingSkills": ["skill1"], "explanation": "Brief reason."},
+  "1": {"matchScore": 40, "matchLevel": "Low", "matchingSkills": [], "missingSkills": ["skill1"], "explanation": "Brief reason."}
+}`
+
+    const response = await callAI(prompt, { timeoutMs: 45000, maxTokens: 4096 })
+    const parsed = safeParseAIJSON(response)
+
+    if (!parsed.ok) {
+        console.error('scoreAllJobs: failed to parse AI response')
+        return {}
+    }
+
     const results = {}
-    const total = jobs.length
-    let completed = 0
-    let rateLimited = false
-
-    // Process in chunks of 3 for concurrency control
-    for (let i = 0; i < jobs.length; i += 3) {
-        if (rateLimited) break
-
-        const chunk = jobs.slice(i, i + 3)
-        const settled = await Promise.allSettled(
-            chunk.map(async (job) => {
-                const result = await calculateJobMatch(job, profile)
-                return { jobId: job.id, result }
-            })
-        )
-
-        for (const outcome of settled) {
-            completed++
-            if (outcome.status === 'fulfilled') {
-                const { jobId, result } = outcome.value
-                results[jobId] = result
-                if (onProgress) onProgress(jobId, result, completed, total)
-            } else {
-                const errMsg = outcome.reason?.message || ''
-                if (errMsg.includes('rate limit') || errMsg.includes('429')) {
-                    rateLimited = true
-                    console.warn('Rate limited — stopping remaining match calculations')
-                    break
-                }
-                console.warn('Match calculation failed for a job:', errMsg)
-                if (onProgress) onProgress(null, null, completed, total)
-            }
+    for (const [index, data] of Object.entries(parsed.data)) {
+        const i = parseInt(index)
+        if (isNaN(i) || i < 0 || i >= jobsToScore.length) continue
+        const job = jobsToScore[i]
+        const normalized = {
+            matchScore: Math.min(100, Math.max(0, parseInt(data.matchScore) || 0)),
+            matchLevel: data.matchLevel || 'Unknown',
+            matchingSkills: data.matchingSkills || [],
+            missingSkills: data.missingSkills || [],
+            explanation: data.explanation || '',
+            skillBreakdown: [],
+            actionItems: [],
+            improvementTips: []
         }
+        results[job.id] = normalized
+        // Cache per-job for calculateJobMatch cache hits on JobDetail
+        setCache(`match_${job.id}_${skillsKey}`, normalized)
     }
 
     return results
@@ -379,7 +460,7 @@ export { normalizeSkillName, deduplicateSkills, normalizeEducationLevel, VALID_E
 export default {
     analyzeResume,
     calculateJobMatch,
-    calculateAllJobMatches,
+    scoreAllJobs,
     quickExtractSkills,
     normalizeSkillName,
     deduplicateSkills,
