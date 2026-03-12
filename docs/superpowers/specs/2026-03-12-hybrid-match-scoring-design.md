@@ -21,8 +21,7 @@ When a jobseeker saves their profile, a single AI call expands their skills and 
     "Welding": ["Metal Fabrication", "Arc Welding", "Metalwork", "SMAW", "MIG Welding"],
     "Driving": ["Logistics", "Delivery", "Vehicle Operation", "Transportation"]
   },
-  "experienceCategories": ["Skilled Trades", "Construction", "Manufacturing"],
-  "normalizedEducation": "College Graduate"
+  "experienceCategories": ["Skilled Trades", "Construction", "Manufacturing"]
 }
 ```
 
@@ -32,11 +31,14 @@ When a jobseeker saves their profile, a single AI call expands their skills and 
 |--------|------|-------------|
 | `skill_aliases` | `jsonb` | Map of each skill to its semantic aliases |
 | `experience_categories` | `text[]` | Job categories derived from work history |
-| `normalized_education` | `text` | Standardized education level string |
 
-**AI prompt design:** The prompt asks the AI to generate 4-6 semantic aliases per skill (related terms, abbreviations, broader/narrower terms) and to classify the user's work history into the app's job categories (Agriculture, Energy & Utilities, Retail & Service, Information Technology, Skilled Trades, Hospitality). The normalized education level maps to the existing `VALID_EDUCATION_LEVELS` array.
+Note: A separate `normalized_education` column is **not** needed. The existing `highest_education` column on `jobseeker_profiles` already stores values from the `VALID_EDUCATION_LEVELS` array (the profile edit dropdown constrains input to these exact values). We use `highest_education` directly for education scoring.
 
-**When to regenerate:** Only when the user saves profile changes (skills, work experiences, or education). The alias expansion is cached in the database — no TTL needed since it only changes when the source data changes.
+**AI prompt design:** The prompt asks the AI to:
+- Generate 4-6 semantic aliases per skill (related terms, abbreviations, broader/narrower terms relevant to Philippine blue-collar and service jobs)
+- Classify the user's work history into the app's exact job categories: `Agriculture`, `Energy & Utilities`, `Retail & Service`, `Information Technology`, `Skilled Trades`, `Hospitality` (must use these exact strings)
+
+**When to regenerate:** Only when the user saves profile changes (skills or work experiences). The alias expansion is cached in the database — no TTL needed since it only changes when the source data changes.
 
 ### Phase 2: Deterministic Scoring (on page load)
 
@@ -48,19 +50,27 @@ finalScore = (skillScore × 0.50) + (experienceScore × 0.30) + (educationScore 
 
 #### Skills Component (50% weight)
 
-For each job requirement, check if it matches any user skill or any of that skill's aliases (case-insensitive substring matching):
+For each job requirement, check if it matches any user skill or any of that skill's aliases using **normalized token matching** (not raw substring):
 
 ```
 skillScore = (matchedRequirements / totalRequirements) × 100
 ```
 
-- A requirement is "matched" if any user skill OR any alias of that skill contains the requirement term, or vice versa
+**Matching algorithm:**
+1. Normalize both the requirement and each skill/alias to lowercase, trimmed
+2. A match occurs when:
+   - Exact match (after normalization), OR
+   - One string is a full word within the other (word-boundary matching, e.g., "Welding" matches "Arc Welding" but "IT" does not match "Hospitality")
+3. Minimum token length of 3 characters to participate in partial matching (prevents "IT", "AC", etc. from false-positive matching)
+
+**Edge cases:**
 - If the job has 0 requirements → `skillScore = 100`
 - Also tracks which specific skills matched and which are missing (for UI display)
+- When `skill_aliases` is null (pre-migration user), build a trivial alias map where each skill maps to an empty array — scoring still works with exact matching only
 
 #### Experience Component (30% weight)
 
-Compare the job's `category` field against the user's pre-computed `experience_categories` array:
+Compare the job's `category` field against the user's pre-computed `experience_categories` array (exact string match, case-insensitive):
 
 - Job category found in user's `experience_categories` → `experienceScore = 100`
 - No match → `experienceScore = 20` (baseline — not zero, since partial transferable skills always exist)
@@ -68,12 +78,36 @@ Compare the job's `category` field against the user's pre-computed `experience_c
 
 #### Education Component (20% weight)
 
-Compare using the ordered `VALID_EDUCATION_LEVELS` array (index-based comparison):
+Jobs have an `education_level` column with short slug values. Jobseeker profiles have a `highest_education` column with full label values. We use a mapping table to compare them on a common ordinal scale:
 
-- User's level >= job's required level → `educationScore = 100`
-- User is one level below → `educationScore = 60`
-- User is two+ levels below → `educationScore = 30`
-- Job doesn't specify education requirement → `educationScore = 100`
+**Job education_level mapping:**
+
+| Job `education_level` | Ordinal |
+|----------------------|---------|
+| `none` or null/empty | -1 (no requirement) |
+| `elementary` | 0 |
+| `high-school` | 1 |
+| `vocational` | 2 |
+| `college` | 3 |
+
+**Jobseeker `highest_education` mapping:**
+
+| Jobseeker `highest_education` | Ordinal |
+|-------------------------------|---------|
+| `Elementary Graduate` | 0 |
+| `High School Graduate` | 1 |
+| `Senior High School Graduate` | 1.5 |
+| `Vocational/Technical Graduate` | 2 |
+| `College Undergraduate` | 2.5 |
+| `College Graduate` | 3 |
+| `Masteral Degree` | 4 |
+| `Doctoral Degree` | 5 |
+
+**Scoring:**
+- Job has no education requirement (ordinal -1) → `educationScore = 100`
+- User's ordinal >= job's ordinal → `educationScore = 100`
+- User is within 1 ordinal level below → `educationScore = 60`
+- User is 2+ ordinal levels below → `educationScore = 30`
 
 #### Match Levels
 
@@ -107,7 +141,7 @@ Job Detail Page Load → same deterministic function → display score ring
 
 ## Consistency Guarantee
 
-Both pages call the same `calculateDeterministicScore(job, userAliases)` function. Since the function is pure (no randomness, no AI) and the inputs are identical, scores are guaranteed to match.
+Both pages call the same `calculateDeterministicScore(job, userData)` function. Since the function is pure (no randomness, no AI) and the inputs are identical, scores are guaranteed to match.
 
 ## What Changes
 
@@ -132,26 +166,25 @@ Both pages call the same `calculateDeterministicScore(job, userAliases)` functio
 
 ## Files to Modify
 
-1. **`src/services/geminiService.js`** — Add `expandProfileAliases()` function, add `calculateDeterministicScore()` function, keep `calculateJobMatch()` but modify to use deterministic score
+1. **`src/services/geminiService.js`** — Add `expandProfileAliases()` function, add `calculateDeterministicScore()` function, modify `calculateJobMatch()` to use deterministic score and only return qualitative data from AI
 2. **`src/pages/JobListings.jsx`** — Replace `scoreAllJobs` call with local `calculateDeterministicScore` loop
 3. **`src/pages/JobDetail.jsx`** — Use `calculateDeterministicScore` for score display, keep AI call for detail text only
-4. **`src/pages/JobseekerProfileEdit.jsx`** — Call `expandProfileAliases()` on profile save, store results
-5. **`src/contexts/AuthContext.jsx`** — Ensure `fetchUserData` includes the new columns from `jobseeker_profiles`
-6. **SQL migration** — Add `skill_aliases`, `experience_categories`, `normalized_education` columns to `jobseeker_profiles`
+4. **`src/pages/JobseekerProfileEdit.jsx`** — Call `expandProfileAliases()` on profile save, store results to `jobseeker_profiles`
+5. **`src/contexts/AuthContext.jsx`** — Ensure `fetchUserData` includes `skill_aliases` and `experience_categories` from `jobseeker_profiles`
+6. **SQL migration** — Add `skill_aliases` (jsonb) and `experience_categories` (text[]) columns to `jobseeker_profiles`
 
 ## Edge Cases
 
 - **User has no skills:** No alias expansion, no scoring — same as current behavior
 - **Job has no requirements:** `skillScore = 100` — don't penalize for incomplete job data
-- **Alias expansion fails:** Graceful fallback — use exact skill names only (no aliases), scoring still works
-- **User hasn't saved profile since this feature launched:** Aliases will be null — trigger expansion on next profile view or score attempt, or fall back to exact matching only
-
-## Education Level Mapping for Jobs
-
-Jobs currently have an `experience_level` field (not education). We'll map job education requirements from the `requirements` array or `description` if explicitly mentioned. If no education requirement is found, `educationScore = 100`.
+- **Alias expansion fails:** Graceful fallback — use exact skill names only (no aliases), scoring still works with reduced accuracy
+- **User has skills but null `skill_aliases` (pre-migration):** Build trivial alias map (each skill → empty array), scoring works with exact matching only. On next profile save, full aliases are generated.
+- **Job has no category:** `experienceScore = 100`
+- **Job has no education_level:** `educationScore = 100`
 
 ## Migration Strategy
 
-- New columns are nullable — existing users work fine without aliases
-- First time a user with null aliases views job listings, show a brief "Analyzing your profile..." state and trigger alias expansion
-- After expansion completes, scores appear instantly on all subsequent visits
+- New columns are nullable — existing users work fine without aliases (fall back to exact matching)
+- Alias expansion is triggered on the next profile save by the user
+- No automatic migration on page load — avoids race conditions and keeps the architecture clean (enrichment only happens during profile save flow)
+- Users who never re-save their profile still get scores via exact skill matching, just without semantic alias benefits
