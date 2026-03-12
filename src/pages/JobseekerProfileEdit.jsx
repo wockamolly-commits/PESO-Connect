@@ -7,7 +7,7 @@ import {
     Plus, X, ChevronRight, CheckCircle, Upload, Home, GraduationCap,
     Award, Calendar, Building, Link as LinkIcon, Save, Sparkles
 } from 'lucide-react'
-import { analyzeResume, normalizeSkillName, deduplicateSkills } from '../services/geminiService'
+import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores } from '../services/geminiService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
 import Select from '../components/common/Select'
@@ -313,6 +313,25 @@ const JobseekerProfileEdit = () => {
                     updated_at: now,
                 }, { onConflict: 'id' })
             if (profileErr) throw profileErr
+
+            // Expand skill aliases for deterministic match scoring (non-blocking)
+            try {
+                const aliasData = await expandProfileAliases(updateData.skills, updateData.work_experiences)
+                if (aliasData.skillAliases && Object.keys(aliasData.skillAliases).length > 0) {
+                    await supabase
+                        .from('jobseeker_profiles')
+                        .update({
+                            skill_aliases: aliasData.skillAliases,
+                            experience_categories: aliasData.experienceCategories,
+                        })
+                        .eq('id', currentUser.uid)
+                }
+            } catch (aliasErr) {
+                console.warn('Alias expansion failed (non-blocking):', aliasErr.message)
+            }
+
+            // Clear cached match scores so they recalculate with new data
+            clearSessionScores(currentUser.uid)
 
             // Refresh AuthContext + localStorage cache with saved data
             await fetchUserData(currentUser.uid)
