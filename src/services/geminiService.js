@@ -244,7 +244,8 @@ Return valid JSON in this exact format:
  * Calculate semantic match score between a job and user profile
  */
 export const calculateJobMatch = async (job, profile) => {
-    const cacheKey = `match_${job.id}_${profile.skills?.join(',')}`
+    const skillsKey = (profile.skills || []).map(s => typeof s === 'string' ? s : s.name).sort().join(',')
+    const cacheKey = `match_${job.id}_${skillsKey}`
     const cached = getCached(cacheKey)
     if (cached) return cached
 
@@ -309,59 +310,49 @@ Return valid JSON in this exact format:
 }
 
 /**
- * Batch calculate match scores for multiple jobs in a SINGLE API call.
+ * Calculate match scores for all jobs using parallel single-job calls.
+ * @param {Array} jobs - Array of job objects
+ * @param {Object} profile - User profile object
+ * @param {Function} onProgress - Callback: (jobId, result, completedCount, totalCount) => void
+ * @returns {Object} Map of jobId → full match result
  */
-export const batchCalculateMatches = async (jobs, profile) => {
-    const jobsToProcess = jobs.slice(0, 10)
-
-    if (jobsToProcess.length === 0) return {}
-
-    const batchKey = `batch_${jobsToProcess.map(j => j.id).join('_')}_${profile.skills?.join(',')}`
-    const cached = getCached(batchKey)
-    if (cached) return cached
-
-    const skillsList = profile.skills?.map(s => typeof s === 'string' ? s : s.name).join(', ') || 'Not specified'
-    const expList = profile.work_experiences?.map(w => `${w.position} at ${w.company}`).join('; ') || profile.experience || 'Not specified'
-    const eduLevel = profile.highest_education || profile.education || 'Not specified'
-
-    const jobDescriptions = jobsToProcess.map((job, i) => {
-        const reqs = job.requirements?.join(', ') || job.required_skills?.join(', ') || 'Not specified'
-        return `JOB_${i}: id="${job.id}" | title="${job.title}" | category="${job.category || ''}" | skills="${reqs}"`
-    }).join('\n')
-
-    const prompt = `You are a job matching assistant for PESO Philippines. Score how well this candidate matches EACH job below. Be concise.
-
-CANDIDATE:
-Skills: ${skillsList}
-Experience: ${expList}
-Education: ${eduLevel}
-
-JOBS:
-${jobDescriptions}
-
-Return a valid JSON object mapping each job id to its score. Format:
-{
-  "job_id_here": {"matchScore": 75, "matchLevel": "Good", "explanation": "One sentence why."},
-  "another_id": {"matchScore": 40, "matchLevel": "Low", "explanation": "One sentence why."}
-}`
-
-    const response = await callAI(prompt)
-    const parsed = parseAIJSON(response)
-
+export const calculateAllJobMatches = async (jobs, profile, onProgress) => {
     const results = {}
-    for (const [jobId, data] of Object.entries(parsed)) {
-        results[jobId] = {
-            matchScore: Math.min(100, Math.max(0, parseInt(data.matchScore) || 0)),
-            matchLevel: data.matchLevel || 'Unknown',
-            matchingSkills: data.matchingSkills || [],
-            missingSkills: data.missingSkills || [],
-            explanation: data.explanation || '',
-            skillBreakdown: [],
-            actionItems: [],
-            improvementTips: []
+    const total = jobs.length
+    let completed = 0
+    let rateLimited = false
+
+    // Process in chunks of 3 for concurrency control
+    for (let i = 0; i < jobs.length; i += 3) {
+        if (rateLimited) break
+
+        const chunk = jobs.slice(i, i + 3)
+        const settled = await Promise.allSettled(
+            chunk.map(async (job) => {
+                const result = await calculateJobMatch(job, profile)
+                return { jobId: job.id, result }
+            })
+        )
+
+        for (const outcome of settled) {
+            completed++
+            if (outcome.status === 'fulfilled') {
+                const { jobId, result } = outcome.value
+                results[jobId] = result
+                if (onProgress) onProgress(jobId, result, completed, total)
+            } else {
+                const errMsg = outcome.reason?.message || ''
+                if (errMsg.includes('rate limit') || errMsg.includes('429')) {
+                    rateLimited = true
+                    console.warn('Rate limited — stopping remaining match calculations')
+                    break
+                }
+                console.warn('Match calculation failed for a job:', errMsg)
+                if (onProgress) onProgress(null, null, completed, total)
+            }
         }
     }
-    setCache(batchKey, results)
+
     return results
 }
 
@@ -388,7 +379,7 @@ export { normalizeSkillName, deduplicateSkills, normalizeEducationLevel, VALID_E
 export default {
     analyzeResume,
     calculateJobMatch,
-    batchCalculateMatches,
+    calculateAllJobMatches,
     quickExtractSkills,
     normalizeSkillName,
     deduplicateSkills,

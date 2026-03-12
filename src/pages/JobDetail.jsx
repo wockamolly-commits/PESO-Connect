@@ -97,66 +97,16 @@ const JobDetail = () => {
         }
     }
 
-    // Smart skill matching — handles word roots (editing ↔ editor ↔ edit)
-    const skillMatchesRequirement = (skill, requirement) => {
-        const s = skill.toLowerCase().trim()
-        const r = requirement.toLowerCase().trim()
-
-        // Direct substring match
-        if (s.includes(r) || r.includes(s)) return true
-
-        // Word-root matching: split into words and compare roots
-        const sWords = s.split(/\s+/)
-        const rWords = r.split(/\s+/)
-
-        // Strip common suffixes to get word roots
-        const getRoot = (word) => {
-            return word
-                .replace(/(ing|er|or|tion|sion|ment|ist|ist|ness|ity|able|ible|ful|less|ous|ive|al|ly|ed|es|s)$/i, '')
-                .replace(/(.)\1$/, '$1') // double letter: "programm" → "program"
-        }
-
-        // Check if enough word roots overlap
-        let matchedWords = 0
-        for (const sw of sWords) {
-            const sRoot = getRoot(sw)
-            if (sRoot.length < 2) continue
-            for (const rw of rWords) {
-                const rRoot = getRoot(rw)
-                if (rRoot.length < 2) continue
-                if (sRoot === rRoot || sRoot.startsWith(rRoot) || rRoot.startsWith(sRoot)) {
-                    matchedWords++
-                    break
-                }
-            }
-        }
-
-        // Match if at least one significant word root overlaps
-        return matchedWords > 0 && matchedWords >= Math.min(sWords.length, rWords.length) * 0.5
-    }
-
     const checkSkillMatch = () => {
         if (!job?.requirements || !userData?.skills) return false
+        const userSkills = userData.skills.map(s => (typeof s === 'string' ? s : s.name).toLowerCase())
         return job.requirements.some(req =>
-            userData.skills.some(skill => skillMatchesRequirement(skill, req))
+            userSkills.some(skill => skill.includes(req.toLowerCase()) || req.toLowerCase().includes(skill))
         )
     }
 
     const needsJustification = () => {
         return job?.filter_mode === 'flexible' && !checkSkillMatch()
-    }
-
-    // Compute skill gap for inline display
-    const getSkillGap = () => {
-        if (!job?.requirements || !userData?.skills) return { matched: [], missing: [] }
-        const matched = []
-        const missing = []
-        for (const req of job.requirements) {
-            const hasMatch = userData.skills.some(skill => skillMatchesRequirement(skill, req))
-            if (hasMatch) matched.push(req)
-            else missing.push(req)
-        }
-        return { matched, missing }
     }
 
     const handleApply = async () => {
@@ -356,8 +306,8 @@ const JobDetail = () => {
                                 {job.requirements?.map((req, i) => (
                                     <span
                                         key={i}
-                                        className={`px-3 py-1 rounded-full text-sm font-medium ${userData?.skills?.some(s =>
-                                            skillMatchesRequirement(s, req)
+                                        className={`px-3 py-1 rounded-full text-sm font-medium ${matchData?.matchingSkills?.some(ms =>
+                                            ms.toLowerCase().includes(req.toLowerCase()) || req.toLowerCase().includes(ms.toLowerCase())
                                         )
                                             ? 'bg-green-100 text-green-700'
                                             : 'bg-gray-100 text-gray-700'
@@ -584,8 +534,9 @@ const JobDetail = () => {
                         )}
 
                         {/* Skill Gap Analysis */}
-                        {currentUser && isJobseeker() && job?.requirements?.length > 0 && userData?.skills?.length > 0 && !hasApplied && (() => {
-                            const { matched, missing } = getSkillGap()
+                        {currentUser && isJobseeker() && matchData && !matchData.error && (matchData.matchingSkills?.length > 0 || matchData.missingSkills?.length > 0) && !hasApplied && (() => {
+                            const matched = matchData.matchingSkills || []
+                            const missing = matchData.missingSkills || []
                             return (
                                 <div className="card">
                                     <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skill Match</h3>

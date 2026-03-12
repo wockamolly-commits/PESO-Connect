@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import {
@@ -16,6 +16,7 @@ import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
 import geminiService from '../services/geminiService'
+import { calculateCompletion } from '../utils/profileCompletion'
 
 const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
@@ -27,19 +28,15 @@ const JobListings = () => {
     const [categoryFilter, setCategoryFilter] = useState('')
     const [typeFilter, setTypeFilter] = useState('')
     const [sortByMatch, setSortByMatch] = useState(false)
+    const [matchProgress, setMatchProgress] = useState({ completed: 0, total: 0 })
+    const mountedRef = useRef(true)
+    useEffect(() => { return () => { mountedRef.current = false } }, [])
     const [appliedJobIds, setAppliedJobIds] = useState(new Set())
 
-    // Calculate profile completeness for jobseekers
+    // Calculate profile completeness for jobseekers (shared utility)
     const profileCompleteness = (() => {
         if (!currentUser || !isJobseeker() || !userData) return 100
-        let filled = 0
-        let total = 5
-        if (userData.skills?.length > 0) filled++
-        if (userData.resume_url) filled++
-        if (userData.work_experiences?.length > 0) filled++
-        if (userData.education || userData.educational_background) filled++
-        if (userData.certifications?.length > 0) filled++
-        return Math.round((filled / total) * 100)
+        return calculateCompletion(userData).percentage
     })()
 
     const categories = [
@@ -88,13 +85,26 @@ const JobListings = () => {
 
     const calculateAiMatches = async (jobsList, user) => {
         setCalculatingMatches(true)
+        setMatchProgress({ completed: 0, total: jobsList.length })
         try {
-            const matches = await geminiService.batchCalculateMatches(jobsList, user)
-            setMatchScores(matches)
+            const results = await geminiService.calculateAllJobMatches(
+                jobsList,
+                user,
+                (jobId, result, completed, total) => {
+                    if (!mountedRef.current) return
+                    setMatchProgress({ completed, total })
+                    if (jobId && result) {
+                        setMatchScores(prev => ({ ...prev, [jobId]: result }))
+                    }
+                }
+            )
+            if (mountedRef.current && Object.keys(results).length === 0) {
+                console.error('All AI match calculations failed')
+            }
         } catch (error) {
             console.error('AI Match error:', error)
         } finally {
-            setCalculatingMatches(false)
+            if (mountedRef.current) setCalculatingMatches(false)
         }
     }
 
@@ -148,7 +158,7 @@ const JobListings = () => {
                                 placeholder="Search jobs..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="input pl-12 w-full"
+                                className="input-field pl-12 w-full"
                                 aria-label="Search jobs by title or description"
                             />
                         </div>
@@ -192,7 +202,7 @@ const JobListings = () => {
                             ) : calculatingMatches ? (
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium animate-pulse">
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    Analyzing...
+                                    Analyzing {matchProgress.completed}/{matchProgress.total}...
                                 </div>
                             ) : (
                                 <button
