@@ -369,5 +369,105 @@ describe('geminiService', () => {
       const result = calculateDeterministicScore(job, userData)
       expect(result.matchScore).toBe(86)
     })
+
+    describe('hierarchy matching', () => {
+      it('Layer 3 — child skill satisfies parent requirement', () => {
+        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Customer Service' }],
+          skill_aliases: {},
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Communication Skills')
+        expect(result.missingSkills).not.toContain('Communication Skills')
+      })
+
+      it('Layer 4 — child matched via alias bridges to parent', () => {
+        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Client Support' }],
+          skill_aliases: { 'Client Support': ['Customer Service', 'Help Desk'] },
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Communication Skills')
+      })
+
+      it('parent does NOT satisfy child requirement (upward only)', () => {
+        const job = { requirements: ['Customer Service'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Communication Skills' }],
+          skill_aliases: {},
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).not.toContain('Customer Service')
+        expect(result.missingSkills).toContain('Customer Service')
+      })
+
+      it('non-hierarchy requirement falls through to Layer 1/2 only', () => {
+        const job = { requirements: ['Gardening'], category: 'agriculture', education_level: null }
+        const userData = {
+          skills: [{ name: 'Plumbing' }],
+          skill_aliases: {},
+          experience_categories: ['agriculture'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).toContain('Gardening')
+      })
+
+      it('non-transitive — grandchild does NOT satisfy grandparent', () => {
+        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Cashiering' }],
+          skill_aliases: {},
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).toContain('Communication Skills')
+      })
+
+      it('case-insensitive hierarchy lookup', () => {
+        const job = { requirements: ['COMMUNICATION SKILLS'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'customer service' }],
+          skill_aliases: {},
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('COMMUNICATION SKILLS')
+      })
+
+      it('exact match takes precedence over hierarchy (Layer 1 first)', () => {
+        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Communication Skills' }],
+          skill_aliases: {},
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Communication Skills')
+      })
+
+      it('Layer 4 works with null skill_aliases (pre-migration user)', () => {
+        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
+        const userData = {
+          skills: [{ name: 'Customer Service' }],
+          skill_aliases: null,
+          experience_categories: ['retail'],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Communication Skills')
+      })
+    })
   })
 })

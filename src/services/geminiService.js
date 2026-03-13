@@ -188,6 +188,21 @@ const USER_EDUCATION_ORDINAL = {
     'Doctoral Degree': 5,
 }
 
+// --- Skill hierarchy for parent-child matching ---
+// Children satisfy parent requirements (upward only, no recursion)
+const SKILL_HIERARCHY = {
+    'communication skills': ['customer service', 'active listening', 'public speaking', 'interpersonal skills'],
+    'basic computer skills': ['ms office', 'typing skills', 'data entry', 'email management'],
+    'electrical work': ['electrical installation', 'wiring', 'electrical troubleshooting'],
+    'food preparation': ['cooking', 'baking', 'food safety', 'kitchen management'],
+    'vehicle operation': ['driving', 'motorcycle operation', 'forklift operation'],
+    'construction': ['masonry', 'carpentry', 'painting', 'scaffolding'],
+    'welding': ['arc welding', 'mig welding', 'tig welding', 'smaw'],
+    'customer service': ['cashiering', 'sales', 'complaint handling'],
+    'farm equipment operation': ['tractor operation', 'harvesting equipment', 'irrigation systems'],
+    'plumbing': ['pipe fitting', 'pipe installation', 'drain cleaning'],
+}
+
 const skillMatches = (a, b) => {
     const la = a.toLowerCase().trim()
     const lb = b.toLowerCase().trim()
@@ -196,6 +211,21 @@ const skillMatches = (a, b) => {
     const [shorter, longer] = la.length <= lb.length ? [la, lb] : [lb, la]
     const regex = new RegExp(`\\b${shorter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
     return regex.test(longer)
+}
+
+const hierarchyCoversRequirement = (requirement, userSkills, aliases) => {
+    const children = SKILL_HIERARCHY[requirement.toLowerCase()]
+    if (!children) return false
+    for (const child of children) {
+        for (const userSkill of userSkills) {
+            if (skillMatches(child, userSkill)) return true
+            const userAliases = aliases[userSkill] || []
+            for (const alias of userAliases) {
+                if (skillMatches(child, alias)) return true
+            }
+        }
+    }
+    return false
 }
 
 export const calculateDeterministicScore = (job, userData) => {
@@ -210,13 +240,23 @@ export const calculateDeterministicScore = (job, userData) => {
     if (requirements.length > 0) {
         for (const req of requirements) {
             let matched = false
+            // Layer 1: exact/word-boundary match
             for (const skill of skills) {
                 if (skillMatches(req, skill)) { matched = true; break }
-                const skillAliases = aliases[skill] || []
-                for (const alias of skillAliases) {
-                    if (skillMatches(req, alias)) { matched = true; break }
+            }
+            // Layer 2: alias match
+            if (!matched) {
+                for (const skill of skills) {
+                    const skillAliases = aliases[skill] || []
+                    for (const alias of skillAliases) {
+                        if (skillMatches(req, alias)) { matched = true; break }
+                    }
+                    if (matched) break
                 }
-                if (matched) break
+            }
+            // Layers 3-4: hierarchy (child + child-alias)
+            if (!matched) {
+                matched = hierarchyCoversRequirement(req, skills, aliases)
             }
             if (matched) matchingSkills.push(req)
             else missingSkills.push(req)
