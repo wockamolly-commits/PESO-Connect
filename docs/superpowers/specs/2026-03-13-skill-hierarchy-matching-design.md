@@ -23,7 +23,7 @@ const SKILL_HIERARCHY = {
 }
 ```
 
-This map covers common PESO job categories. It is static and deterministic — no API calls needed.
+This map covers common PESO job categories. It is static, manually-curated, and deterministic — no API calls needed. When new job categories are added to the system, the hierarchy should be reviewed and updated as needed by developers.
 
 ## Matching Direction
 
@@ -71,6 +71,32 @@ Without Layer 4, the hierarchy only works when users have skills named exactly a
 - **Scoring formula unchanged:** Skills 50%, Experience 30%, Education 20%.
 - **Performance:** The hierarchy map has ~10 entries with ~3-5 children each. Iteration cost is negligible.
 
+## Integration with calculateDeterministicScore
+
+The scoring loop checks layers in order for each requirement. If any layer matches, the requirement is satisfied and counted once (no double-counting):
+
+```
+for each requirement in job.requirements:
+  matched = false
+
+  // Layer 1: exact/word-boundary match
+  for each userSkill in userSkills:
+    if skillMatches(req, userSkill) → matched = true; break
+
+  // Layer 2: alias match
+  if not matched:
+    for each userSkill in userSkills:
+      for each alias in aliases[userSkill]:
+        if skillMatches(req, alias) → matched = true; break
+
+  // Layers 3-4: hierarchy
+  if not matched:
+    matched = hierarchyCoversRequirement(req, userSkills, aliases)
+
+  if matched → matchingSkills.push(req)
+  else → missingSkills.push(req)
+```
+
 ## Helper Function
 
 ```
@@ -82,10 +108,13 @@ hierarchyCoversRequirement(requirement, userSkills, aliases):
       // Layer 3: user skill directly matches hierarchy child
       if skillMatches(child, userSkill) → return true
       // Layer 4: user skill's aliases match hierarchy child
-      for each alias in aliases[userSkill]:
+      userAliases = aliases[userSkill] || []   // handles null/missing aliases
+      for each alias in userAliases:
         if skillMatches(child, alias) → return true
   return false
 ```
+
+Note: `skillMatches` uses word-boundary matching with a 3-character minimum for partial matches. Exact matches (e.g., "AWS" === "AWS") bypass this minimum. All hierarchy children and aliases are checked through the same `skillMatches` function with no modifications.
 
 ## What Changes
 
@@ -113,7 +142,7 @@ hierarchyCoversRequirement(requirement, userSkills, aliases):
 2. **Layer 4 — Child matched via alias:** user has "Client Support" with alias "Customer Service", job requires "Communication Skills" → match (alias bridges to hierarchy child)
 3. **Direction check — Parent does NOT satisfy child:** user has "Communication Skills", job requires "Customer Service" → not a match
 4. **Not in hierarchy:** user has "Plumbing", job requires "Gardening" → falls through to Layer 1/2 matching only
-5. **Non-transitive:** user has "Cashiering" (child of Customer Service), job requires "Communication Skills" (parent of Customer Service) → NOT a match (no recursion)
+5. **Non-transitive (two-level gap):** user has "Cashiering" (child of Customer Service), job requires "Communication Skills" (parent of Customer Service) → NOT a match (no recursion — only direct children checked)
 6. **Case-insensitive:** user has "customer service", job requires "COMMUNICATION SKILLS" → match
 7. **Exact match takes precedence:** user has "Communication Skills", job requires "Communication Skills" → match via Layer 1 (not hierarchy)
 8. **Alias match without hierarchy:** user has "Welding" with alias "Metal Fabrication", job requires "Metal Fabrication" → match via Layer 2 (existing behavior preserved)
