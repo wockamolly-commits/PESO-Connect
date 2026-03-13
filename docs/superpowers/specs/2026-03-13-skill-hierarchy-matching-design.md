@@ -33,22 +33,43 @@ This map covers common PESO job categories. It is static and deterministic — n
 
 Rationale: Having a specific child skill proves competence in the broader parent category. But having a broad parent skill doesn't prove competence in a specific child area.
 
-## Integration with Existing Scoring
+## 4-Layer Matching Logic
 
-The hierarchy check is added as a third layer in the existing match logic inside `calculateDeterministicScore`. For each job requirement:
+The matching inside `calculateDeterministicScore` now has 4 layers, checked in order. If any layer matches, the requirement is satisfied:
 
-1. **Exact/word-boundary match** against user skills (existing)
-2. **Alias match** against user's `skill_aliases` (existing)
-3. **NEW: Hierarchy match** — if the requirement (lowercased) is a key in `SKILL_HIERARCHY`, check if the user has any of that key's direct children
+### Layer 1: Exact/word-boundary match (existing)
+Check if any user skill name matches the requirement via `skillMatches`.
 
-**Hierarchy child matching algorithm:**
-- For each child in `SKILL_HIERARCHY[requirement.toLowerCase()]`:
-  - Check if any user skill name matches the child via `skillMatches`
-  - Check if any user skill's aliases match the child via `skillMatches`
-- This mirrors the existing two-layer pattern (direct + alias) applied to each child
-- **No recursion:** Only check the direct children listed under the requirement key. Do NOT recurse into children that are themselves parents in the hierarchy. E.g., if "Communication Skills" lists "Customer Service" as a child, and "Customer Service" lists "Cashiering" as its own child, having "Cashiering" does NOT satisfy "Communication Skills".
+### Layer 2: Alias match (existing)
+Check if any of the user's AI-generated `skill_aliases` match the requirement via `skillMatches`.
 
-If any layer matches, the requirement counts as matched. The scoring formula (Skills 50%, Experience 30%, Education 20%) is unchanged.
+### Layer 3: Hierarchy direct child match (NEW)
+If the requirement is a parent in `SKILL_HIERARCHY`, check if any user skill name directly matches one of its children via `skillMatches`.
+
+Example: Job requires "Communication Skills" → hierarchy children include "customer service" → user has "Customer Service" → match.
+
+### Layer 4: Hierarchy alias match (NEW)
+If the requirement is a parent in `SKILL_HIERARCHY`, check if any of the user's skill aliases match one of its children via `skillMatches`. This allows the hierarchy to recognize skill variations without requiring every term in the static map.
+
+Example chain: Job requires "Communication Skills" → hierarchy child "customer service" → user has "Client Support" with alias "Customer Service" → "Customer Service" matches hierarchy child → match.
+
+```
+Client Support → (alias of) → Customer Service → (child of) → Communication Skills
+```
+
+This layer reuses the existing `skill_aliases` from `expandProfileAliases` — no additional AI calls or database changes needed.
+
+### Why 4 layers matter
+
+Without Layer 4, the hierarchy only works when users have skills named exactly as the hierarchy children. With Layer 4, the AI-generated aliases bridge naming variations automatically. A user with "Client Relations" (alias: "Customer Service") gets credit for "Communication Skills" without needing "Client Relations" hardcoded anywhere.
+
+## Constraints
+
+- **No recursion:** Only check direct children listed under the requirement key. Do NOT recurse into children that are themselves parents. E.g., "Cashiering" (child of Customer Service) does NOT satisfy "Communication Skills" (parent of Customer Service).
+- **No database changes:** Reuses existing `skill_aliases` column.
+- **No API changes:** Reuses existing `expandProfileAliases` output.
+- **Scoring formula unchanged:** Skills 50%, Experience 30%, Education 20%.
+- **Performance:** The hierarchy map has ~10 entries with ~3-5 children each. Iteration cost is negligible.
 
 ## Helper Function
 
@@ -58,7 +79,9 @@ hierarchyCoversRequirement(requirement, userSkills, aliases):
   if no children, return false
   for each child in children:
     for each userSkill in userSkills:
+      // Layer 3: user skill directly matches hierarchy child
       if skillMatches(child, userSkill) → return true
+      // Layer 4: user skill's aliases match hierarchy child
       for each alias in aliases[userSkill]:
         if skillMatches(child, alias) → return true
   return false
@@ -66,15 +89,15 @@ hierarchyCoversRequirement(requirement, userSkills, aliases):
 
 ## What Changes
 
-- `matchingSkills` array becomes more accurate — parent skills are included when children are present
+- `matchingSkills` array becomes more accurate — parent skills are included when children are present (directly or via aliases)
 - `missingSkills` array shrinks — parents with present children are no longer gaps
 - The `skillScore` component may increase for candidates who have child skills matching parent requirements
 - The overall `matchScore` may increase slightly for affected candidates
 
 ## Files to Modify
 
-1. **`src/services/geminiService.js`** — Add `SKILL_HIERARCHY` constant (lowercase keys/values), add `hierarchyCoversRequirement` helper, update `calculateDeterministicScore` to call it as a third matching layer
-2. **`src/services/geminiService.test.js`** — Add test cases for hierarchy matching
+1. **`src/services/geminiService.js`** — Add `SKILL_HIERARCHY` constant (lowercase keys/values), add `hierarchyCoversRequirement` helper, update `calculateDeterministicScore` to call it after the existing alias check
+2. **`src/services/geminiService.test.js`** — Add test cases covering all 4 layers and edge cases
 
 ## No Changes Needed
 
@@ -86,17 +109,19 @@ hierarchyCoversRequirement(requirement, userSkills, aliases):
 
 ## Test Cases
 
-1. **Child satisfies parent** — user has "Customer Service", job requires "Communication Skills" → match
-2. **Parent does NOT satisfy child** — user has "Communication Skills", job requires "Customer Service" → not a match (direction check)
-3. **Not in hierarchy** — user has "Plumbing", job requires "Gardening" → falls through to existing matching
-4. **Non-transitive** — user has "Cashiering" (child of Customer Service), job requires "Communication Skills" (parent of Customer Service) → NOT a match (no recursion)
-5. **Case-insensitive** — user has "customer service", job requires "COMMUNICATION SKILLS" → match
-6. **Child matched via alias** — user has "Welding" with alias "Arc Welding", job requires "Welding" (parent) → match via alias matching a child
-7. **User has parent skill directly** — user has "Communication Skills", job requires "Communication Skills" → match (exact match, not hierarchy)
+1. **Layer 3 — Child satisfies parent:** user has "Customer Service", job requires "Communication Skills" → match
+2. **Layer 4 — Child matched via alias:** user has "Client Support" with alias "Customer Service", job requires "Communication Skills" → match (alias bridges to hierarchy child)
+3. **Direction check — Parent does NOT satisfy child:** user has "Communication Skills", job requires "Customer Service" → not a match
+4. **Not in hierarchy:** user has "Plumbing", job requires "Gardening" → falls through to Layer 1/2 matching only
+5. **Non-transitive:** user has "Cashiering" (child of Customer Service), job requires "Communication Skills" (parent of Customer Service) → NOT a match (no recursion)
+6. **Case-insensitive:** user has "customer service", job requires "COMMUNICATION SKILLS" → match
+7. **Exact match takes precedence:** user has "Communication Skills", job requires "Communication Skills" → match via Layer 1 (not hierarchy)
+8. **Alias match without hierarchy:** user has "Welding" with alias "Metal Fabrication", job requires "Metal Fabrication" → match via Layer 2 (existing behavior preserved)
 
 ## Edge Cases
 
-- **Requirement is not in hierarchy:** Falls through to existing exact/alias matching — no change in behavior
+- **Requirement is not in hierarchy:** Falls through to existing Layer 1/2 matching — no change in behavior
 - **User has multiple children of the same parent:** Still counts as one match for the parent requirement (no double counting)
-- **Nested hierarchies (e.g., "Customer Service" is both a parent and a child):** Only direct children are checked. No recursion. "Cashiering" does NOT satisfy "Communication Skills" — only direct children of "Communication Skills" are checked.
+- **Nested hierarchies (e.g., "Customer Service" is both a parent and a child):** Only direct children are checked per key. No recursion. "Cashiering" does NOT satisfy "Communication Skills".
 - **Case handling:** `SKILL_HIERARCHY` keys and values are stored lowercase. Requirements are lowercased before lookup. `skillMatches` already handles case-insensitive comparison.
+- **Empty aliases:** If a user has no `skill_aliases` (pre-migration), Layer 4 is skipped. Layers 1-3 still work.
