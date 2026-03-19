@@ -193,6 +193,79 @@ export const sendEmployerRejectedEmail = (data) => {
     )
 }
 
+// ── Application lifecycle emails ─────────────────────────
+
+export const sendApplicationReceivedEmail = (applicantEmail, applicantName, jobTitle) => {
+    return sendEmailViaEdgeFunction(
+        applicantEmail,
+        `Application Submitted - ${jobTitle}`,
+        wrap(`
+            <h2 style="color: #111827; margin-top: 0;">Application Submitted!</h2>
+            <p>Dear ${applicantName},</p>
+            <p>Your application for <strong>${jobTitle}</strong> has been submitted successfully.</p>
+            <h3>What happens next?</h3>
+            <ul>
+                <li>The employer will review your application</li>
+                <li>You'll receive an email notification when your status changes</li>
+                <li>You can track your application status on your dashboard</li>
+            </ul>
+            <p>Good luck!</p>
+            <p>Best regards,<br>PESO Connect Team</p>
+        `)
+    )
+}
+
+export const sendNewApplicantEmail = (employerEmail, employerName, applicantName, jobTitle) => {
+    return sendEmailViaEdgeFunction(
+        employerEmail,
+        `New Application - ${jobTitle}`,
+        wrap(`
+            <h2 style="color: #111827; margin-top: 0;">New Application Received</h2>
+            <p>Dear ${employerName},</p>
+            <p><strong>${applicantName}</strong> has applied for your job posting: <strong>${jobTitle}</strong>.</p>
+            <p>Log in to PESO Connect to review the application and take action.</p>
+            <p>Best regards,<br>PESO Connect Team</p>
+        `)
+    )
+}
+
+export const sendApplicationStatusEmail = (applicantEmail, applicantName, jobTitle, newStatus, employerName) => {
+    const statusMessages = {
+        shortlisted: {
+            subject: `You've been shortlisted - ${jobTitle}`,
+            heading: 'Great News! You\'ve Been Shortlisted',
+            body: `<p>${employerName} has <strong>shortlisted</strong> your application for <strong>${jobTitle}</strong>.</p>
+                   <p>This means the employer is interested in your profile. Stay tuned for further updates!</p>`,
+        },
+        hired: {
+            subject: `Congratulations! You've been hired - ${jobTitle}`,
+            heading: 'Congratulations! You\'ve Been Hired',
+            body: `<p>${employerName} has <strong>accepted</strong> your application for <strong>${jobTitle}</strong>!</p>
+                   <p>Please log in to PESO Connect or contact the employer for next steps.</p>`,
+        },
+        rejected: {
+            subject: `Application Update - ${jobTitle}`,
+            heading: 'Application Status Update',
+            body: `<p>Unfortunately, your application for <strong>${jobTitle}</strong> was not selected at this time.</p>
+                   <p>Don't be discouraged — keep applying to other positions on PESO Connect!</p>`,
+        },
+    }
+
+    const config = statusMessages[newStatus]
+    if (!config) return Promise.resolve(false)
+
+    return sendEmailViaEdgeFunction(
+        applicantEmail,
+        config.subject,
+        wrap(`
+            <h2 style="color: #111827; margin-top: 0;">${config.heading}</h2>
+            <p>Dear ${applicantName},</p>
+            ${config.body}
+            <p>Best regards,<br>PESO Connect Team</p>
+        `)
+    )
+}
+
 // ── Legacy compatibility ─────────────────────────────────
 // sendEmail is kept for any code that uses the generic interface
 export const sendEmail = async (templateType, data) => {
@@ -219,5 +292,8 @@ export default {
     sendJobseekerRejectedEmail,
     sendEmployerRegistrationEmail,
     sendEmployerApprovedEmail,
-    sendEmployerRejectedEmail
+    sendEmployerRejectedEmail,
+    sendApplicationReceivedEmail,
+    sendNewApplicantEmail,
+    sendApplicationStatusEmail
 }

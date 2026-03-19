@@ -26,6 +26,7 @@ import Dashboard from './pages/Dashboard'
 import Profile from './pages/Profile'
 import JobseekerProfileEdit from './pages/JobseekerProfileEdit'
 import MyApplications from './pages/MyApplications'
+import SavedJobs from './pages/SavedJobs'
 import Messages from './pages/Messages'
 import Settings from './pages/Settings'
 import EmployerProfileEdit from './pages/EmployerProfileEdit'
@@ -122,6 +123,14 @@ function AppContent() {
                             element={
                                 <ProtectedRoute allowedRoles={['jobseeker']}>
                                     <ErrorBoundary><MyApplications /></ErrorBoundary>
+                                </ProtectedRoute>
+                            }
+                        />
+                        <Route
+                            path="/saved-jobs"
+                            element={
+                                <ProtectedRoute allowedRoles={['jobseeker']}>
+                                    <ErrorBoundary><SavedJobs /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
                         />

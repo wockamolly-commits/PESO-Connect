@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../config/supabase'
 import {
@@ -10,10 +10,11 @@ import {
 import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores } from '../services/geminiService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
+import { compressAndEncode } from '../utils/fileUtils'
 import Select from '../components/common/Select'
 
 const JobseekerProfileEdit = () => {
-    const { userData, currentUser, fetchUserData } = useAuth()
+    const { userData, currentUser, fetchUserData, isVerified } = useAuth()
     const navigate = useNavigate()
 
     const [formData, setFormData] = useState({
@@ -95,7 +96,7 @@ const JobseekerProfileEdit = () => {
     // Since we are editing an existing file, let's assume imports are handled at the top.
     // However, I will add the import statement in a separate replacement chunk at the top of the file.
 
-    // Warn user about unsaved changes
+    // Warn user about unsaved changes (browser close/refresh)
     useEffect(() => {
         if (!isDirty) return
         const handleBeforeUnload = (e) => {
@@ -105,6 +106,23 @@ const JobseekerProfileEdit = () => {
         window.addEventListener('beforeunload', handleBeforeUnload)
         return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }, [isDirty])
+
+    // Block in-app navigation when there are unsaved changes
+    useEffect(() => {
+        if (!isDirty || success) return
+        const handleClick = (e) => {
+            const anchor = e.target.closest('a[href]')
+            if (!anchor) return
+            const href = anchor.getAttribute('href')
+            if (!href || href.startsWith('http') || href.startsWith('#')) return
+            if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+                e.preventDefault()
+                e.stopPropagation()
+            }
+        }
+        document.addEventListener('click', handleClick, true)
+        return () => document.removeEventListener('click', handleClick, true)
+    }, [isDirty, success])
 
     const restoredRef = useRef(false)
 
@@ -146,6 +164,13 @@ const JobseekerProfileEdit = () => {
             setIsDirty(false)
         }
     }, [userData])
+
+    // Track dirty state by comparing current form data to initial
+    useEffect(() => {
+        if (initialFormDataRef.current === null) return
+        const dirty = JSON.stringify(formData) !== initialFormDataRef.current
+        setIsDirty(dirty)
+    }, [formData])
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -201,57 +226,6 @@ const JobseekerProfileEdit = () => {
     }
 
     // Compress image/document helper
-    const compressAndEncode = (file) => {
-        return new Promise((resolve, reject) => {
-            if (!file) return resolve('')
-
-            if (!file.type.startsWith('image/')) {
-                if (file.size > 400 * 1024) {
-                    return reject(new Error('PDF must be under 400KB.'))
-                }
-                const reader = new FileReader()
-                reader.onload = () => resolve(reader.result)
-                reader.onerror = (err) => reject(err)
-                reader.readAsDataURL(file)
-                return
-            }
-
-            const img = new Image()
-            const url = URL.createObjectURL(file)
-
-            img.onload = () => {
-                URL.revokeObjectURL(url)
-                const MAX_DIM = 800
-                let { width, height } = img
-
-                if (width > MAX_DIM || height > MAX_DIM) {
-                    if (width > height) {
-                        height = Math.round(height * (MAX_DIM / width))
-                        width = MAX_DIM
-                    } else {
-                        width = Math.round(width * (MAX_DIM / height))
-                        height = MAX_DIM
-                    }
-                }
-
-                const canvas = document.createElement('canvas')
-                canvas.width = width
-                canvas.height = height
-                const ctx = canvas.getContext('2d')
-                ctx.drawImage(img, 0, 0, width, height)
-
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
-                resolve(dataUrl)
-            }
-
-            img.onerror = () => {
-                URL.revokeObjectURL(url)
-                reject(new Error('Failed to load image for compression.'))
-            }
-
-            img.src = url
-        })
-    }
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -263,6 +237,9 @@ const JobseekerProfileEdit = () => {
             // Validation
             if (!formData.full_name || !formData.mobile_number || formData.skills.length === 0) {
                 throw new Error('Please fill in all required fields (name, mobile, at least one skill)')
+            }
+            if (formData.portfolio_url && !/^https?:\/\//i.test(formData.portfolio_url.trim())) {
+                throw new Error('Portfolio URL must start with https:// or http://')
             }
 
             const updateData = {
@@ -303,6 +280,18 @@ const JobseekerProfileEdit = () => {
                 .eq('id', currentUser.uid)
             if (baseErr) throw baseErr
 
+            // Flag profile for re-verification if critical fields changed on a verified user
+            const CRITICAL_FIELDS = ['full_name', 'highest_education', 'school_name', 'resume_url', 'certifications']
+            if (isVerified() && initialFormDataRef.current) {
+                const initial = JSON.parse(initialFormDataRef.current)
+                const criticalChanged = CRITICAL_FIELDS.some(
+                    field => JSON.stringify(updateData[field]) !== JSON.stringify(initial[field])
+                )
+                if (criticalChanged) {
+                    updateData.profile_modified_since_verification = true
+                }
+            }
+
             // All other fields go to jobseeker_profiles
             const { profile_photo, ...profileFields } = updateData
             const { error: profileErr } = await supabase
@@ -337,9 +326,6 @@ const JobseekerProfileEdit = () => {
             await fetchUserData(currentUser.uid)
 
             setSuccess('Profile updated successfully!')
-            setTimeout(() => {
-                navigate('/dashboard')
-            }, 2000)
         } catch (err) {
             setError(err.message || 'Failed to update profile')
         } finally {
@@ -459,7 +445,12 @@ const JobseekerProfileEdit = () => {
                 {success && (
                     <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                        <p className="text-green-700 text-sm">{success}</p>
+                        <div className="flex-1 flex items-center justify-between gap-3">
+                            <p className="text-green-700 text-sm">{success}</p>
+                            <Link to="/dashboard" className="btn-primary text-sm py-1.5 px-4 flex-shrink-0">
+                                Back to Dashboard
+                            </Link>
+                        </div>
                     </div>
                 )}
 
@@ -873,6 +864,12 @@ const JobseekerProfileEdit = () => {
                                         name="portfolio_url"
                                         value={formData.portfolio_url}
                                         onChange={handleChange}
+                                        onBlur={(e) => {
+                                            const val = e.target.value.trim()
+                                            if (val && !/^https?:\/\//i.test(val)) {
+                                                setError('Portfolio URL must start with https:// or http://')
+                                            }
+                                        }}
                                         className="input-field pl-12"
                                         placeholder="https://yourportfolio.com"
                                     />

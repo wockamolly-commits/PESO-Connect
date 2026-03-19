@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../config/supabase'
 import ProfileCompletionBar from '../components/profile/ProfileCompletionBar'
 import { calculateCompletion } from '../utils/profileCompletion'
 import {
@@ -13,11 +15,50 @@ import {
     Search,
     Plus,
     Eye,
-    MessageSquare
+    MessageSquare,
+    RefreshCw,
+    Mail
 } from 'lucide-react'
 
 const Dashboard = () => {
-    const { userData, isVerified, isEmployer, isJobseeker, isAdmin, isIndividual } = useAuth()
+    const { userData, currentUser, fetchUserData, isVerified, isEmailVerified, isEmployer, isJobseeker, isAdmin, isIndividual } = useAuth()
+    const [resubmitting, setResubmitting] = useState(false)
+    const [employerStats, setEmployerStats] = useState({ activeJobs: 0, totalApplications: 0, loading: true })
+
+    // Fetch employer stats
+    useEffect(() => {
+        if (!isEmployer() || !currentUser) return
+        const fetchStats = async () => {
+            try {
+                const { count: jobCount } = await supabase
+                    .from('job_postings')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('employer_id', currentUser.uid)
+                    .eq('status', 'open')
+
+                const { data: jobs } = await supabase
+                    .from('job_postings')
+                    .select('id')
+                    .eq('employer_id', currentUser.uid)
+
+                let appCount = 0
+                if (jobs && jobs.length > 0) {
+                    const jobIds = jobs.map(j => j.id)
+                    const { count } = await supabase
+                        .from('applications')
+                        .select('*', { count: 'exact', head: true })
+                        .in('job_id', jobIds)
+                    appCount = count || 0
+                }
+
+                setEmployerStats({ activeJobs: jobCount || 0, totalApplications: appCount, loading: false })
+            } catch (err) {
+                console.error('Failed to fetch employer stats:', err)
+                setEmployerStats(prev => ({ ...prev, loading: false }))
+            }
+        }
+        fetchStats()
+    }, [currentUser, isEmployer])
 
     const jobseekerQuickActions = [
         { path: '/jobs', label: 'Browse Jobs', icon: Search, color: 'bg-blue-500' },
@@ -83,41 +124,91 @@ const Dashboard = () => {
                 )}
 
                 {/* Verification Status Banner (not shown for individual/homeowner accounts) */}
-                {!isVerified() && !isIndividual() && (
-                    <div className={`card mb-8 ${userData?.employer_status === 'rejected'
+                {!isVerified() && !isIndividual() && (() => {
+                    const verificationStatus = isJobseeker() ? userData?.jobseeker_status : userData?.employer_status;
+                    const isRejected = verificationStatus === 'rejected';
+                    return (
+                    <div className={`card mb-8 ${isRejected
                         ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200'
                         : 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200'
                         }`}>
                         <div className="flex items-start gap-4">
-                            <div className={`w-12 h-12 ${userData?.employer_status === 'rejected' ? 'bg-red-100' : 'bg-yellow-100'
+                            <div className={`w-12 h-12 ${isRejected ? 'bg-red-100' : 'bg-yellow-100'
                                 } rounded-xl flex items-center justify-center flex-shrink-0`}>
-                                {userData?.employer_status === 'rejected'
+                                {isRejected
                                     ? <AlertCircle className="w-6 h-6 text-red-600" />
                                     : <Clock className="w-6 h-6 text-yellow-600" />
                                 }
                             </div>
                             <div className="flex-1">
-                                <h3 className={`font-semibold mb-1 ${userData?.employer_status === 'rejected' ? 'text-red-800' : 'text-yellow-800'
+                                <h3 className={`font-semibold mb-1 ${isRejected ? 'text-red-800' : 'text-yellow-800'
                                     }`}>
-                                    {userData?.employer_status === 'rejected'
+                                    {isRejected
                                         ? 'Registration Rejected'
                                         : 'Account Pending Review'
                                     }
                                 </h3>
-                                <p className={`text-sm ${userData?.employer_status === 'rejected' ? 'text-red-700' : 'text-yellow-700'
+                                <p className={`text-sm ${isRejected ? 'text-red-700' : 'text-yellow-700'
                                     }`}>
-                                    {userData?.employer_status === 'rejected'
-                                        ? 'Your employer registration was not approved by PESO.'
+                                    {isRejected
+                                        ? `Your ${isJobseeker() ? 'jobseeker' : 'employer'} registration was not approved by PESO.`
                                         : `Your account is awaiting verification by the PESO administrator. Once verified, you will be able to ${isEmployer() ? 'post jobs' : 'apply to jobs'}.`
                                     }
                                 </p>
-                                {userData?.employer_status === 'rejected' && userData?.rejection_reason && (
+                                {isRejected && userData?.rejection_reason && (
                                     <div className="mt-2 p-3 bg-red-100/50 rounded-lg">
                                         <p className="text-sm text-red-800">
                                             <strong>Reason:</strong> {userData.rejection_reason}
                                         </p>
                                     </div>
                                 )}
+                                {isRejected && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <Link to="/profile" className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2">
+                                            Edit Profile <ArrowRight className="w-4 h-4" />
+                                        </Link>
+                                        <button
+                                            onClick={async () => {
+                                                setResubmitting(true)
+                                                try {
+                                                    const profileTable = isJobseeker() ? 'jobseeker_profiles' : 'employer_profiles'
+                                                    const statusField = isJobseeker() ? 'jobseeker_status' : 'employer_status'
+                                                    await supabase.from(profileTable).update({
+                                                        [statusField]: 'pending',
+                                                        rejection_reason: null
+                                                    }).eq('id', currentUser.uid)
+                                                    await fetchUserData(currentUser.uid)
+                                                } catch (err) {
+                                                    console.error('Re-review request failed:', err)
+                                                } finally {
+                                                    setResubmitting(false)
+                                                }
+                                            }}
+                                            disabled={resubmitting}
+                                            className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2"
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${resubmitting ? 'animate-spin' : ''}`} />
+                                            {resubmitting ? 'Requesting...' : 'Request Re-Review'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    );
+                })()}
+
+                {currentUser && !isEmailVerified() && !isAdmin() && (
+                    <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 mb-8">
+                        <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Mail className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-blue-800 mb-1">Verify Your Email</h3>
+                                <p className="text-blue-700 text-sm">
+                                    Please check your inbox and click the verification link we sent to <strong>{currentUser?.email}</strong>. You won't be able to apply for jobs until your email is verified.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -188,9 +279,12 @@ const Dashboard = () => {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Status</span>
-                                <span className={`badge ${isVerified() ? 'badge-success' : 'badge-warning'}`}>
-                                    {isVerified() ? 'Verified' : 'Pending'}
-                                </span>
+                                {(() => {
+                                    const status = isJobseeker() ? userData?.jobseeker_status : userData?.employer_status;
+                                    if (isVerified()) return <span className="badge badge-success">Verified</span>;
+                                    if (status === 'rejected') return <span className="badge badge-error">Rejected</span>;
+                                    return <span className="badge badge-warning">Pending</span>;
+                                })()}
                             </div>
                         </div>
                         <Link to="/profile" className="btn-secondary w-full mt-4 flex items-center justify-center gap-2">
@@ -228,11 +322,15 @@ const Dashboard = () => {
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-blue-50 rounded-xl p-4 text-center">
-                                    <p className="text-2xl font-bold text-blue-600">0</p>
+                                    <p className="text-2xl font-bold text-blue-600">
+                                        {employerStats.loading ? '–' : employerStats.activeJobs}
+                                    </p>
                                     <p className="text-sm text-blue-700">Active Jobs</p>
                                 </div>
                                 <div className="bg-green-50 rounded-xl p-4 text-center">
-                                    <p className="text-2xl font-bold text-green-600">0</p>
+                                    <p className="text-2xl font-bold text-green-600">
+                                        {employerStats.loading ? '–' : employerStats.totalApplications}
+                                    </p>
                                     <p className="text-sm text-green-700">Applications</p>
                                 </div>
                             </div>

@@ -37,6 +37,12 @@ const JobseekerCard = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
+                    {jobseeker.profile_modified_since_verification && status === 'verified' && (
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500/15 text-yellow-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                            Profile Modified
+                        </span>
+                    )}
                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${
                         status === 'pending'
                             ? 'bg-amber-500/15 text-amber-400'
@@ -163,7 +169,7 @@ const JobseekerCard = ({
                                     <div>
                                         <p className="text-xs text-slate-500 mb-2">Portfolio:</p>
                                         <a
-                                            href={jobseeker.portfolio_url}
+                                            href={/^https?:\/\//i.test(jobseeker.portfolio_url) ? jobseeker.portfolio_url : '#'}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/15 text-purple-400 rounded-lg text-xs hover:bg-purple-500/25 transition-colors"

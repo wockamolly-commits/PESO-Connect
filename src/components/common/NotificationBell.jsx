@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCircle, XCircle, Briefcase, X } from 'lucide-react'
+import { Bell, CheckCircle, XCircle, Briefcase, X, Send } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
     subscribeToNotifications,
@@ -13,6 +13,7 @@ const STATUS_CONFIG = {
     shortlisted: { icon: CheckCircle, color: 'text-blue-500', bg: 'bg-blue-50' },
     hired: { icon: Briefcase, color: 'text-green-500', bg: 'bg-green-50' },
     rejected: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50' },
+    new_application: { icon: Send, color: 'text-primary-500', bg: 'bg-primary-50' },
 }
 
 function timeAgo(dateString) {
@@ -88,7 +89,11 @@ export default function NotificationBell() {
         setOpen(false)
 
         // Navigate based on notification type
-        if (notification.type === 'application_status_change') {
+        if (notification.type === 'new_application' && notification.data?.job_id) {
+            navigate(`/employer/jobs/${notification.data.job_id}/applicants`)
+        } else if (notification.type === 'application_submitted' && notification.data?.job_id) {
+            navigate(`/jobs/${notification.data.job_id}`)
+        } else if (notification.type === 'application_status_change') {
             navigate('/my-applications')
         }
     }
@@ -101,8 +106,8 @@ export default function NotificationBell() {
     }
 
     const getNotificationIcon = (notification) => {
-        const status = notification.data?.status
-        const config = STATUS_CONFIG[status]
+        // Check notification type first, then fall back to data.status
+        const config = STATUS_CONFIG[notification.type] || STATUS_CONFIG[notification.data?.status]
         if (config) {
             const Icon = config.icon
             return <Icon className={`w-5 h-5 ${config.color}`} />
@@ -174,7 +179,7 @@ export default function NotificationBell() {
                                     }`}
                                 >
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                        STATUS_CONFIG[notification.data?.status]?.bg || 'bg-gray-100'
+                                        (STATUS_CONFIG[notification.type] || STATUS_CONFIG[notification.data?.status])?.bg || 'bg-gray-100'
                                     }`}>
                                         {getNotificationIcon(notification)}
                                     </div>

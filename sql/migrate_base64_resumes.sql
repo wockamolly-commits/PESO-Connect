@@ -1,0 +1,54 @@
+-- Migration: Identify Base64 resume_url values that need migration to Supabase Storage
+--
+-- Base64 resumes start with "data:" while Storage URLs start with "http".
+-- This query finds all profiles still using Base64.
+--
+-- STEP 1: Run this query to see affected rows:
+SELECT id, LEFT(resume_url, 30) AS resume_preview
+FROM jobseeker_profiles
+WHERE resume_url IS NOT NULL
+  AND resume_url LIKE 'data:%';
+
+-- STEP 2: Migration must be done programmatically (decode Base64, upload to Storage, update URL).
+-- Use the Node script below or handle via a one-time admin endpoint.
+--
+-- ============================================================
+-- Node.js migration script (run locally with service role key):
+-- ============================================================
+--
+-- const { createClient } = require('@supabase/supabase-js')
+-- const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+--
+-- async function migrateBase64Resumes() {
+--   const { data: profiles } = await supabase
+--     .from('jobseeker_profiles')
+--     .select('id, resume_url')
+--     .like('resume_url', 'data:%')
+--
+--   for (const profile of profiles) {
+--     const matches = profile.resume_url.match(/^data:(.+?);base64,(.+)$/)
+--     if (!matches) continue
+--
+--     const mimeType = matches[1]
+--     const base64Data = matches[2]
+--     const buffer = Buffer.from(base64Data, 'base64')
+--     const ext = mimeType.includes('pdf') ? 'pdf' : 'doc'
+--     const path = `${profile.id}/resume.${ext}`
+--
+--     const { error: uploadError } = await supabase.storage
+--       .from('resumes')
+--       .upload(path, buffer, { contentType: mimeType, upsert: true })
+--
+--     if (uploadError) { console.error(profile.id, uploadError); continue }
+--
+--     const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(path)
+--
+--     await supabase
+--       .from('jobseeker_profiles')
+--       .update({ resume_url: urlData.publicUrl })
+--       .eq('id', profile.id)
+--
+--     console.log(`Migrated ${profile.id}`)
+--   }
+-- }
+-- migrateBase64Resumes()

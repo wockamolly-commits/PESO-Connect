@@ -73,12 +73,8 @@ describe('geminiService', () => {
   })
 
   describe('calculateJobMatch', () => {
-    it('returns match data for a job-profile pair', async () => {
+    it('returns qualitative data for a job-profile pair', async () => {
       const mockMatch = {
-        matchScore: 75,
-        matchLevel: 'Good',
-        matchingSkills: ['Plumbing'],
-        missingSkills: ['Electrical'],
         explanation: 'Good match based on plumbing skills.',
         skillBreakdown: [
           { category: 'Technical Skills', score: 80, detail: 'Strong plumbing skills' },
@@ -96,9 +92,9 @@ describe('geminiService', () => {
         { skills: ['Plumbing'], work_experiences: [{ position: 'Plumber', company: 'ABC' }] }
       )
 
-      expect(result.matchScore).toBe(75)
-      expect(result.matchLevel).toBe('Good')
-      expect(result.matchingSkills).toContain('Plumbing')
+      expect(result.explanation).toBe('Good match based on plumbing skills.')
+      expect(result.skillBreakdown).toHaveLength(3)
+      expect(result.improvementTips).toContain('Get electrical certification')
     })
 
     it('throws on network error', async () => {
@@ -467,6 +463,124 @@ describe('geminiService', () => {
         }
         const result = calculateDeterministicScore(job, userData)
         expect(result.matchingSkills).toContain('Communication Skills')
+      })
+    })
+
+    describe('education requirements in requirements array', () => {
+      it('should recognize education strings and evaluate against user education, not skills', () => {
+        const job = {
+          requirements: ['Welding', 'High School Graduate'],
+          education_level: 'high-school',
+        }
+        const userData = {
+          skills: [{ name: 'Welding' }],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        // College Graduate exceeds High School Graduate — should NOT be a gap
+        expect(result.missingSkills).not.toContain('High School Graduate')
+        expect(result.matchingSkills).toContain('High School Graduate')
+        expect(result.matchingSkills).toContain('Welding')
+      })
+
+      it('should mark education as missing when user does not meet it', () => {
+        const job = {
+          requirements: ['Welding', 'College Graduate'],
+          education_level: 'college',
+        }
+        const userData = {
+          skills: [{ name: 'Welding' }],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).toContain('College Graduate')
+        expect(result.matchingSkills).not.toContain('College Graduate')
+      })
+
+      it('should not misclassify regular skills as education requirements', () => {
+        const job = {
+          requirements: ['Customer Service', 'Driving'],
+        }
+        const userData = {
+          skills: [{ name: 'Customer Service' }, { name: 'Driving' }],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Customer Service')
+        expect(result.matchingSkills).toContain('Driving')
+        expect(result.missingSkills).toHaveLength(0)
+      })
+    })
+
+    describe('language requirements in requirements array', () => {
+      it('should recognize language requirements and match against user languages', () => {
+        const job = {
+          requirements: ['Welding', 'Good English Communication'],
+        }
+        const userData = {
+          skills: [{ name: 'Welding' }],
+          languages: [{ language: 'English', proficiency: 'Fluent' }],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).not.toContain('Good English Communication')
+        expect(result.matchingSkills).toContain('Good English Communication')
+        expect(result.matchingSkills).toContain('Welding')
+      })
+
+      it('should mark language requirement as missing when user lacks that language', () => {
+        const job = {
+          requirements: ['Fluent English Communication'],
+        }
+        const userData = {
+          skills: [],
+          languages: [{ language: 'Filipino', proficiency: 'Native' }],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).toContain('Fluent English Communication')
+      })
+
+      it('should mark language as missing when proficiency is insufficient', () => {
+        const job = {
+          requirements: ['Fluent English Communication'],
+        }
+        const userData = {
+          skills: [],
+          languages: [{ language: 'English', proficiency: 'Basic' }],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).toContain('Fluent English Communication')
+      })
+
+      it('should match Filipino language requirements', () => {
+        const job = {
+          requirements: ['Filipino Speaking', 'Driving'],
+        }
+        const userData = {
+          skills: [{ name: 'Driving' }],
+          languages: [{ language: 'Filipino', proficiency: 'Native' }],
+          highest_education: 'High School Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.missingSkills).not.toContain('Filipino Speaking')
+        expect(result.matchingSkills).toContain('Filipino Speaking')
+      })
+
+      it('should not misclassify regular skills containing language-adjacent words', () => {
+        const job = {
+          requirements: ['Customer Service', 'Communication Skills'],
+        }
+        const userData = {
+          skills: [{ name: 'Customer Service' }, { name: 'Communication Skills' }],
+          languages: [],
+          highest_education: 'College Graduate',
+        }
+        const result = calculateDeterministicScore(job, userData)
+        expect(result.matchingSkills).toContain('Customer Service')
+        expect(result.matchingSkills).toContain('Communication Skills')
+        expect(result.missingSkills).toHaveLength(0)
       })
     })
   })

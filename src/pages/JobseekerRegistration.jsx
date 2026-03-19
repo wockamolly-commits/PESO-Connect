@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../config/supabase'
 import { sendJobseekerRegistrationEmail } from '../services/emailService'
 import { validators } from '../utils/validation'
+import { normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import {
     Loader2, AlertCircle, ChevronRight, ChevronLeft, CheckCircle
 } from 'lucide-react'
@@ -65,6 +67,7 @@ const JobseekerRegistration = () => {
     const [workExpInput, setWorkExpInput] = useState({ company: '', position: '', duration: '' })
     const [certInput, setCertInput] = useState('')
     const [resumeFile, setResumeFile] = useState(null)
+    const [resumeUrl, setResumeUrl] = useState('')
     const [certificateFiles, setCertificateFiles] = useState([])
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
@@ -174,8 +177,9 @@ const JobseekerRegistration = () => {
     }
 
     const addSkill = () => {
-        if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
-            setFormData(prev => ({ ...prev, skills: [...prev.skills, skillInput.trim()] }))
+        const normalized = normalizeSkillName(skillInput.trim())
+        if (normalized && !formData.skills.includes(normalized)) {
+            setFormData(prev => ({ ...prev, skills: [...prev.skills, normalized] }))
             setSkillInput('')
         }
     }
@@ -273,8 +277,12 @@ const JobseekerRegistration = () => {
                     setError('Passwords do not match')
                     return false
                 }
-                if (formData.password.length < 6) {
-                    setError('Password must be at least 6 characters')
+                if (formData.password.length < 8) {
+                    setError('Password must be at least 8 characters')
+                    return false
+                }
+                if (!/[a-zA-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+                    setError('Password must contain at least one letter and one number')
                     return false
                 }
                 break
@@ -306,7 +314,7 @@ const JobseekerRegistration = () => {
                     setError('Please add at least one skill')
                     return false
                 }
-                if (!resumeFile && !userData?.resume_url) {
+                if (!resumeUrl && !userData?.resume_url) {
                     setError('Please upload your resume')
                     return false
                 }
@@ -354,7 +362,7 @@ const JobseekerRegistration = () => {
                 }
             case 5:
                 return {
-                    skills: formData.skills,
+                    skills: deduplicateSkills(formData.skills),
                     work_experiences: formData.work_experiences,
                     certifications: formData.certifications,
                     portfolio_url: formData.portfolio_url,
@@ -394,10 +402,6 @@ const JobseekerRegistration = () => {
             let stepData = getStepData(currentStep)
 
             if (currentStep === 5) {
-                let resumeData = ''
-                if (resumeFile) {
-                    resumeData = await compressAndEncode(resumeFile)
-                }
                 let certificatesData = []
                 if (certificateFiles && certificateFiles.length > 0) {
                     for (const file of certificateFiles) {
@@ -405,7 +409,7 @@ const JobseekerRegistration = () => {
                         certificatesData.push({ name: file.name, data: encoded, type: file.type })
                     }
                 }
-                stepData = { ...stepData, resume_url: resumeData, certificate_urls: certificatesData }
+                stepData = { ...stepData, resume_url: resumeUrl || userData?.resume_url || '', certificate_urls: certificatesData }
             }
 
             await saveRegistrationStep(stepData, currentStep)
@@ -440,8 +444,8 @@ const JobseekerRegistration = () => {
                 rejection_reason: '',
             }
 
-            if (resumeFile && !userData?.resume_url) {
-                finalData.resume_url = await compressAndEncode(resumeFile)
+            if (resumeUrl && !userData?.resume_url) {
+                finalData.resume_url = resumeUrl
             }
             if (certificateFiles.length > 0 && !userData?.certificate_urls?.length) {
                 const certificatesData = []
@@ -528,8 +532,10 @@ const JobseekerRegistration = () => {
                         setCertInput={setCertInput}
                         addCertification={addCertification}
                         removeCertification={removeCertification}
-                        resumeFile={resumeFile}
-                        handleResumeChange={handleResumeChange}
+                        userId={currentUser?.uid}
+                        resumeUrl={resumeUrl || userData?.resume_url || ''}
+                        onResumeUploaded={(url) => setResumeUrl(url)}
+                        onResumeRemoved={() => setResumeUrl('')}
                         certificateFiles={certificateFiles}
                         handleCertificateChange={handleCertificateChange}
                         removeCertificateFile={removeCertificateFile}
@@ -540,7 +546,7 @@ const JobseekerRegistration = () => {
                     <Step6Consent
                         formData={formData}
                         handleChange={handleChange}
-                        resumeFile={resumeFile}
+                        resumeUrl={resumeUrl || userData?.resume_url || ''}
                     />
                 )
             default:

@@ -213,6 +213,42 @@ const skillMatches = (a, b) => {
     return regex.test(longer)
 }
 
+// Detect if a requirement string is actually an education level (not a skill)
+const EDUCATION_KEYWORDS = /\b(graduate|undergraduate|degree|diploma|elementary|high\s*school|senior\s*high|vocational|college|master|doctoral|phd|bachelor)\b/i
+const isEducationRequirement = (req) => EDUCATION_KEYWORDS.test(req)
+
+// Check if user's education satisfies an education-type requirement string
+const educationSatisfied = (req, userEducation) => {
+    const reqOrdinal = USER_EDUCATION_ORDINAL[req] ?? USER_EDUCATION_ORDINAL[normalizeEducationLevel(req)] ?? -1
+    const userOrdinal = USER_EDUCATION_ORDINAL[userEducation] ?? 0
+    return reqOrdinal >= 0 && userOrdinal >= reqOrdinal
+}
+
+// --- Language proficiency helpers ---
+const LANGUAGE_NAMES = /\b(english|filipino|tagalog|cebuano|bisaya|ilokano|ilocano|hiligaynon|waray|kapampangan|pangasinan|bikolano|maranao|mandarin|chinese|japanese|korean|spanish|arabic|french|german|malay|bahasa)\b/i
+const LANGUAGE_KEYWORDS = /\b(speak|fluent|proficien|communicat|literate|language)/i
+const isLanguageRequirement = (req) => LANGUAGE_NAMES.test(req) && (LANGUAGE_KEYWORDS.test(req) || /^\s*(english|filipino|tagalog)\s*$/i.test(req))
+
+const PROFICIENCY_ORDINAL = { 'Basic': 1, 'Conversational': 2, 'Fluent': 3, 'Native': 4 }
+
+// Check if user's languages satisfy a language-type requirement
+const languageSatisfied = (req, userLanguages) => {
+    if (!Array.isArray(userLanguages) || userLanguages.length === 0) return false
+    const reqLower = req.toLowerCase()
+    for (const lang of userLanguages) {
+        const name = (lang.language || '').toLowerCase()
+        if (name && reqLower.includes(name)) {
+            // Language name matched — now check proficiency if requirement implies a level
+            const reqProficiency = /\b(fluent|native)\b/i.test(req) ? 3
+                : /\b(proficien|good|strong)\b/i.test(req) ? 2
+                : 1 // basic/any mention is enough
+            const userProficiency = PROFICIENCY_ORDINAL[lang.proficiency] ?? 2
+            if (userProficiency >= reqProficiency) return true
+        }
+    }
+    return false
+}
+
 const hierarchyCoversRequirement = (requirement, userSkills, aliases) => {
     const children = SKILL_HIERARCHY[requirement.toLowerCase()]
     if (!children) return false
@@ -237,8 +273,30 @@ export const calculateDeterministicScore = (job, userData) => {
     const matchingSkills = []
     const missingSkills = []
 
-    if (requirements.length > 0) {
-        for (const req of requirements) {
+    // Separate non-skill requirements (education, language) from actual skill requirements
+    const skillRequirements = []
+    for (const req of requirements) {
+        if (isEducationRequirement(req)) {
+            // Evaluate against user's education level, not skills
+            if (educationSatisfied(req, userData.highest_education)) {
+                matchingSkills.push(req)
+            } else {
+                missingSkills.push(req)
+            }
+        } else if (isLanguageRequirement(req)) {
+            // Evaluate against user's language proficiency, not skills
+            if (languageSatisfied(req, userData.languages)) {
+                matchingSkills.push(req)
+            } else {
+                missingSkills.push(req)
+            }
+        } else {
+            skillRequirements.push(req)
+        }
+    }
+
+    if (skillRequirements.length > 0) {
+        for (const req of skillRequirements) {
             let matched = false
             // Layer 1: exact/word-boundary match
             for (const skill of skills) {
@@ -261,6 +319,9 @@ export const calculateDeterministicScore = (job, userData) => {
             if (matched) matchingSkills.push(req)
             else missingSkills.push(req)
         }
+    }
+
+    if (requirements.length > 0) {
         skillScore = (matchingSkills.length / requirements.length) * 100
     }
 
@@ -424,13 +485,21 @@ Return valid JSON in this exact format:
 /**
  * Calculate semantic match score between a job and user profile
  */
-export const calculateJobMatch = async (job, profile) => {
+export const calculateJobMatch = async (job, profile, deterministicResults = null) => {
     const skillsKey = (profile.skills || []).map(s => typeof s === 'string' ? s : s.name).sort().join(',')
     const cacheKey = `match_${job.id}_${skillsKey}`
     const cached = getCached(cacheKey)
     if (cached && cached.skillBreakdown?.length > 0) return cached
 
+    const det = deterministicResults || calculateDeterministicScore(job, profile)
     const jobRequirements = job.requirements?.join(', ') || job.required_skills?.join(', ') || 'Not specified'
+    const workExpStr = profile.work_experiences?.map(w => {
+        const parts = [`${w.position || w.title || ''} at ${w.company || ''}`]
+        if (w.duration) parts.push(`(${w.duration})`)
+        return parts.join(' ')
+    }).filter(s => s.trim() !== 'at').join('; ') || profile.experience || 'Not specified'
+    const certStr = (profile.certifications || []).filter(Boolean).join(', ') || 'None'
+    const langStr = (profile.languages || []).map(l => typeof l === 'string' ? l : `${l.language} (${l.proficiency})`).join(', ') || 'Not specified'
 
     const prompt = `You are an expert career coach and job matching assistant for PESO (Public Employment Service Office) in the Philippines. Provide a detailed match analysis.
 
@@ -442,21 +511,29 @@ Category: ${job.category || 'Not specified'}
 Description: ${job.description || 'Not provided'}
 Required Skills: ${jobRequirements}
 Experience Level: ${job.experience_level || 'Any'}
+Education Requirement: ${job.education_level || 'None'}
+Location: ${job.location || 'Not specified'}
 
 CANDIDATE PROFILE:
 Skills: ${profile.skills?.map(s => typeof s === 'string' ? s : s.name).join(', ') || 'Not specified'}
-Experience: ${profile.work_experiences?.map(w => `${w.position} at ${w.company}`).join('; ') || profile.experience || 'Not specified'}
-Education: ${profile.highest_education || profile.education || 'Not specified'}
+Work Experience: ${workExpStr}
+Education: ${profile.highest_education || profile.education || 'Not specified'}${profile.course_or_field ? ` — ${profile.course_or_field}` : ''}
+Certifications: ${certStr}
+Languages: ${langStr}
+Location: ${profile.preferred_job_location || profile.city || 'Not specified'}
+
+MATCH RESULTS (already computed — your analysis MUST be consistent with these):
+Match Score: ${det.matchScore}/100 (${det.matchLevel})
+Matched Skills: ${det.matchingSkills?.length > 0 ? det.matchingSkills.join(', ') : 'None'}
+Missing Skills: ${det.missingSkills?.length > 0 ? det.missingSkills.join(', ') : 'None'}
+
+IMPORTANT: The matched/missing skills above are FINAL. Do NOT contradict them. If a skill is listed as matched, treat it as a strength. If a skill is listed as missing, treat it as a gap. Your job is to provide qualitative explanation, not to re-evaluate matches.
 
 Return valid JSON in this exact format:
 {
-    "matchScore": 75,
-    "matchLevel": "Excellent|Good|Fair|Low",
-    "matchingSkills": ["skill1", "skill2"],
-    "missingSkills": ["skill1", "skill2"],
-    "explanation": "2-3 sentence explanation focusing on the candidate's strengths and fit for this specific role.",
+    "explanation": "2-3 sentence explanation consistent with the match results above. Highlight the candidate's strengths (matched skills) and note gaps (missing skills) accurately.",
     "skillBreakdown": [
-        {"category": "Technical Skills", "score": 80, "detail": "Brief note on technical alignment"},
+        {"category": "Technical Skills", "score": 80, "detail": "Brief note on technical alignment referencing the matched skills"},
         {"category": "Experience", "score": 60, "detail": "Brief note on experience relevance"},
         {"category": "Education", "score": 70, "detail": "Brief note on education fit"}
     ],
@@ -471,10 +548,6 @@ Return valid JSON in this exact format:
     const result = parseAIJSON(response)
 
     const matched = {
-        matchScore: Math.min(100, Math.max(0, parseInt(result.matchScore) || 0)),
-        matchLevel: result.matchLevel || 'Unknown',
-        matchingSkills: result.matchingSkills || [],
-        missingSkills: result.missingSkills || [],
         explanation: result.explanation || 'Could not generate explanation.',
         skillBreakdown: (result.skillBreakdown || []).map(sb => ({
             category: sb.category || 'General',
@@ -497,10 +570,12 @@ const SCORING_RUBRIC = `SCORING RULES:
 - Use semantic skill matching: recognize related skills even if names differ (e.g. "Welding" ↔ "Metal Fabrication", "Driving" ↔ "Logistics", "Cooking" ↔ "Food Preparation", "React" ↔ "Frontend Development")
 - Weight: Skills 50%, Experience 30%, Education 20%
 - Skills scoring: count matched skills (including semantic matches) vs required skills. 0 matched = max 25 points from skills component
-- Experience scoring: relevant industry/role experience adds full points, adjacent experience adds partial
-- Education scoring: meets or exceeds requirement = full points, one level below = partial
+- Experience scoring: relevant industry/role experience adds full points, adjacent experience adds partial. Consider certifications as supporting evidence.
+- Education scoring: compare the candidate's education against the job's Education Requirement. If the candidate meets or exceeds the requirement = full points, one level below = partial.
 - Final score rubric: 80-100 Excellent, 60-79 Good, 40-59 Fair, 0-39 Low
-- Be strict: only score 80+ when candidate has strong direct skill matches AND relevant experience`
+- Be strict: only score 80+ when candidate has strong direct skill matches AND relevant experience
+
+CRITICAL: Base your analysis on the ACTUAL candidate data provided. Do NOT claim the candidate lacks qualifications they already have. If the candidate's education meets or exceeds the job requirement, do NOT list education as a gap or suggest they need a degree they already hold. The same applies to skills, experience, certifications, and all other profile data — acknowledge what the candidate already has.`
 
 /**
  * Quick skill extraction without full analysis (faster, simpler)

@@ -11,7 +11,10 @@ import {
     Briefcase,
     ArrowRight,
     Star,
-    Ban
+    Ban,
+    ChevronDown,
+    ChevronUp,
+    MessageSquare
 } from 'lucide-react'
 import { ApplicationsSkeleton, StatCardSkeleton } from '../components/LoadingSkeletons'
 
@@ -22,6 +25,8 @@ const MyApplications = () => {
     const [filterStatus, setFilterStatus] = useState('all')
     const [withdrawingId, setWithdrawingId] = useState(null)
     const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(null)
+    const [statusHistory, setStatusHistory] = useState({})
+    const [expandedTimeline, setExpandedTimeline] = useState(null)
 
     useEffect(() => {
         fetchApplications()
@@ -33,7 +38,7 @@ const MyApplications = () => {
         try {
             const { data, error } = await supabase
                 .from('applications')
-                .select('*')
+                .select('*, job_postings(status, employer_id)')
                 .eq('user_id', currentUser.uid)
                 .order('created_at', { ascending: false })
             if (error) throw error
@@ -61,6 +66,22 @@ const MyApplications = () => {
         } finally {
             setWithdrawingId(null)
             setShowWithdrawConfirm(null)
+        }
+    }
+
+    const toggleTimeline = async (appId) => {
+        if (expandedTimeline === appId) {
+            setExpandedTimeline(null)
+            return
+        }
+        setExpandedTimeline(appId)
+        if (!statusHistory[appId]) {
+            const { data } = await supabase
+                .from('application_status_history')
+                .select('*')
+                .eq('application_id', appId)
+                .order('changed_at', { ascending: true })
+            if (data) setStatusHistory(prev => ({ ...prev, [appId]: data }))
         }
     }
 
@@ -196,7 +217,12 @@ const MyApplications = () => {
                                             {app.job_title?.charAt(0).toUpperCase() || 'J'}
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-semibold text-gray-900">{app.job_title}</h3>
+                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                {app.job_title}
+                                                {app.job_postings?.status && app.job_postings.status !== 'open' && (
+                                                    <span className="ml-2 badge badge-error text-xs">Job Closed</span>
+                                                )}
+                                            </h3>
                                             <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="w-4 h-4" />
@@ -250,14 +276,64 @@ const MyApplications = () => {
                                             )
                                         )}
 
+                                        {app.job_postings?.employer_id && (
+                                            <Link
+                                                to={`/messages?startWith=${app.job_postings.employer_id}&jobId=${app.job_id}&jobTitle=${encodeURIComponent(app.job_title)}`}
+                                                className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                                title="Message Employer"
+                                            >
+                                                <MessageSquare className="w-5 h-5" />
+                                            </Link>
+                                        )}
                                         <Link
                                             to={`/jobs/${app.job_id}`}
                                             className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                            title="View Job"
                                         >
                                             <ArrowRight className="w-5 h-5" />
                                         </Link>
                                     </div>
                                 </div>
+
+                                {/* Timeline toggle */}
+                                <button
+                                    onClick={() => toggleTimeline(app.id)}
+                                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary-600 mt-3 pt-3 border-t border-gray-100 transition-colors"
+                                >
+                                    {expandedTimeline === app.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                    Status Timeline
+                                </button>
+
+                                {expandedTimeline === app.id && (
+                                    <div className="mt-3 pl-4 border-l-2 border-gray-200 space-y-3">
+                                        {!statusHistory[app.id] ? (
+                                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                Loading...
+                                            </div>
+                                        ) : statusHistory[app.id].length === 0 ? (
+                                            <p className="text-xs text-gray-400">No history available</p>
+                                        ) : (
+                                            statusHistory[app.id].map((entry, i) => (
+                                                <div key={entry.id} className="flex items-center gap-2 relative">
+                                                    <div className={`w-2.5 h-2.5 rounded-full -ml-[1.3125rem] flex-shrink-0 ${
+                                                        i === statusHistory[app.id].length - 1
+                                                            ? 'bg-primary-500'
+                                                            : 'bg-gray-300'
+                                                    }`} />
+                                                    <span className={`text-xs font-medium capitalize ${
+                                                        i === statusHistory[app.id].length - 1
+                                                            ? 'text-gray-900'
+                                                            : 'text-gray-500'
+                                                    }`}>{entry.status}</span>
+                                                    <span className="text-xs text-gray-400">
+                                                        {new Date(entry.changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

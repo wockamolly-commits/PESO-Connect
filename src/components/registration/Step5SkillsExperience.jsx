@@ -1,5 +1,6 @@
 import { Plus, X, Upload, CheckCircle, FileText, Award, Link as LinkIcon } from 'lucide-react'
 import { TagInput } from '../forms'
+import ResumeUpload from '../common/ResumeUpload'
 
 const Step5SkillsExperience = ({
     formData,
@@ -16,8 +17,10 @@ const Step5SkillsExperience = ({
     setCertInput,
     addCertification,
     removeCertification,
-    resumeFile,
-    handleResumeChange,
+    userId,
+    resumeUrl,
+    onResumeUploaded,
+    onResumeRemoved,
     certificateFiles,
     handleCertificateChange,
     removeCertificateFile
@@ -139,32 +142,22 @@ const Step5SkillsExperience = ({
             </div>
 
             {/* Resume Upload */}
-            <div>
-                <label className="label">Resume or CV Upload (PDF or DOC, max 2MB) *</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary-400 transition-colors">
-                    <input
-                        type="file"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleResumeChange}
-                        className="hidden"
-                        id="resume-upload"
-                    />
-                    <label htmlFor="resume-upload" className="cursor-pointer">
-                        {resumeFile ? (
-                            <div className="flex items-center justify-center gap-2 text-green-600">
-                                <CheckCircle className="w-6 h-6" />
-                                <span className="font-medium">{resumeFile.name}</span>
-                            </div>
-                        ) : (
-                            <>
-                                <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-600 font-medium">Click to upload resume</p>
-                                <p className="text-sm text-gray-500 mt-1">PDF or DOC format, up to 2MB</p>
-                            </>
-                        )}
-                    </label>
+            {userId ? (
+                <ResumeUpload
+                    userId={userId}
+                    storagePath={`${userId}/resume.pdf`}
+                    currentUrl={resumeUrl}
+                    onUploaded={onResumeUploaded}
+                    onRemoved={onResumeRemoved}
+                    label="Resume or CV (PDF, max 5MB) *"
+                    optional={false}
+                />
+            ) : (
+                <div>
+                    <label className="label">Resume or CV *</label>
+                    <p className="text-sm text-gray-500 italic">Complete Step 1 first to enable resume upload.</p>
                 </div>
-            </div>
+            )}
 
             {/* Optional Certificate Files */}
             <div>

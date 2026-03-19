@@ -1,6 +1,6 @@
 import { CheckCircle, AlertCircle } from 'lucide-react'
 
-const Step6Consent = ({ formData, handleChange, resumeFile }) => {
+const Step6Consent = ({ formData, handleChange, resumeUrl }) => {
     return (
         <div className="space-y-6">
             <div className="text-center mb-6">
@@ -81,7 +81,7 @@ const Step6Consent = ({ formData, handleChange, resumeFile }) => {
                     {formData.portfolio_url && (
                         <p><span className="font-medium">Portfolio:</span> {formData.portfolio_url}</p>
                     )}
-                    <p><span className="font-medium">Resume:</span> {resumeFile ? 'Uploaded' : 'Not uploaded'}</p>
+                    <p><span className="font-medium">Resume:</span> {resumeUrl ? 'Uploaded' : 'Not uploaded'}</p>
                 </div>
             </div>
 

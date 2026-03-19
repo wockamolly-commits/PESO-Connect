@@ -11,7 +11,8 @@ import {
     User,
     Search,
     Shield,
-    MessageSquare
+    MessageSquare,
+    Bookmark
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getTotalUnreadCount } from '../services/messagingService'
@@ -48,6 +49,7 @@ const Navbar = () => {
     const protectedLinks = [
         ...(isJobseeker() ? [
             { path: '/my-applications', label: 'My Applications', icon: Users },
+            { path: '/saved-jobs', label: 'Saved Jobs', icon: Bookmark },
         ] : []),
         ...(isEmployer() ? [
             { path: '/post-job', label: 'Post Job', icon: Briefcase },

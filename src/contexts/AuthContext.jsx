@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../config/supabase'
+import { compressAndEncode } from '../utils/fileUtils'
 
 const AuthContext = createContext({})
 
@@ -10,59 +11,6 @@ export const AuthProvider = ({ children }) => {
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
 
-    // Compress an image file via Canvas and return a Base64 data URL.
-    // Images are resized to max 800px and compressed as JPEG (quality 0.6).
-    // Non-image files (PDF) fall back to raw base64 with a 400KB size cap.
-    const compressAndEncode = (file) => {
-        return new Promise((resolve, reject) => {
-            if (!file) return resolve('')
-
-            if (!file.type.startsWith('image/')) {
-                if (file.size > 400 * 1024) {
-                    return reject(new Error('PDF must be under 400KB.'))
-                }
-                const reader = new FileReader()
-                reader.onload = () => resolve(reader.result)
-                reader.onerror = (err) => reject(err)
-                reader.readAsDataURL(file)
-                return
-            }
-
-            const img = new Image()
-            const url = URL.createObjectURL(file)
-
-            img.onload = () => {
-                URL.revokeObjectURL(url)
-                const MAX_DIM = 800
-                let { width, height } = img
-
-                if (width > MAX_DIM || height > MAX_DIM) {
-                    if (width > height) {
-                        height = Math.round(height * (MAX_DIM / width))
-                        width = MAX_DIM
-                    } else {
-                        width = Math.round(width * (MAX_DIM / height))
-                        height = MAX_DIM
-                    }
-                }
-
-                const canvas = document.createElement('canvas')
-                canvas.width = width
-                canvas.height = height
-                const ctx = canvas.getContext('2d')
-                ctx.drawImage(img, 0, 0, width, height)
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
-                resolve(dataUrl)
-            }
-
-            img.onerror = () => {
-                URL.revokeObjectURL(url)
-                reject(new Error('Failed to load image for compression.'))
-            }
-
-            img.src = url
-        })
-    }
 
     const PROFILE_TABLE = {
         jobseeker: 'jobseeker_profiles',
@@ -284,6 +232,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const isVerified = () => userData?.is_verified === true
+    const isEmailVerified = () => !!(currentUser?.email_confirmed_at || currentUser?.confirmed_at)
     const hasRole = (role) => userData?.role === role
     const isAdmin = () => userData?.role === 'admin'
     const isEmployer = () => userData?.role === 'employer'
@@ -344,6 +293,7 @@ export const AuthProvider = ({ children }) => {
         resetPassword,
         deleteAccount,
         isVerified,
+        isEmailVerified,
         hasRole,
         isAdmin,
         isEmployer,

@@ -277,6 +277,12 @@ const MyListings = () => {
                                                 <p className="text-2xl font-bold text-gray-900">{applications[job.id]?.length || 0}</p>
                                                 <p className="text-xs text-gray-500 uppercase font-semibold">Applicants</p>
                                             </div>
+                                            {applications[job.id]?.filter(a => a.status === 'pending').length > 0 && (
+                                                <div className="px-4">
+                                                    <p className="text-2xl font-bold text-yellow-600">{applications[job.id].filter(a => a.status === 'pending').length}</p>
+                                                    <p className="text-xs text-gray-500 uppercase font-semibold">Pending</p>
+                                                </div>
+                                            )}
                                             <div className="w-px h-8 bg-gray-200"></div>
                                         </div>
 

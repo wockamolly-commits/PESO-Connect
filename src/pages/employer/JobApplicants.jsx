@@ -15,18 +15,29 @@ import {
     MessageSquare,
     AlertTriangle,
     Download,
-    ExternalLink
+    ExternalLink,
+    StickyNote,
+    Save,
+    CheckSquare,
+    Square
 } from 'lucide-react'
 import { ApplicationsSkeleton } from '../../components/LoadingSkeletons'
+import { useAuth } from '../../contexts/AuthContext'
 import { insertNotification } from '../../services/notificationService'
+import { sendApplicationStatusEmail } from '../../services/emailService'
 
 const JobApplicants = () => {
     const { jobId } = useParams()
+    const { currentUser } = useAuth()
     const [job, setJob] = useState(null)
     const [applicants, setApplicants] = useState([])
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(null)
     const [filterStatus, setFilterStatus] = useState('all')
+    const [editingNotes, setEditingNotes] = useState({})
+    const [savingNotes, setSavingNotes] = useState(null)
+    const [selectedIds, setSelectedIds] = useState(new Set())
+    const [bulkLoading, setBulkLoading] = useState(false)
 
     useEffect(() => {
         fetchJobAndApplicants()
@@ -88,8 +99,22 @@ const JobApplicants = () => {
                 }
             )
         } catch (err) {
-            // Don't block status update if notification fails
             console.error('Failed to send notification:', err)
+        }
+
+        // Send status change email (fail-silent)
+        try {
+            if (applicant.applicant_email) {
+                await sendApplicationStatusEmail(
+                    applicant.applicant_email,
+                    applicant.applicant_name || 'Applicant',
+                    job.title,
+                    newStatus,
+                    employerName
+                )
+            }
+        } catch (err) {
+            console.error('Failed to send status email:', err)
         }
     }
 
@@ -105,6 +130,17 @@ const JobApplicants = () => {
                 app.id === appId ? { ...app, status: newStatus } : app
             ))
 
+            // Insert status history row
+            try {
+                await supabase.from('application_status_history').insert({
+                    application_id: appId,
+                    status: newStatus,
+                    changed_by: currentUser?.uid || null
+                })
+            } catch (err) {
+                console.error('Failed to insert status history:', err)
+            }
+
             // Send notification for key status changes
             if (['shortlisted', 'hired', 'rejected'].includes(newStatus)) {
                 const applicant = applicants.find(app => app.id === appId)
@@ -114,6 +150,85 @@ const JobApplicants = () => {
             console.error('Error updating status:', error)
         } finally {
             setActionLoading(null)
+        }
+    }
+
+    const toggleSelect = (appId) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(appId)) next.delete(appId)
+            else next.add(appId)
+            return next
+        })
+    }
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filteredApplicants.length) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(filteredApplicants.map(a => a.id)))
+        }
+    }
+
+    const bulkUpdateStatus = async (newStatus) => {
+        if (selectedIds.size === 0) return
+        setBulkLoading(true)
+        try {
+            const ids = [...selectedIds]
+            const { error } = await supabase
+                .from('applications')
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .in('id', ids)
+            if (error) throw error
+
+            setApplicants(prev => prev.map(app =>
+                ids.includes(app.id) ? { ...app, status: newStatus } : app
+            ))
+
+            // Insert history rows and send notifications for each
+            for (const appId of ids) {
+                try {
+                    await supabase.from('application_status_history').insert({
+                        application_id: appId,
+                        status: newStatus,
+                        changed_by: currentUser?.uid || null
+                    })
+                } catch (err) {
+                    console.error('Failed to insert bulk history:', err)
+                }
+
+                if (['shortlisted', 'hired', 'rejected'].includes(newStatus)) {
+                    const applicant = applicants.find(a => a.id === appId)
+                    if (applicant) sendStatusNotification(applicant, newStatus)
+                }
+            }
+
+            setSelectedIds(new Set())
+        } catch (error) {
+            console.error('Error bulk updating status:', error)
+        } finally {
+            setBulkLoading(false)
+        }
+    }
+
+    const saveNotes = async (appId) => {
+        const notes = editingNotes[appId]
+        if (notes === undefined) return
+        setSavingNotes(appId)
+        try {
+            const { error } = await supabase
+                .from('applications')
+                .update({ employer_notes: notes || null })
+                .eq('id', appId)
+            if (error) throw error
+            setApplicants(prev => prev.map(app =>
+                app.id === appId ? { ...app, employer_notes: notes || null } : app
+            ))
+            setEditingNotes(prev => { const next = { ...prev }; delete next[appId]; return next })
+        } catch (error) {
+            console.error('Error saving notes:', error)
+        } finally {
+            setSavingNotes(null)
         }
     }
 
@@ -202,6 +317,49 @@ const JobApplicants = () => {
                     </div>
                 </div>
 
+                {/* Bulk Action Bar */}
+                {filteredApplicants.length > 0 && (
+                    <div className="flex items-center gap-3 mb-4 p-3 bg-white rounded-xl border border-gray-200">
+                        <button
+                            onClick={toggleSelectAll}
+                            className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary-600 transition-colors"
+                        >
+                            {selectedIds.size === filteredApplicants.length && filteredApplicants.length > 0
+                                ? <CheckSquare className="w-4 h-4 text-primary-600" />
+                                : <Square className="w-4 h-4" />
+                            }
+                            {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                        </button>
+                        {selectedIds.size > 0 && (
+                            <>
+                                <div className="w-px h-5 bg-gray-200" />
+                                <button
+                                    onClick={() => bulkUpdateStatus('shortlisted')}
+                                    disabled={bulkLoading}
+                                    className="px-3 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                                >
+                                    Shortlist
+                                </button>
+                                <button
+                                    onClick={() => bulkUpdateStatus('rejected')}
+                                    disabled={bulkLoading}
+                                    className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                                >
+                                    Reject
+                                </button>
+                                <button
+                                    onClick={() => bulkUpdateStatus('hired')}
+                                    disabled={bulkLoading}
+                                    className="px-3 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                                >
+                                    Hire
+                                </button>
+                                {bulkLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                            </>
+                        )}
+                    </div>
+                )}
+
                 {/* Applicants List */}
                 {filteredApplicants.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -220,8 +378,17 @@ const JobApplicants = () => {
                             <div key={app.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
                                 <div className="p-6">
                                     <div className="flex flex-col md:flex-row gap-6">
-                                        {/* Avatar */}
-                                        <div className="flex-shrink-0">
+                                        {/* Checkbox + Avatar */}
+                                        <div className="flex-shrink-0 flex items-start gap-3">
+                                            <button
+                                                onClick={() => toggleSelect(app.id)}
+                                                className="mt-4 text-gray-400 hover:text-primary-600 transition-colors"
+                                            >
+                                                {selectedIds.has(app.id)
+                                                    ? <CheckSquare className="w-5 h-5 text-primary-600" />
+                                                    : <Square className="w-5 h-5" />
+                                                }
+                                            </button>
                                             <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center text-primary-700 text-2xl font-bold">
                                                 {app.applicant_name?.charAt(0).toUpperCase()}
                                             </div>
@@ -285,6 +452,46 @@ const JobApplicants = () => {
                                                     <p className="text-gray-700 text-sm whitespace-pre-wrap">{app.justification_text}</p>
                                                 </div>
                                             )}
+
+                                            {/* Cover Letter */}
+                                            {app.cover_letter && (
+                                                <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                                                    <div className="flex items-center gap-2 text-blue-800 font-semibold mb-2">
+                                                        <FileText className="w-4 h-4" />
+                                                        Cover Letter
+                                                    </div>
+                                                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{app.cover_letter}</p>
+                                                </div>
+                                            )}
+
+                                            {/* Employer Notes */}
+                                            <div className="mb-4">
+                                                <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2 text-sm">
+                                                    <StickyNote className="w-4 h-4" />
+                                                    Private Notes
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <textarea
+                                                        value={editingNotes[app.id] !== undefined ? editingNotes[app.id] : (app.employer_notes || '')}
+                                                        onChange={(e) => setEditingNotes(prev => ({ ...prev, [app.id]: e.target.value }))}
+                                                        onBlur={() => { if (editingNotes[app.id] !== undefined) saveNotes(app.id) }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveNotes(app.id) } }}
+                                                        placeholder="Add private notes about this applicant..."
+                                                        className="input-field text-sm min-h-[60px] flex-1 resize-none"
+                                                        rows={2}
+                                                    />
+                                                    {editingNotes[app.id] !== undefined && (
+                                                        <button
+                                                            onClick={() => saveNotes(app.id)}
+                                                            disabled={savingNotes === app.id}
+                                                            className="p-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors self-end"
+                                                            title="Save notes"
+                                                        >
+                                                            {savingNotes === app.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
                                             {/* Resume Link */}
                                             <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
