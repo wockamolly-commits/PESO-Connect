@@ -22,8 +22,11 @@ const ProtectedRoute = ({ children, requireVerified = false, allowedRoles = [] }
         return <Navigate to="/login" state={{ from: location }} replace />
     }
 
-    // Check role if specified
-    if (allowedRoles.length > 0 && userData && !allowedRoles.includes(userData.role)) {
+    // Check role if specified — match against both role and subtype.
+    // Use subtype values ('jobseeker', 'homeowner') for subtype-specific routes.
+    // Using 'user' grants access to ALL user subtypes.
+    if (allowedRoles.length > 0 && userData &&
+        !allowedRoles.some(allowed => allowed === userData.role || allowed === userData.subtype)) {
         return <Navigate to="/unauthorized" replace />
     }
 
