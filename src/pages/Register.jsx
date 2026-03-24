@@ -1,19 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Briefcase, Users, ArrowRight, Home } from 'lucide-react'
+import { Briefcase, Users, ArrowRight, ArrowLeft, Home, Search } from 'lucide-react'
 
 const Register = () => {
-    const [formData, setFormData] = useState({
-        role: 'jobseeker'
-    })
-
+    const [selectedPrimary, setSelectedPrimary] = useState(null)
     const navigate = useNavigate()
 
-    const roleOptions = [
-        { id: 'jobseeker', label: 'Jobseeker', icon: Users, description: 'Looking for employment opportunities' },
-        { id: 'employer', label: 'Employer', icon: Briefcase, description: 'Hiring workers for your business' },
-        { id: 'individual', label: 'Homeowner', icon: Home, description: 'Find workers for household needs' }
-    ]
+    const handlePrimarySelect = (role) => {
+        setSelectedPrimary(role)
+    }
+
+    const handleBack = () => {
+        setSelectedPrimary(null)
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-accent-50 p-4 py-12">
@@ -29,90 +28,106 @@ const Register = () => {
                     <p className="text-gray-600 mt-2">Join PESO Connect today</p>
                 </div>
 
-                {/* Registration Form */}
+                {/* Registration Flow */}
                 <div className="card animate-slide-up">
                     <div className="space-y-6">
-                        {/* Role Selection */}
-                        <div>
-                            <label className="label">I am registering as</label>
-                            <div className="grid grid-cols-3 gap-3">
-                                {roleOptions.map((option) => (
+
+                        {/* Step 1: Primary Role Selection */}
+                        {selectedPrimary === null && (
+                            <div>
+                                <label className="label">How will you use PESO Connect?</label>
+                                <div className="grid grid-cols-2 gap-3">
                                     <button
-                                        key={option.id}
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, role: option.id }))}
-                                        className={`p-4 rounded-xl border-2 text-center transition-all duration-300 ${formData.role === option.id
-                                            ? 'border-primary-500 bg-primary-50 shadow-lg shadow-primary-100'
-                                            : 'border-gray-200 hover:border-gray-300 bg-white'
-                                            }`}
+                                        onClick={() => handlePrimarySelect('employer')}
+                                        className="p-4 rounded-xl border-2 text-center transition-all duration-300 border-gray-200 hover:border-primary-300 hover:shadow-lg bg-white"
                                     >
-                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-2 ${formData.role === option.id ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-500'
-                                            }`}>
-                                            <option.icon className="w-5 h-5" />
+                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-2 bg-gray-100 text-gray-500">
+                                            <Briefcase className="w-5 h-5" />
                                         </div>
-                                        <p className={`font-semibold text-sm ${formData.role === option.id ? 'text-primary-700' : 'text-gray-700'}`}>
-                                            {option.label}
-                                        </p>
-                                        <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
+                                        <p className="font-semibold text-sm text-gray-700">Employer</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Hiring workers for your business</p>
                                     </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Jobseeker Redirect */}
-                        {formData.role === 'jobseeker' && (
-                            <div className="bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-200 rounded-xl p-6 text-center">
-                                <Users className="w-10 h-10 text-primary-600 mx-auto mb-3" />
-                                <h3 className="font-semibold text-gray-900 mb-2">Jobseeker Registration</h3>
-                                <p className="text-sm text-gray-600 mb-4">
-                                    Complete your profile with personal information, employment preferences,
-                                    educational background, and skills. Your account will be verified by PESO before activation.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/register/jobseeker')}
-                                    className="btn-primary flex items-center gap-2 mx-auto"
-                                >
-                                    Continue as Jobseeker <ArrowRight className="w-5 h-5" />
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePrimarySelect('user')}
+                                        className="p-4 rounded-xl border-2 text-center transition-all duration-300 border-gray-200 hover:border-primary-300 hover:shadow-lg bg-white"
+                                    >
+                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-2 bg-gray-100 text-gray-500">
+                                            <Users className="w-5 h-5" />
+                                        </div>
+                                        <p className="font-semibold text-sm text-gray-700">User</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Looking for jobs or hiring for home</p>
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        {/* Employer Redirect */}
-                        {formData.role === 'employer' && (
-                            <div className="bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-200 rounded-xl p-6 text-center">
-                                <Briefcase className="w-10 h-10 text-primary-600 mx-auto mb-3" />
-                                <h3 className="font-semibold text-gray-900 mb-2">Employer Registration</h3>
-                                <p className="text-sm text-gray-600 mb-4">
-                                    Employers undergo a comprehensive registration process that includes
-                                    business verification and PESO approval before activation.
-                                </p>
+                        {/* Employer Info Card */}
+                        {selectedPrimary === 'employer' && (
+                            <div>
                                 <button
                                     type="button"
-                                    onClick={() => navigate('/register/employer')}
-                                    className="btn-primary flex items-center gap-2 mx-auto"
+                                    onClick={handleBack}
+                                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
                                 >
-                                    Continue as Employer <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Back
                                 </button>
+                                <div className="bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-200 rounded-xl p-6 text-center">
+                                    <Briefcase className="w-10 h-10 text-primary-600 mx-auto mb-3" />
+                                    <h3 className="font-semibold text-gray-900 mb-2">Employer Registration</h3>
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        Employers undergo a comprehensive registration process that includes
+                                        business verification and PESO approval before activation.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/register/employer')}
+                                        className="btn-primary flex items-center gap-2 mx-auto"
+                                    >
+                                        Continue as Employer <ArrowRight className="w-5 h-5" />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        {/* Individual/Homeowner Redirect */}
-                        {formData.role === 'individual' && (
-                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-6 text-center">
-                                <Home className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
-                                <h3 className="font-semibold text-gray-900 mb-2">Homeowner Registration</h3>
-                                <p className="text-sm text-gray-600 mb-4">
-                                    Quick sign-up to find and message verified workers for your household needs.
-                                    No business documents required.
-                                </p>
+                        {/* Step 2: User Sub-Role Selection */}
+                        {selectedPrimary === 'user' && (
+                            <div>
                                 <button
                                     type="button"
-                                    onClick={() => navigate('/register/individual')}
-                                    className="btn-primary flex items-center gap-2 mx-auto"
+                                    onClick={handleBack}
+                                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
                                 >
-                                    Continue as Homeowner <ArrowRight className="w-5 h-5" />
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Back
                                 </button>
+                                <label className="label">What are you looking for?</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/register/jobseeker')}
+                                        className="p-4 rounded-xl border-2 text-center transition-all duration-300 border-gray-200 hover:border-primary-300 hover:shadow-lg bg-white"
+                                    >
+                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-2 bg-gray-100 text-gray-500">
+                                            <Search className="w-5 h-5" />
+                                        </div>
+                                        <p className="font-semibold text-sm text-gray-700">Jobseeker</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Looking for employment opportunities</p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/register/homeowner')}
+                                        className="p-4 rounded-xl border-2 text-center transition-all duration-300 border-gray-200 hover:border-primary-300 hover:shadow-lg bg-white"
+                                    >
+                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-2 bg-gray-100 text-gray-500">
+                                            <Home className="w-5 h-5" />
+                                        </div>
+                                        <p className="font-semibold text-sm text-gray-700">Homeowner</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Find workers for household needs</p>
+                                    </button>
+                                </div>
                             </div>
                         )}
 
