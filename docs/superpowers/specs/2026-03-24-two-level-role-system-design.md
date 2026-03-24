@@ -99,6 +99,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
+**Verification policy:** Homeowners are auto-verified (`is_verified = true`) because they do not require PESO employment verification — they are citizens seeking household workers, not job placement services. Jobseekers require PESO admin approval because the agency validates their employment eligibility. Employers require admin approval to verify business legitimacy. This matches the current system's behavior (where `individual` was auto-verified).
+
 ### 3.5 Validation Rules
 
 | # | Rule | Enforcement |
@@ -107,7 +109,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 | 2 | `subtype` must be `jobseeker`, `homeowner`, or `NULL` | DB constraint |
 | 3 | `role='user'` requires `subtype IS NOT NULL` | DB constraint |
 | 4 | `role!='user'` requires `subtype IS NULL` | DB constraint |
-| 5 | Subtype switch only allowed when `role='user'` | App logic |
+| 5 | Subtype switch only allowed when `role='user'` AND `registration_complete=true` | App logic |
 | 6 | On subtype switch, create empty target profile row | App logic |
 | 7 | On subtype switch, preserve source profile data | App logic |
 | 8 | Old route `/register/individual` redirects to `/register/homeowner` | App routing |
@@ -164,6 +166,24 @@ createAccount(email, password, role, subtype = null)
 
 Both `role` and `subtype` are passed into Supabase signup metadata for the DB trigger.
 
+### 4.5 minimalDoc Cache Update
+
+The `createAccount` function seeds a `minimalDoc` into localStorage immediately after signup (to prevent navbar flash). This object must include the `subtype` field:
+
+```js
+const minimalDoc = {
+  id: user.id,
+  email,
+  role,
+  subtype,                              // NEW — include subtype
+  name: 'User',
+  is_verified: role === 'user' && subtype === 'homeowner',  // updated logic
+  registration_complete: false,
+};
+```
+
+Without `subtype` in the cache, `isJobseeker()` and `isHomeowner()` return false during the brief window before `fetchUserData` completes, causing a UI flash.
+
 ---
 
 ## 5. Authentication & Role Handling
@@ -196,6 +216,10 @@ const getProfileTable = (role, subtype) => {
 };
 ```
 
+**Critical change in `fetchUserData`:** The current code resolves the profile table with `PROFILE_TABLE[baseData.role]`. After migration, `baseData.role` for jobseekers is `'user'` (not `'jobseeker'`), so this lookup fails. Replace with `getProfileTable(baseData.role, baseData.subtype)`.
+
+**`BASE_FIELDS` update:** The `splitFields` function uses a `BASE_FIELDS` set to decide what goes to `public.users` vs. the profile table during `saveRegistrationStep`. Add `'subtype'` to `BASE_FIELDS` so it routes to the users table, not the profile table.
+
 ### 5.3 ProtectedRoute Update
 
 The `allowedRoles` array matches against both `role` and `subtype`:
@@ -208,6 +232,8 @@ const hasAccess = (userData, allowedRoles) => {
   );
 };
 ```
+
+**Usage guidance:** Use subtype values (`'jobseeker'`, `'homeowner'`) for subtype-specific routes. Using `'user'` as an allowed role grants access to ALL user subtypes (both jobseeker and homeowner) — only use this when a route genuinely serves all citizen users regardless of subtype. When in doubt, list subtypes individually for granular control.
 
 ### 5.4 Route Access Map
 
@@ -240,25 +266,26 @@ User navigates to Profile Settings and clicks "Switch Account Type":
 5. Call `fetchUserData` to refresh context + localStorage.
 6. Redirect to `/dashboard`.
 
-Only visible when `isUser()` returns true. Employers and admins never see it.
+Only visible when `isUser()` returns true and `registration_complete` is true. Employers and admins never see it. Partially-registered users cannot switch subtypes.
 
 ---
 
 ## 6. Feature Impact Analysis
 
-### 6.1 Files to Modify (~10)
+### 6.1 Files to Modify (~11)
 
 | File | Change |
 |------|--------|
-| `AuthContext.jsx` | Add `subtype` to `createAccount`, update `fetchUserData`, replace helpers |
+| `AuthContext.jsx` | Add `subtype` to `createAccount` + `minimalDoc`, update `fetchUserData` to use `getProfileTable(role, subtype)`, add `subtype` to `BASE_FIELDS`, replace helpers |
 | `Register.jsx` | Two-step selection UI |
 | `JobseekerRegistration.jsx` | Update `createAccount` params |
 | `ProtectedRoute.jsx` | Update `hasAccess` to match role + subtype |
 | `RegistrationContinue.jsx` | Route by `subtype` |
 | `App.jsx` | Update routes, imports, add redirect |
 | `Navbar.jsx` | Replace `isIndividual()` with `isHomeowner()` |
-| `Dashboard.jsx` | Replace `isIndividual()` with `isHomeowner()` |
+| `Dashboard.jsx` | Replace `isIndividual()` with `isHomeowner()`, update profile table/status field resolution to use `getProfileTable` and `getStatusField` helpers (current hardcoded ternary only handles jobseeker/employer) |
 | Settings page | Add `SubtypeSwitcher` component |
+| `scripts/seed-users.js` | Update `individual` references to `homeowner`, update `individual_profiles` to `homeowner_profiles`, update `individual_status` to `homeowner_status` |
 
 ### 6.2 Files to Rename (2)
 
@@ -277,6 +304,8 @@ Only visible when `isUser()` returns true. Employers and admins never see it.
 ### 6.4 Unaffected Features
 
 Job postings, applications, messaging, saved jobs, and job browsing are unaffected. They reference `users.id` via foreign keys, not the role column.
+
+**Note on admin panel:** If the admin panel filters users by role (e.g., `WHERE role = 'jobseeker'`), those queries must be updated to `WHERE role = 'user' AND subtype = 'jobseeker'`. Audit admin panel queries during Phase 5 cleanup.
 
 ---
 
@@ -341,6 +370,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 COMMIT;
 ```
+
+### 7.1.1 RLS Policy Audit
+
+Before running the migration, audit Row Level Security policies on `individual_profiles` for any references to the table name or `individual_status` column. If RLS policies exist, update them to reference `homeowner_profiles` and `homeowner_status` within the same transaction. If no RLS is enabled, no action needed.
 
 ### 7.2 Rollback Script
 
@@ -413,6 +446,18 @@ export const PROFILE_TABLES = {
 export const getProfileTable = (role, subtype) => {
   if (role === ROLES.EMPLOYER) return PROFILE_TABLES[ROLES.EMPLOYER];
   if (role === ROLES.USER) return PROFILE_TABLES[subtype];
+  return null;
+};
+
+export const STATUS_FIELDS = {
+  [ROLES.EMPLOYER]: 'employer_status',
+  [SUBTYPES.JOBSEEKER]: 'jobseeker_status',
+  [SUBTYPES.HOMEOWNER]: 'homeowner_status',
+};
+
+export const getStatusField = (role, subtype) => {
+  if (role === ROLES.EMPLOYER) return STATUS_FIELDS[ROLES.EMPLOYER];
+  if (role === ROLES.USER) return STATUS_FIELDS[subtype];
   return null;
 };
 
