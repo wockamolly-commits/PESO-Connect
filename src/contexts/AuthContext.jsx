@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../config/supabase'
 import { compressAndEncode } from '../utils/fileUtils'
+import { getProfileTable, getStatusField, ROLES, SUBTYPES } from '../utils/roles'
 
 const AuthContext = createContext({})
 
@@ -12,14 +13,8 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true)
 
 
-    const PROFILE_TABLE = {
-        jobseeker: 'jobseeker_profiles',
-        employer: 'employer_profiles',
-        individual: 'individual_profiles',
-    }
-
     const BASE_FIELDS = new Set([
-        'id', 'email', 'role', 'name', 'is_verified',
+        'id', 'email', 'role', 'subtype', 'name', 'is_verified',
         'registration_complete', 'registration_step', 'profile_photo',
         'created_at', 'updated_at',
     ])
@@ -43,7 +38,7 @@ export const AuthProvider = ({ children }) => {
         if (!baseData) return null
 
         // Fetch role-specific profile
-        const profileTable = PROFILE_TABLE[baseData.role]
+        const profileTable = getProfileTable(baseData.role, baseData.subtype)
         let profileData = {}
         if (profileTable) {
             const { data: profile } = await supabase
@@ -66,14 +61,12 @@ export const AuthProvider = ({ children }) => {
         return merged
     }
 
-    // Create Supabase Auth account — the DB trigger auto-creates the public.users row
-    const createAccount = async (email, password, role) => {
-        // Sign out any stale session first to prevent Web Locks conflicts
+    const createAccount = async (email, password, role, subtype = null) => {
         await supabase.auth.signOut()
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
-            options: { data: { role } },
+            options: { data: { role, subtype } },
         })
         if (error) throw error
         if (!data.user) throw new Error('Account creation failed. Please try again.')
@@ -83,15 +76,15 @@ export const AuthProvider = ({ children }) => {
             id: user.id,
             email,
             role,
+            subtype,
             name: '',
             registration_complete: false,
             registration_step: 1,
-            is_verified: role === 'individual',
+            is_verified: role === ROLES.USER && subtype === SUBTYPES.HOMEOWNER,
             skills: [],
             credentials_url: '',
         }
 
-        // Seed cache immediately so onAuthStateChange finds it on SIGNED_IN
         try { localStorage.setItem(`peso-profile-${user.id}`, JSON.stringify(minimalDoc)) } catch {}
 
         return { user: { ...user, uid: user.id }, userData: minimalDoc }
@@ -121,7 +114,8 @@ export const AuthProvider = ({ children }) => {
         if (error) throw error
 
         const role = userData?.role || currentUser?.user_metadata?.role
-        const profileTable = PROFILE_TABLE[role]
+        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
+        const profileTable = getProfileTable(role, subtype)
         if (profileTable && Object.keys(profile).length > 0) {
             const { error: profileError } = await supabase
                 .from(profileTable)
@@ -149,7 +143,8 @@ export const AuthProvider = ({ children }) => {
         if (error) throw error
 
         const role = userData?.role || currentUser?.user_metadata?.role
-        const profileTable = PROFILE_TABLE[role]
+        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
+        const profileTable = getProfileTable(role, subtype)
         if (profileTable && Object.keys(profile).length > 0) {
             const { error: profileError } = await supabase
                 .from(profileTable)
@@ -234,10 +229,11 @@ export const AuthProvider = ({ children }) => {
     const isVerified = () => userData?.is_verified === true
     const isEmailVerified = () => !!(currentUser?.email_confirmed_at || currentUser?.confirmed_at)
     const hasRole = (role) => userData?.role === role
-    const isAdmin = () => userData?.role === 'admin'
-    const isEmployer = () => userData?.role === 'employer'
-    const isJobseeker = () => userData?.role === 'jobseeker'
-    const isIndividual = () => userData?.role === 'individual'
+    const isAdmin = () => userData?.role === ROLES.ADMIN
+    const isEmployer = () => userData?.role === ROLES.EMPLOYER
+    const isUser = () => userData?.role === ROLES.USER
+    const isJobseeker = () => userData?.role === ROLES.USER && userData?.subtype === SUBTYPES.JOBSEEKER
+    const isHomeowner = () => userData?.role === ROLES.USER && userData?.subtype === SUBTYPES.HOMEOWNER
 
     useEffect(() => {
         let mounted = true
@@ -297,8 +293,9 @@ export const AuthProvider = ({ children }) => {
         hasRole,
         isAdmin,
         isEmployer,
+        isUser,
         isJobseeker,
-        isIndividual,
+        isHomeowner,
         fetchUserData,
     }
 
