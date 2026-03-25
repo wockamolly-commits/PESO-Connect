@@ -38,7 +38,15 @@ const AuthCallback = () => {
                 setProcessing(false)
             })
         }
-    }, [searchParams])
+
+        // Listen for PASSWORD_RECOVERY event to redirect to reset page
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                navigate('/reset-password', { replace: true })
+            }
+        })
+        return () => subscription.unsubscribe()
+    }, [searchParams, navigate])
 
     // Once auth state settles, redirect based on user state
     useEffect(() => {
