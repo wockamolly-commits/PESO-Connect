@@ -104,7 +104,7 @@ const AdminDashboard = () => {
             // Update role-specific profile
             const profileTable = PROFILE_TABLE[userRole]
             if (profileTable) {
-                const profileUpdate = { rejection_reason: '', updated_at: now }
+                const profileUpdate = { rejection_reason: '', updated_at: now, is_verified: true }
                 if (userRole === 'employer') profileUpdate.employer_status = 'approved'
                 else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'verified'
 
@@ -158,7 +158,7 @@ const AdminDashboard = () => {
             // Update role-specific profile
             const profileTable = PROFILE_TABLE[userRole]
             if (profileTable) {
-                const profileUpdate = { rejection_reason: rejectReason, updated_at: now }
+                const profileUpdate = { rejection_reason: rejectReason, updated_at: now, is_verified: false }
                 if (userRole === 'employer') profileUpdate.employer_status = 'rejected'
                 else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'rejected'
 
