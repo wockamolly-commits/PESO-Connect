@@ -7,7 +7,7 @@ import { supabase } from '../config/supabase'
 const AuthCallback = () => {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
-    const { currentUser, userData, loading } = useAuth()
+    const { currentUser, userData, loading, isPasswordRecovery } = useAuth()
     const [error, setError] = useState('')
     const [processing, setProcessing] = useState(true)
 
@@ -29,28 +29,21 @@ const AuthCallback = () => {
             return
         }
 
-        // Handle PKCE code exchange if present
-        const code = searchParams.get('code')
-        if (code) {
-            supabase.auth.exchangeCodeForSession(code).catch(err => {
-                console.error('Code exchange error:', err)
-                setError('Verification failed. The link may have expired.')
-                setProcessing(false)
-            })
-        }
+        // No manual exchangeCodeForSession — the Supabase client automatically
+        // detects the ?code= param and exchanges it during onAuthStateChange init.
+        // Calling it manually caused lock contention + 422 (double exchange).
+    }, [searchParams])
 
-        // Listen for PASSWORD_RECOVERY event to redirect to reset page
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                navigate('/reset-password', { replace: true })
-            }
-        })
-        return () => subscription.unsubscribe()
-    }, [searchParams, navigate])
+    // Redirect to reset page when AuthContext detects PASSWORD_RECOVERY
+    useEffect(() => {
+        if (isPasswordRecovery) {
+            navigate('/reset-password', { replace: true })
+        }
+    }, [isPasswordRecovery, navigate])
 
     // Once auth state settles, redirect based on user state
     useEffect(() => {
-        if (loading || error) return
+        if (loading || error || isPasswordRecovery) return
 
         // Still waiting for session to be established
         if (!currentUser) {
@@ -83,7 +76,7 @@ const AuthCallback = () => {
         }
         // If userData is null but currentUser exists, fetchUserData is still running
         // The AuthContext useEffect will populate userData
-    }, [currentUser, userData, loading, error, navigate])
+    }, [currentUser, userData, loading, error, isPasswordRecovery, navigate])
 
     if (error) {
         return (

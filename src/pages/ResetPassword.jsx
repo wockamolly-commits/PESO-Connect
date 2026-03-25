@@ -31,7 +31,8 @@ const ResetPassword = () => {
                 password,
             })
             if (updateError) throw updateError
-            // Sign out the temporary recovery session
+            // Sign out the temporary recovery session and clear recovery flag
+            try { localStorage.removeItem('peso-password-recovery') } catch {}
             await supabase.auth.signOut({ scope: 'local' })
             setSuccess(true)
         } catch (err) {

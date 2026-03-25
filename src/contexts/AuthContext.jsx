@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../config/supabase'
 import { compressAndEncode } from '../utils/fileUtils'
 import { getProfileTable, getStatusField, ROLES, SUBTYPES } from '../utils/roles'
@@ -11,6 +11,9 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+    const passwordRecoveryRef = useRef(false)
+
 
 
     const BASE_FIELDS = new Set([
@@ -286,11 +289,50 @@ export const AuthProvider = ({ children }) => {
     const isJobseeker = () => userData?.role === ROLES.USER && userData?.subtype === SUBTYPES.JOBSEEKER
     const isHomeowner = () => userData?.role === ROLES.USER && userData?.subtype === SUBTYPES.HOMEOWNER
 
+    // Ref prevents React 18 Strict Mode from subscribing twice.
+    // Double-subscribe triggers two Supabase _initialize() calls that fight
+    // over the navigator lock, breaking every auth-dependent request.
+    const authInitRef = useRef(false)
+
     useEffect(() => {
-        let mounted = true
+        // Detect password-recovery PKCE link BEFORE subscribing so the flag
+        // is already set when the auto code-exchange fires SIGNED_IN.
+        // Also check localStorage — another tab may have started recovery.
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('type') === 'recovery') {
+            passwordRecoveryRef.current = true
+            setIsPasswordRecovery(true)
+            try { localStorage.setItem('peso-password-recovery', 'true') } catch {}
+        } else if (localStorage.getItem('peso-password-recovery') === 'true') {
+            passwordRecoveryRef.current = true
+            setIsPasswordRecovery(true)
+        }
+
+        // Only subscribe once — skip on Strict Mode's second mount
+        if (authInitRef.current) return
+        authInitRef.current = true
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
+                // Password recovery creates a temporary session only for
+                // calling updateUser — don't treat it as a real login.
+                if (event === 'PASSWORD_RECOVERY') {
+                    passwordRecoveryRef.current = true
+                    setIsPasswordRecovery(true)
+                    try { localStorage.setItem('peso-password-recovery', 'true') } catch {}
+                    setLoading(false)
+                    return
+                }
+
                 if (session?.user) {
+                    // If we're in password-recovery mode, the session exists
+                    // (needed by updateUser) but we don't populate app-level
+                    // auth state so the user isn't treated as logged in.
+                    if (passwordRecoveryRef.current) {
+                        setLoading(false)
+                        return
+                    }
+
                     const user = session.user
                     setCurrentUser({ ...user, uid: user.id })
                     // Restore cached profile instantly so Navbar never shows "User"
@@ -302,7 +344,7 @@ export const AuthProvider = ({ children }) => {
                     const result = await fetchUserData(user.id)
                     if (result === 'timeout') {
                         // DB hung (e.g. Supabase project paused) — keep cached data, stay logged in
-                    } else if (!result && mounted) {
+                    } else if (!result) {
                         // Null = no DB row → stale session, sign out
                         await supabase.auth.signOut()
                         localStorage.clear()
@@ -312,24 +354,28 @@ export const AuthProvider = ({ children }) => {
                 } else {
                     setCurrentUser(null)
                     setUserData(null)
+                    passwordRecoveryRef.current = false
+                    setIsPasswordRecovery(false)
+                    try { localStorage.removeItem('peso-password-recovery') } catch {}
                 }
             } catch (err) {
                 console.error('Auth state change error:', err)
             } finally {
-                if (mounted) setLoading(false)
+                setLoading(false)
             }
         })
 
-        return () => {
-            mounted = false
-            subscription.unsubscribe()
-        }
+        // Intentionally no cleanup — AuthProvider is the app root and never
+        // unmounts. Returning subscription.unsubscribe() here would cause
+        // Strict Mode to unsubscribe then resubscribe, triggering two
+        // Supabase _initialize() calls that fight over the navigator lock.
     }, [])
 
     const value = {
         currentUser,
         userData,
         loading,
+        isPasswordRecovery,
         register,
         createAccount,
         saveRegistrationStep,
