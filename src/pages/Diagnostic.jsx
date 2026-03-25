@@ -279,22 +279,23 @@ const Diagnostic = () => {
     const fetchMatchingWorkers = async (tradeId) => {
         const requiredSkills = getTradeSkills(tradeId)
 
-        // Fetch verified jobseekers
+        // Fetch verified jobseekers (role='user', subtype='jobseeker')
         const { data: usersData, error: usersError } = await supabase
             .from('users')
-            .select('id, name, role')
-            .eq('role', 'jobseeker')
-            .eq('is_verified', true)
+            .select('id, name, role, subtype')
+            .eq('role', 'user')
+            .eq('subtype', 'jobseeker')
         if (usersError) throw usersError
 
         const userIds = (usersData || []).map(u => u.id)
         if (userIds.length === 0) return []
 
-        // Fetch their skills from jobseeker_profiles
+        // Fetch their profiles (skills + is_verified lives on jobseeker_profiles)
         const { data: profiles, error: profilesError } = await supabase
             .from('jobseeker_profiles')
-            .select('id, skills')
+            .select('id, skills, is_verified')
             .in('id', userIds)
+            .eq('is_verified', true)
         if (profilesError) throw profilesError
 
         // Merge users with their skills and filter by matching skills
@@ -302,7 +303,8 @@ const Diagnostic = () => {
         ;(profiles || []).forEach(p => { profileMap[p.id] = p.skills || [] })
 
         return (usersData || [])
-            .map(user => ({ ...user, skills: profileMap[user.id] || [] }))
+            .filter(user => profileMap[user.id])
+            .map(user => ({ ...user, skills: profileMap[user.id] }))
             .filter(user => {
                 if (user.skills.length === 0) return false
                 const userSkillsLower = user.skills.map(s => s.toLowerCase())
