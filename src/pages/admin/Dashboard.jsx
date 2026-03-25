@@ -59,16 +59,16 @@ const AdminDashboard = () => {
             const [
                 { data: empProfiles },
                 { data: jsProfiles },
-                { data: indProfiles },
+                { data: hoProfiles },
             ] = await Promise.all([
                 supabase.from('employer_profiles').select('*'),
                 supabase.from('jobseeker_profiles').select('*'),
-                supabase.from('individual_profiles').select('*'),
+                supabase.from('homeowner_profiles').select('*'),
             ])
 
             // Index profiles by id for fast lookup
             const profileMap = {}
-            for (const p of [...(empProfiles || []), ...(jsProfiles || []), ...(indProfiles || [])]) {
+            for (const p of [...(empProfiles || []), ...(jsProfiles || []), ...(hoProfiles || [])]) {
                 profileMap[p.id] = p
             }
 
@@ -77,7 +77,7 @@ const AdminDashboard = () => {
 
             setAllUsers(merged)
             setEmployers(merged.filter(u => u.role === 'employer'))
-            setJobseekers(merged.filter(u => u.role === 'jobseeker'))
+            setJobseekers(merged.filter(u => u.role === 'user' && u.subtype === 'jobseeker'))
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
