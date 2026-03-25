@@ -4,14 +4,15 @@ import { calculateCompletion } from './profileCompletion'
 
 describe('calculateCompletion', () => {
     it('returns 0% for empty jobseeker', () => {
-        const result = calculateCompletion({ role: 'jobseeker' })
+        const result = calculateCompletion({ role: 'user', subtype: 'jobseeker' })
         expect(result.percentage).toBe(0)
         expect(result.missing.length).toBeGreaterThan(0)
     })
 
     it('returns 100% for complete jobseeker', () => {
         const result = calculateCompletion({
-            role: 'jobseeker',
+            role: 'user',
+            subtype: 'jobseeker',
             profile_photo: 'data:image/jpeg;base64,abc',
             full_name: 'Juan Dela Cruz',
             date_of_birth: '1995-01-01',
@@ -35,7 +36,8 @@ describe('calculateCompletion', () => {
 
     it('calculates partial jobseeker correctly', () => {
         const result = calculateCompletion({
-            role: 'jobseeker',
+            role: 'user',
+            subtype: 'jobseeker',
             full_name: 'Juan',
             date_of_birth: '1995-01-01',
             city: 'Manila',
@@ -74,14 +76,15 @@ describe('calculateCompletion', () => {
         expect(result.missing).toEqual([])
     })
 
-    it('returns 0% for empty individual', () => {
-        const result = calculateCompletion({ role: 'individual' })
+    it('returns 0% for empty homeowner', () => {
+        const result = calculateCompletion({ role: 'user', subtype: 'homeowner' })
         expect(result.percentage).toBe(0)
     })
 
-    it('returns 100% for complete individual', () => {
+    it('returns 100% for complete homeowner', () => {
         const result = calculateCompletion({
-            role: 'individual',
+            role: 'user',
+            subtype: 'homeowner',
             full_name: 'Maria Santos',
             contact_number: '09171234567',
             profile_photo: 'data:image/jpeg;base64,abc',

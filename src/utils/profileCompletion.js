@@ -23,7 +23,7 @@ const employerChecks = [
     { key: 'website', label: 'Add website or social links', weight: 10, test: (d) => !!(d.company_website || d.facebook_url || d.linkedin_url) },
 ]
 
-const individualChecks = [
+const homeownerChecks = [
     { key: 'personal_info', label: 'Complete your name', weight: 25, test: (d) => !!d.full_name },
     { key: 'contact_info', label: 'Add contact number', weight: 20, test: (d) => !!d.contact_number },
     { key: 'profile_photo', label: 'Add a profile photo', weight: 15, test: (d) => !!d.profile_photo },
@@ -35,13 +35,15 @@ const individualChecks = [
 const checksByRole = {
     jobseeker: jobseekerChecks,
     employer: employerChecks,
-    individual: individualChecks,
+    homeowner: homeownerChecks,
 }
 
 export function calculateCompletion(userData) {
     if (!userData?.role) return { percentage: 0, missing: [] }
 
-    const checks = checksByRole[userData.role]
+    // For role='user', look up checks by subtype
+    const key = userData.role === 'user' ? userData.subtype : userData.role
+    const checks = checksByRole[key]
     if (!checks) return { percentage: 0, missing: [] }
 
     let earned = 0
