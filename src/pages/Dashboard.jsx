@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../config/supabase'
 import ProfileCompletionBar from '../components/profile/ProfileCompletionBar'
 import { calculateCompletion } from '../utils/profileCompletion'
+import { getProfileTable, getStatusField } from '../utils/roles'
 import {
     Briefcase,
     Users,
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react'
 
 const Dashboard = () => {
-    const { userData, currentUser, fetchUserData, isVerified, isEmailVerified, isEmployer, isJobseeker, isAdmin, isIndividual } = useAuth()
+    const { userData, currentUser, fetchUserData, isVerified, isEmailVerified, isEmployer, isJobseeker, isAdmin, isHomeowner } = useAuth()
     const [resubmitting, setResubmitting] = useState(false)
     const [employerStats, setEmployerStats] = useState({ activeJobs: 0, totalApplications: 0, loading: true })
 
@@ -74,20 +75,20 @@ const Dashboard = () => {
         { path: '/messages', label: 'Messages', icon: MessageSquare, color: 'bg-indigo-500' },
     ]
 
-    const individualQuickActions = [
+    const homeownerQuickActions = [
         { path: '/diagnostic', label: 'Find Workers', icon: Search, color: 'bg-emerald-500' },
         { path: '/messages', label: 'Messages', icon: MessageSquare, color: 'bg-indigo-500' },
     ]
 
-    const quickActions = isIndividual()
-        ? individualQuickActions
+    const quickActions = isHomeowner()
+        ? homeownerQuickActions
         : isEmployer()
             ? employerQuickActions
             : jobseekerQuickActions
 
     const completion = userData ? calculateCompletion(userData) : { percentage: 0, missing: [] }
     const editPath = isEmployer() ? '/profile/edit/employer'
-        : isIndividual() ? '/profile/edit/individual'
+        : isHomeowner() ? '/profile/edit/homeowner'
         : '/profile/edit'
 
     return (
@@ -123,8 +124,8 @@ const Dashboard = () => {
                     </div>
                 )}
 
-                {/* Verification Status Banner (not shown for individual/homeowner accounts) */}
-                {!isVerified() && !isIndividual() && (() => {
+                {/* Verification Status Banner (not shown for homeowner accounts) */}
+                {!isVerified() && !isHomeowner() && (() => {
                     const verificationStatus = isJobseeker() ? userData?.jobseeker_status : userData?.employer_status;
                     const isRejected = verificationStatus === 'rejected';
                     return (
@@ -171,8 +172,8 @@ const Dashboard = () => {
                                             onClick={async () => {
                                                 setResubmitting(true)
                                                 try {
-                                                    const profileTable = isJobseeker() ? 'jobseeker_profiles' : 'employer_profiles'
-                                                    const statusField = isJobseeker() ? 'jobseeker_status' : 'employer_status'
+                                                    const profileTable = getProfileTable(userData.role, userData.subtype)
+                                                    const statusField = getStatusField(userData.role, userData.subtype)
                                                     await supabase.from(profileTable).update({
                                                         [statusField]: 'pending',
                                                         rejection_reason: null
@@ -275,12 +276,13 @@ const Dashboard = () => {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Role</span>
-                                <span className="font-medium text-gray-900 capitalize">{userData?.role || 'Not set'}</span>
+                                <span className="font-medium text-gray-900 capitalize">{userData?.subtype || userData?.role || 'Not set'}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Status</span>
                                 {(() => {
-                                    const status = isJobseeker() ? userData?.jobseeker_status : userData?.employer_status;
+                                    const sf = getStatusField(userData?.role, userData?.subtype)
+                                    const status = sf ? userData?.[sf] : null;
                                     if (isVerified()) return <span className="badge badge-success">Verified</span>;
                                     if (status === 'rejected') return <span className="badge badge-error">Rejected</span>;
                                     return <span className="badge badge-warning">Pending</span>;
