@@ -34,6 +34,8 @@ const jobseekers = [
         email: 'maria.santos@test.com',
         base: { name: 'Maria Santos', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Maria Clara Santos',
             date_of_birth: '1998-05-14',
             barangay: 'Rizal',
@@ -71,6 +73,8 @@ const jobseekers = [
         email: 'juan.delacruz@test.com',
         base: { name: 'Juan Dela Cruz', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Juan Miguel Dela Cruz',
             date_of_birth: '1995-11-22',
             barangay: 'Guadalupe',
@@ -107,6 +111,8 @@ const jobseekers = [
         email: 'anna.reyes@test.com',
         base: { name: 'Anna Reyes', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Anna Marie Reyes',
             date_of_birth: '2001-03-08',
             barangay: 'Buluangan',
@@ -142,6 +148,8 @@ const jobseekers = [
         email: 'ricardo.garcia@test.com',
         base: { name: 'Ricardo Garcia', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Ricardo Lopez Garcia',
             date_of_birth: '1985-08-30',
             barangay: 'Punao',
@@ -178,6 +186,8 @@ const jobseekers = [
         email: 'grace.villanueva@test.com',
         base: { name: 'Grace Villanueva', is_verified: false, registration_complete: true },
         profile: {
+            is_verified: false,
+            registration_complete: true,
             full_name: 'Grace Anne Villanueva',
             date_of_birth: '1992-12-03',
             barangay: 'Palampas',
@@ -214,6 +224,8 @@ const jobseekers = [
         email: 'pedro.mendoza@test.com',
         base: { name: 'Pedro Mendoza', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Pedro Jose Mendoza',
             date_of_birth: '2000-07-19',
             barangay: 'Quezon',
@@ -249,6 +261,8 @@ const jobseekers = [
         email: 'rosa.lim@test.com',
         base: { name: 'Rosa Lim', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Rosa Christina Lim',
             date_of_birth: '1990-01-25',
             barangay: 'Codcod',
@@ -285,6 +299,8 @@ const jobseekers = [
         email: 'mark.aquino@test.com',
         base: { name: 'Mark Aquino', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Mark Anthony Aquino',
             date_of_birth: '1997-09-11',
             barangay: 'Sipaway',
@@ -324,6 +340,8 @@ const employers = [
         email: 'hr@sancarloscoop.test.com',
         base: { name: 'San Carlos Multi-Purpose Cooperative', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             company_name: 'San Carlos Multi-Purpose Cooperative',
             employer_type: 'cooperative',
             business_reg_number: 'CDA-2015-0042',
@@ -347,6 +365,8 @@ const employers = [
         email: 'recruitment@peso-sancarlos.test.com',
         base: { name: 'PESO San Carlos City', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             company_name: 'Public Employment Service Office - San Carlos City',
             employer_type: 'government',
             business_reg_number: 'LGU-SC-PESO-001',
@@ -370,6 +390,8 @@ const employers = [
         email: 'hiring@greenfields-bpo.test.com',
         base: { name: 'Greenfields BPO Solutions', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             company_name: 'Greenfields BPO Solutions Inc.',
             employer_type: 'private',
             business_reg_number: 'SEC-2019-00891',
@@ -393,6 +415,8 @@ const employers = [
         email: 'jobs@crystal-sugar.test.com',
         base: { name: 'Crystal Sugar Milling Corp', is_verified: false, registration_complete: true },
         profile: {
+            is_verified: false,
+            registration_complete: true,
             company_name: 'Crystal Sugar Milling Corporation',
             employer_type: 'private',
             business_reg_number: 'SEC-2005-01234',
@@ -416,6 +440,8 @@ const employers = [
         email: 'orders@golden-grain-bakery.test.com',
         base: { name: 'Golden Grain Bakery', is_verified: false, registration_complete: true },
         profile: {
+            is_verified: false,
+            registration_complete: true,
             company_name: 'Golden Grain Bakery & Food Products',
             employer_type: 'small_business',
             business_reg_number: 'DTI-NOC-2020-05678',
@@ -442,6 +468,8 @@ const homeowners = [
         email: 'lucia.fernandez@test.com',
         base: { name: 'Lucia Fernandez', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Lucia Mae Fernandez',
             contact_number: '09171112001',
             homeowner_status: 'active',
@@ -456,6 +484,8 @@ const homeowners = [
         email: 'james.ong@test.com',
         base: { name: 'James Ong', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'James Patrick Ong',
             contact_number: '09171112002',
             homeowner_status: 'active',
@@ -470,6 +500,8 @@ const homeowners = [
         email: 'cynthia.ramos@test.com',
         base: { name: 'Cynthia Ramos', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Cynthia Joy Ramos',
             contact_number: '09171112003',
             homeowner_status: 'active',
@@ -484,6 +516,8 @@ const homeowners = [
         email: 'kevin.bautista@test.com',
         base: { name: 'Kevin Bautista', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Kevin Jay Bautista',
             contact_number: '09171112004',
             homeowner_status: 'active',
@@ -498,6 +532,8 @@ const homeowners = [
         email: 'marilyn.delos-reyes@test.com',
         base: { name: 'Marilyn Delos Reyes', is_verified: true, registration_complete: true },
         profile: {
+            is_verified: true,
+            registration_complete: true,
             full_name: 'Marilyn Cruz Delos Reyes',
             contact_number: '09171112005',
             homeowner_status: 'active',
