@@ -437,14 +437,14 @@ const employers = [
     },
 ]
 
-const individuals = [
+const homeowners = [
     {
         email: 'lucia.fernandez@test.com',
         base: { name: 'Lucia Fernandez', is_verified: true, registration_complete: true },
         profile: {
             full_name: 'Lucia Mae Fernandez',
             contact_number: '09171112001',
-            individual_status: 'active',
+            homeowner_status: 'active',
             barangay: 'Palampas',
             city: 'San Carlos City',
             province: 'Negros Occidental',
@@ -458,7 +458,7 @@ const individuals = [
         profile: {
             full_name: 'James Patrick Ong',
             contact_number: '09171112002',
-            individual_status: 'active',
+            homeowner_status: 'active',
             barangay: 'Rizal',
             city: 'San Carlos City',
             province: 'Negros Occidental',
@@ -472,7 +472,7 @@ const individuals = [
         profile: {
             full_name: 'Cynthia Joy Ramos',
             contact_number: '09171112003',
-            individual_status: 'active',
+            homeowner_status: 'active',
             barangay: 'Guadalupe',
             city: 'San Carlos City',
             province: 'Negros Occidental',
@@ -486,7 +486,7 @@ const individuals = [
         profile: {
             full_name: 'Kevin Jay Bautista',
             contact_number: '09171112004',
-            individual_status: 'active',
+            homeowner_status: 'active',
             barangay: 'Buluangan',
             city: 'San Carlos City',
             province: 'Negros Occidental',
@@ -500,7 +500,7 @@ const individuals = [
         profile: {
             full_name: 'Marilyn Cruz Delos Reyes',
             contact_number: '09171112005',
-            individual_status: 'active',
+            homeowner_status: 'active',
             barangay: 'Codcod',
             city: 'San Carlos City',
             province: 'Negros Occidental',
@@ -968,16 +968,24 @@ const seedConversations = [
 const PROFILE_TABLE = {
     jobseeker: 'jobseeker_profiles',
     employer: 'employer_profiles',
-    individual: 'individual_profiles',
+    homeowner: 'homeowner_profiles',
 }
 
-async function createUser(email, role, baseData, profileData) {
+// Map subtype to profile table for user role
+const SUBTYPE_PROFILE_TABLE = {
+    jobseeker: 'jobseeker_profiles',
+    homeowner: 'homeowner_profiles',
+}
+
+async function createUser(email, role, subtype, baseData, profileData) {
     // 1. Create auth user (triggers handle_new_user which creates public.users row)
+    const metadata = { role }
+    if (subtype) metadata.subtype = subtype
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email,
         password: PASSWORD,
         email_confirm: true,
-        user_metadata: { role },
+        user_metadata: metadata,
     })
 
     if (authError) {
@@ -999,17 +1007,16 @@ async function createUser(email, role, baseData, profileData) {
     await new Promise(r => setTimeout(r, 500))
 
     // 3. Update public.users with base data
+    const updateData = { ...baseData, role }
+    if (subtype) updateData.subtype = subtype
     const { error: baseError } = await supabase
         .from('users')
-        .update({
-            ...baseData,
-            role,
-        })
+        .update(updateData)
         .eq('id', userId)
     if (baseError) console.warn(`  WARN: base update failed for ${email}: ${baseError.message}`)
 
     // 4. Upsert role-specific profile
-    const profileTable = PROFILE_TABLE[role]
+    const profileTable = role === 'user' ? SUBTYPE_PROFILE_TABLE[subtype] : PROFILE_TABLE[role]
     if (profileTable && Object.keys(profileData).length > 0) {
         const { error: profileError } = await supabase
             .from(profileTable)
@@ -1025,7 +1032,7 @@ async function createUser(email, role, baseData, profileData) {
 }
 
 function getNameByEmail(email) {
-    const allUsers = [...jobseekers, ...diagnosticJobseekers, ...individuals]
+    const allUsers = [...jobseekers, ...diagnosticJobseekers, ...homeowners]
     const found = allUsers.find(u => u.email === email)
     if (found) return found.profile?.full_name || found.base?.name || ''
     const emp = employers.find(e => e.email === email)
@@ -1042,11 +1049,11 @@ async function seed() {
     const userIdByEmail = {} // track user IDs for FK wiring
 
     // Helper to seed a group of users
-    async function seedGroup(label, list, role) {
+    async function seedGroup(label, list, role, subtype = null) {
         console.log(`--- ${label} ---`)
         for (const u of list) {
             try {
-                const id = await createUser(u.email, role, u.base, u.profile)
+                const id = await createUser(u.email, role, subtype, u.base, u.profile)
                 if (id) {
                     userIdByEmail[u.email] = id
                     console.log(`  OK ${u.email} (${id})`)
@@ -1061,13 +1068,13 @@ async function seed() {
     }
 
     // Seed users
-    await seedGroup('Jobseekers', jobseekers, 'jobseeker')
+    await seedGroup('Jobseekers', jobseekers, 'user', 'jobseeker')
     console.log()
     await seedGroup('Employers', employers, 'employer')
     console.log()
-    await seedGroup('Individuals', individuals, 'individual')
+    await seedGroup('Homeowners', homeowners, 'user', 'homeowner')
     console.log()
-    await seedGroup('Diagnostic Test Jobseekers', diagnosticJobseekers, 'jobseeker')
+    await seedGroup('Diagnostic Test Jobseekers', diagnosticJobseekers, 'user', 'jobseeker')
 
     // ─── Job Postings ───
     console.log('\n--- Job Postings ---')
