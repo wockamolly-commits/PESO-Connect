@@ -16,6 +16,7 @@ import {
     X,
     Lock
 } from 'lucide-react'
+import SubtypeSwitcher from '../components/SubtypeSwitcher'
 
 // ─── Delete Account Modal ────────────────────────────────────────────────────
 const DeleteAccountModal = ({ onClose, onConfirm }) => {
@@ -362,6 +363,9 @@ const Settings = () => {
                                         </button>
                                     )}
                                 </div>
+
+                                {/* Account Type Switcher */}
+                                <SubtypeSwitcher />
 
                                 {/* Delete Account */}
                                 <div className="card border-red-200">
