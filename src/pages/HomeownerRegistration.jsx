@@ -110,7 +110,13 @@ const HomeownerRegistration = () => {
                 contact_number: formData.contactNumber.trim(),
                 homeowner_status: 'active',
             })
-            setSuccess(true)
+
+            // Redirect to email verification if not yet confirmed
+            if (!currentUser?.email_confirmed_at && !currentUser?.confirmed_at) {
+                navigate('/verify-email', { state: { email: formData.email || userData?.email } })
+            } else {
+                setSuccess(true)
+            }
         } catch (err) {
             setError(err.message || 'Registration failed. Please try again.')
         } finally {

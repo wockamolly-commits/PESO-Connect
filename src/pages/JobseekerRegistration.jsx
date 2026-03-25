@@ -471,7 +471,12 @@ const JobseekerRegistration = () => {
                 console.error('Failed to send registration email:', emailErr)
             }
 
-            navigate('/dashboard')
+            // Redirect to email verification if not yet confirmed
+            if (!currentUser?.email_confirmed_at && !currentUser?.confirmed_at) {
+                navigate('/verify-email', { state: { email: formData.email || userData?.email } })
+            } else {
+                navigate('/dashboard')
+            }
         } catch (err) {
             console.error('Registration error:', err)
             setError(err.message || 'Failed to complete registration. Please try again.')

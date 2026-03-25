@@ -279,7 +279,12 @@ const EmployerRegistration = () => {
                 console.error('Failed to send registration email:', emailErr)
             }
 
-            setSubmitted(true)
+            // Redirect to email verification if not yet confirmed
+            if (!currentUser?.email_confirmed_at && !currentUser?.confirmed_at) {
+                navigate('/verify-email', { state: { email: userData?.email || formData.email } })
+            } else {
+                setSubmitted(true)
+            }
         } catch (err) {
             console.error('Employer registration error:', err)
             setError('Failed to complete registration. Please try again.')
