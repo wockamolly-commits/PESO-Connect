@@ -379,7 +379,7 @@ const JobseekerRegistration = () => {
             setLoading(true)
             setError('')
             try {
-                await createAccount(formData.email, formData.password, 'jobseeker')
+                await createAccount(formData.email, formData.password, 'user', 'jobseeker')
                 setAccountCreated(true)
                 setCurrentStep(2)
             } catch (err) {
