@@ -10,7 +10,7 @@ const Login = () => {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const { login } = useAuth()
+    const { login, fetchUserData } = useAuth()
     const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
@@ -19,8 +19,13 @@ const Login = () => {
         setLoading(true)
 
         try {
-            await login(email, password)
-            navigate('/dashboard')
+            const user = await login(email, password)
+            const profile = await fetchUserData(user.uid)
+            if (profile?.registration_complete === false) {
+                navigate('/register/continue')
+            } else {
+                navigate('/dashboard')
+            }
         } catch (err) {
             console.error('Login error:', err)
             if (err.code === 'auth/invalid-credential') {
