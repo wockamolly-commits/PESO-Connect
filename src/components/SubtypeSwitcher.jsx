@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { SUBTYPES } from '../utils/roles'
+import { SUBTYPES, ROLES, getProfileTable, getRegistrationRoute } from '../utils/roles'
 import { RefreshCw, Search, Home, AlertCircle } from 'lucide-react'
 
 const SubtypeSwitcher = () => {
@@ -10,6 +10,7 @@ const SubtypeSwitcher = () => {
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
     const [showConfirm, setShowConfirm] = useState(false)
+    const [targetProfileComplete, setTargetProfileComplete] = useState(null)
 
     // Only render for user role with completed registration
     if (!isUser() || !userData?.registration_complete) return null
@@ -22,36 +23,88 @@ const SubtypeSwitcher = () => {
     const targetLabel = targetSubtype === SUBTYPES.JOBSEEKER ? 'Jobseeker' : 'Homeowner'
     const TargetIcon = targetSubtype === SUBTYPES.JOBSEEKER ? Search : Home
 
+    // Check target profile state before showing confirm dialog
+    const handleShowConfirm = async () => {
+        const targetTable = getProfileTable(ROLES.USER, targetSubtype)
+        const { data, error } = await supabase
+            .from(targetTable)
+            .select('registration_complete')
+            .eq('id', currentUser.uid)
+            .maybeSingle()
+        if (error) {
+            console.error('Failed to check target profile:', error)
+            return
+        }
+        setTargetProfileComplete(data?.registration_complete === true)
+        setShowConfirm(true)
+    }
+
     const handleSwitch = async () => {
         setLoading(true)
         try {
-            // Update subtype
-            const { error } = await supabase
-                .from('users')
-                .update({ subtype: targetSubtype, updated_at: new Date().toISOString() })
-                .eq('id', currentUser.uid)
-            if (error) throw error
+            const now = new Date().toISOString()
+            const targetTable = getProfileTable(ROLES.USER, targetSubtype)
 
-            // Create empty target profile if it doesn't exist
-            const targetTable = targetSubtype === SUBTYPES.JOBSEEKER
-                ? 'jobseeker_profiles'
-                : 'homeowner_profiles'
-
-            await supabase
+            // Read target profile to determine state
+            const { data: targetProfile } = await supabase
                 .from(targetTable)
-                .upsert({ id: currentUser.uid }, { onConflict: 'id', ignoreDuplicates: true })
+                .select('is_verified, registration_complete, registration_step')
+                .eq('id', currentUser.uid)
+                .maybeSingle()
+
+            const isComplete = targetProfile?.registration_complete === true
+
+            if (isComplete) {
+                // Restore previously completed profile
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({
+                        subtype: targetSubtype,
+                        is_verified: targetProfile.is_verified,
+                        registration_complete: true,
+                        registration_step: null,
+                        updated_at: now,
+                    })
+                    .eq('id', currentUser.uid)
+                if (updateError) throw updateError
+            } else {
+                // First time or abandoned — create profile row if needed
+                await supabase
+                    .from(targetTable)
+                    .upsert({ id: currentUser.uid }, { onConflict: 'id', ignoreDuplicates: true })
+
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({
+                        subtype: targetSubtype,
+                        is_verified: false,
+                        registration_complete: false,
+                        registration_step: targetProfile?.registration_step || 1,
+                        updated_at: now,
+                    })
+                    .eq('id', currentUser.uid)
+                if (updateError) throw updateError
+            }
 
             // Refresh auth context
             await fetchUserData(currentUser.uid)
 
             setShowConfirm(false)
-            navigate('/dashboard')
+            if (isComplete) {
+                navigate('/dashboard')
+            } else {
+                navigate(getRegistrationRoute(ROLES.USER, targetSubtype))
+            }
         } catch (err) {
             console.error('Subtype switch failed:', err)
         } finally {
             setLoading(false)
         }
     }
+
+    const confirmMessage = targetProfileComplete
+        ? `Your ${targetLabel.toLowerCase()} profile will be restored.`
+        : `You'll need to complete the ${targetLabel.toLowerCase()} registration process.`
 
     return (
         <div className="border border-gray-200 rounded-xl p-6">
@@ -63,7 +116,7 @@ const SubtypeSwitcher = () => {
 
             {!showConfirm ? (
                 <button
-                    onClick={() => setShowConfirm(true)}
+                    onClick={handleShowConfirm}
                     className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2"
                 >
                     <TargetIcon className="w-4 h-4" />
@@ -78,8 +131,7 @@ const SubtypeSwitcher = () => {
                                 Switch to {targetLabel}?
                             </p>
                             <p className="text-sm text-yellow-700 mt-1">
-                                Your {currentSubtype} profile data will be preserved.
-                                You can switch back anytime.
+                                {confirmMessage} Your {currentSubtype} profile data will be preserved.
                             </p>
                         </div>
                     </div>
@@ -93,7 +145,7 @@ const SubtypeSwitcher = () => {
                             {loading ? 'Switching...' : 'Confirm Switch'}
                         </button>
                         <button
-                            onClick={() => setShowConfirm(false)}
+                            onClick={() => { setShowConfirm(false); setTargetProfileComplete(null) }}
                             disabled={loading}
                             className="btn-secondary text-sm py-2 px-4"
                         >
