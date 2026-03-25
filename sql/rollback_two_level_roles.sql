@@ -10,6 +10,11 @@ UPDATE public.users SET role = 'individual', subtype = NULL WHERE subtype = 'hom
 
 ALTER TABLE public.users DROP COLUMN subtype;
 
+-- Restore original role constraint
+ALTER TABLE public.users
+  ADD CONSTRAINT users_role_check
+  CHECK (role IN ('employer', 'jobseeker', 'individual', 'admin'));
+
 ALTER TABLE homeowner_profiles RENAME COLUMN homeowner_status TO individual_status;
 ALTER TABLE homeowner_profiles RENAME TO individual_profiles;
 

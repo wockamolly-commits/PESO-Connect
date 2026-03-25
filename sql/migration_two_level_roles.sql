@@ -12,10 +12,13 @@ ALTER TABLE individual_profiles RENAME TO homeowner_profiles;
 ALTER TABLE homeowner_profiles
   RENAME COLUMN individual_status TO homeowner_status;
 
--- Step 2: Add subtype column
+-- Step 2: Drop existing role constraint that only allows old values
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+
+-- Step 3: Add subtype column
 ALTER TABLE public.users ADD COLUMN subtype text;
 
--- Step 3: Backfill existing data
+-- Step 4: Backfill existing data
 UPDATE public.users
   SET role = 'user', subtype = 'jobseeker'
   WHERE role = 'jobseeker';
@@ -24,7 +27,7 @@ UPDATE public.users
   SET role = 'user', subtype = 'homeowner'
   WHERE role = 'individual';
 
--- Step 4: Add constraints
+-- Step 5: Add new constraints
 ALTER TABLE public.users
   ADD CONSTRAINT chk_valid_role
   CHECK (role IN ('employer', 'user', 'admin'));
@@ -40,7 +43,7 @@ ALTER TABLE public.users
     (role != 'user' AND subtype IS NULL)
   );
 
--- Step 5: Update trigger
+-- Step 6: Update trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
