@@ -9,7 +9,7 @@ import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ProfileCompletionBar from '../components/profile/ProfileCompletionBar'
 import { calculateCompletion } from '../utils/profileCompletion'
 
-const IndividualProfileEdit = () => {
+const HomeownerProfileEdit = () => {
     const { userData, currentUser } = useAuth()
     const navigate = useNavigate()
 
@@ -93,10 +93,10 @@ const IndividualProfileEdit = () => {
                 .eq('id', currentUser.uid)
             if (baseErr) throw baseErr
 
-            // All other fields go to individual_profiles
+            // All other fields go to homeowner_profiles
             const { profile_photo, ...profileFields } = formData
             const { error: profileErr } = await supabase
-                .from('individual_profiles')
+                .from('homeowner_profiles')
                 .upsert({
                     id: currentUser.uid,
                     ...profileFields,
@@ -137,7 +137,7 @@ const IndividualProfileEdit = () => {
                     <ProfileCompletionBar
                         percentage={completion.percentage}
                         missing={completion.missing}
-                        editPath="/profile/edit/individual"
+                        editPath="/profile/edit/homeowner"
                     />
                 </div>
 
@@ -282,4 +282,4 @@ const IndividualProfileEdit = () => {
     )
 }
 
-export default IndividualProfileEdit
+export default HomeownerProfileEdit
