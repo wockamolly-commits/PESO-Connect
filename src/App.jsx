@@ -49,10 +49,11 @@ import AdminLogin from './pages/admin/Login'
 function AppContent() {
     const location = useLocation()
     const isAdminRoute = location.pathname.startsWith('/admin')
+    const hideNavbar = isAdminRoute || location.pathname === '/reset-password'
 
     return (
         <div className="min-h-screen flex flex-col">
-            {!isAdminRoute && <Navbar />}
+            {!hideNavbar && <Navbar />}
             <main className="flex-1">
                 <ErrorBoundary>
                     <Routes>
@@ -230,7 +231,7 @@ function AppContent() {
                     </Routes>
                 </ErrorBoundary>
             </main>
-            {!isAdminRoute && <Footer />}
+            {!hideNavbar && <Footer />}
         </div>
     )
 }
