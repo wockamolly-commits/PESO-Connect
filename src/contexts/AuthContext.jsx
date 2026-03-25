@@ -74,6 +74,14 @@ export const AuthProvider = ({ children }) => {
         if (error) throw error
         if (!data.user) throw new Error('Account creation failed. Please try again.')
 
+        console.log('[createAccount] signUp response:', {
+            session: data.session,
+            user_id: data.user?.id,
+            email_confirmed_at: data.user?.email_confirmed_at,
+            confirmed_at: data.user?.confirmed_at,
+            identities: data.user?.identities?.length,
+        })
+
         const user = data.user
         const emailVerificationRequired = !data.session
 
