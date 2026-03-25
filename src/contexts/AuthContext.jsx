@@ -66,12 +66,17 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
-            options: { data: { role, subtype } },
+            options: {
+                data: { role, subtype },
+                emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
         })
         if (error) throw error
         if (!data.user) throw new Error('Account creation failed. Please try again.')
 
         const user = data.user
+        const emailVerificationRequired = !data.session
+
         const minimalDoc = {
             id: user.id,
             email,
@@ -87,7 +92,18 @@ export const AuthProvider = ({ children }) => {
 
         try { localStorage.setItem(`peso-profile-${user.id}`, JSON.stringify(minimalDoc)) } catch {}
 
-        return { user: { ...user, uid: user.id }, userData: minimalDoc }
+        return { user: { ...user, uid: user.id }, userData: minimalDoc, emailVerificationRequired }
+    }
+
+    const resendVerificationEmail = async (email) => {
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email,
+            options: {
+                emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
+        })
+        if (error) throw error
     }
 
     // Split stepData into base (public.users) and profile-specific fields
@@ -313,6 +329,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         resetPassword,
         deleteAccount,
+        resendVerificationEmail,
         isVerified,
         isEmailVerified,
         hasRole,

@@ -379,7 +379,11 @@ const JobseekerRegistration = () => {
             setLoading(true)
             setError('')
             try {
-                await createAccount(formData.email, formData.password, 'user', 'jobseeker')
+                const result = await createAccount(formData.email, formData.password, 'user', 'jobseeker')
+                if (result.emailVerificationRequired) {
+                    navigate('/verify-email', { state: { email: formData.email } })
+                    return
+                }
                 setAccountCreated(true)
                 setCurrentStep(2)
             } catch (err) {

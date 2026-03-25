@@ -78,7 +78,11 @@ const HomeownerRegistration = () => {
         setLoading(true)
         setError('')
         try {
-            await createAccount(formData.email.trim().toLowerCase(), formData.password, 'user', 'homeowner')
+            const result = await createAccount(formData.email.trim().toLowerCase(), formData.password, 'user', 'homeowner')
+            if (result.emailVerificationRequired) {
+                navigate('/verify-email', { state: { email: formData.email.trim().toLowerCase() } })
+                return
+            }
             setAccountCreated(true)
             setCurrentStep(2)
         } catch (err) {

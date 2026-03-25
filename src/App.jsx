@@ -20,6 +20,8 @@ import JobDetail from './pages/JobDetail'
 import Diagnostic from './pages/Diagnostic'
 import NotFound from './pages/NotFound'
 import Unauthorized from './pages/Unauthorized'
+import EmailVerificationPending from './pages/EmailVerificationPending'
+import AuthCallback from './pages/AuthCallback'
 
 // Protected Pages
 import Dashboard from './pages/Dashboard'
@@ -67,6 +69,8 @@ function AppContent() {
                         <Route path="/jobs/:id" element={<ErrorBoundary><JobDetail /></ErrorBoundary>} />
                         <Route path="/diagnostic" element={<ErrorBoundary><Diagnostic /></ErrorBoundary>} />
                         <Route path="/admin/login" element={<ErrorBoundary><AdminLogin /></ErrorBoundary>} />
+                        <Route path="/verify-email" element={<ErrorBoundary><EmailVerificationPending /></ErrorBoundary>} />
+                        <Route path="/auth/callback" element={<ErrorBoundary><AuthCallback /></ErrorBoundary>} />
                         <Route path="/unauthorized" element={<Unauthorized />} />
 
                         {/* Protected Routes (Any authenticated user) */}

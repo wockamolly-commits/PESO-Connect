@@ -182,7 +182,11 @@ const EmployerRegistration = () => {
         if (currentStep === 1 && !accountCreated) {
             setLoading(true)
             try {
-                await createAccount(formData.email, formData.password, 'employer')
+                const result = await createAccount(formData.email, formData.password, 'employer')
+                if (result.emailVerificationRequired) {
+                    navigate('/verify-email', { state: { email: formData.email } })
+                    return
+                }
                 setAccountCreated(true)
                 setCurrentStep(2)
             } catch (err) {

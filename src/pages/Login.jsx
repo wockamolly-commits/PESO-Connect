@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, Info } from 'lucide-react'
 
 const Login = () => {
     const [email, setEmail] = useState('')
@@ -9,6 +9,7 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [emailNotVerified, setEmailNotVerified] = useState(false)
 
     const { login, fetchUserData } = useAuth()
     const navigate = useNavigate()
@@ -28,11 +29,15 @@ const Login = () => {
             }
         } catch (err) {
             console.error('Login error:', err)
-            if (err.code === 'auth/invalid-credential') {
+            const msg = err.message?.toLowerCase() || ''
+            if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
+                setEmailNotVerified(true)
+                setError('Your email has not been verified yet. Please check your inbox for the verification link.')
+            } else if (err.code === 'auth/invalid-credential' || msg.includes('invalid login')) {
                 setError('Invalid email or password. Please try again.')
             } else if (err.code === 'auth/user-not-found') {
                 setError('No account found with this email.')
-            } else if (err.code === 'auth/too-many-requests') {
+            } else if (err.code === 'auth/too-many-requests' || msg.includes('rate')) {
                 setError('Too many failed attempts. Please try again later.')
             } else {
                 setError('Failed to sign in. Please try again.')
@@ -60,9 +65,20 @@ const Login = () => {
                 <div className="card animate-slide-up">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {error && (
-                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-                                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                <p className="text-sm">{error}</p>
+                            <div className={`flex items-start gap-3 p-4 ${emailNotVerified ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-red-50 border-red-200 text-red-700'} border rounded-xl`}>
+                                {emailNotVerified ? <Info className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                                <div className="text-sm">
+                                    <p>{error}</p>
+                                    {emailNotVerified && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate('/verify-email', { state: { email } })}
+                                            className="mt-2 text-primary-600 hover:text-primary-700 font-semibold underline"
+                                        >
+                                            Resend verification email
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
 

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
 
 const ProtectedRoute = ({ children, requireVerified = false, allowedRoles = [] }) => {
-    const { currentUser, userData, loading, isVerified } = useAuth()
+    const { currentUser, userData, loading, isVerified, isEmailVerified } = useAuth()
     const location = useLocation()
 
     if (loading) {
@@ -20,6 +20,11 @@ const ProtectedRoute = ({ children, requireVerified = false, allowedRoles = [] }
     // Not authenticated
     if (!currentUser) {
         return <Navigate to="/login" state={{ from: location }} replace />
+    }
+
+    // Email not verified — redirect to verification pending page
+    if (!isEmailVerified()) {
+        return <Navigate to="/verify-email" state={{ email: currentUser.email }} replace />
     }
 
     // Check role if specified — match against both role and subtype.

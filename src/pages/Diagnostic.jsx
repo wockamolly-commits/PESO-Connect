@@ -32,6 +32,7 @@ import {
 // Creates a lite homeowner account in the background, then opens messaging.
 const QuickContactModal = ({ worker, onClose, onAccountCreated }) => {
     const { createAccount, completeRegistration } = useAuth()
+    const navigate = useNavigate()
     const [form, setForm] = useState({ name: '', phone: '', email: '', password: '' })
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -57,6 +58,10 @@ const QuickContactModal = ({ worker, onClose, onAccountCreated }) => {
                 'user',
                 'homeowner'
             )
+            if (result.emailVerificationRequired) {
+                navigate('/verify-email', { state: { email: form.email.trim().toLowerCase() } })
+                return
+            }
             await completeRegistration({
                 full_name: form.name.trim(),
                 name: form.name.trim(),
