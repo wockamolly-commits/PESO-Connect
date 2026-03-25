@@ -19,7 +19,7 @@ import { getTotalUnreadCount } from '../services/messagingService'
 import NotificationBell from './common/NotificationBell'
 
 const Navbar = () => {
-    const { currentUser, userData, logout, isAdmin, isEmployer, isJobseeker } = useAuth()
+    const { currentUser, userData, logout, isAdmin, isEmployer, isJobseeker, isHomeowner } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -128,7 +128,7 @@ const Navbar = () => {
                                     <div className="hidden sm:block text-right">
                                         <p className="text-sm font-medium text-gray-900">{userData?.full_name || userData?.name || 'User'}</p>
                                         <p className="text-xs text-gray-500 capitalize flex items-center gap-1">
-                                            {userData?.role}
+                                            {userData?.subtype || userData?.role}
                                             {userData?.is_verified && (
                                                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full" title="Verified"></span>
                                             )}
