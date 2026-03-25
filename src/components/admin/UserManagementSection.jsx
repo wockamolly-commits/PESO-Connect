@@ -63,7 +63,7 @@ const UserManagementSection = ({ allUsers, searchQuery, setSearchQuery }) => {
                                                 : user.role === 'employer' ? 'bg-violet-500/15 text-violet-400'
                                                     : 'bg-blue-500/15 text-blue-400'
                                             }`}>
-                                            {user.role}
+                                            {user.subtype || user.role}
                                         </span>
                                     </td>
                                     <td className="px-5 py-4">

@@ -64,7 +64,8 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                     </h3>
                     <div className="space-y-3">
                         {[
-                            { label: 'Jobseekers', count: allUsers.filter(u => u.role === 'jobseeker').length, color: 'bg-blue-500' },
+                            { label: 'Jobseekers', count: allUsers.filter(u => u.role === 'user' && u.subtype === 'jobseeker').length, color: 'bg-blue-500' },
+                            { label: 'Homeowners', count: allUsers.filter(u => u.role === 'user' && u.subtype === 'homeowner').length, color: 'bg-emerald-500' },
                             { label: 'Employers', count: employers.length, color: 'bg-violet-500' },
                             { label: 'Admins', count: allUsers.filter(u => u.role === 'admin').length, color: 'bg-indigo-500' },
                         ].map((item, i) => (

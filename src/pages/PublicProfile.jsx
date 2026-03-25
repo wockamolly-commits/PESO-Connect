@@ -136,7 +136,7 @@ const PublicProfile = () => {
                 </div>
 
                 {/* Role-specific content */}
-                {profile.role === 'jobseeker' && <JobseekerProfile profile={profile} />}
+                {profile.subtype === 'jobseeker' && <JobseekerProfile profile={profile} />}
                 {profile.role === 'employer' && <EmployerProfile profile={profile} />}
                 {profile.subtype === 'homeowner' && <HomeownerProfile profile={profile} />}
 

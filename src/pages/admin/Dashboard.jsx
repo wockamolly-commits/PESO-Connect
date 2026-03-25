@@ -85,6 +85,8 @@ const AdminDashboard = () => {
         }
     }
 
+    // NOTE: 'jobseeker' here is the subtype value, not the DB role field.
+    // JobseekerCard passes 'jobseeker' explicitly; do not change to user.role.
     const PROFILE_TABLE = { employer: 'employer_profiles', jobseeker: 'jobseeker_profiles' }
 
     const handleApprove = async (userId, userRole) => {

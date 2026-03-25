@@ -86,7 +86,7 @@ const JobseekerRegistration = () => {
     // Restore saved progress only once on initial load
     useEffect(() => {
         if (restoredRef.current) return
-        if (userData && userData.registration_complete === false && userData.role === 'jobseeker') {
+        if (userData && userData.registration_complete === false && userData.role === 'user' && userData.subtype === 'jobseeker') {
             restoredRef.current = true
             setAccountCreated(true)
             setFormData(prev => ({
