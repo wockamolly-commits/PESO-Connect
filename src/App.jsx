@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 
 // Layout Components
@@ -14,7 +14,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import Register from './pages/Register'
 import JobseekerRegistration from './pages/JobseekerRegistration'
 import EmployerRegistration from './pages/EmployerRegistration'
-import IndividualRegistration from './pages/IndividualRegistration'
+import HomeownerRegistration from './pages/HomeownerRegistration'
 import JobListings from './pages/JobListings'
 import JobDetail from './pages/JobDetail'
 import Diagnostic from './pages/Diagnostic'
@@ -30,7 +30,7 @@ import SavedJobs from './pages/SavedJobs'
 import Messages from './pages/Messages'
 import Settings from './pages/Settings'
 import EmployerProfileEdit from './pages/EmployerProfileEdit'
-import IndividualProfileEdit from './pages/IndividualProfileEdit'
+import HomeownerProfileEdit from './pages/HomeownerProfileEdit'
 import PublicProfile from './pages/PublicProfile'
 import RegistrationContinue from './pages/RegistrationContinue'
 
@@ -60,7 +60,9 @@ function AppContent() {
                         <Route path="/register" element={<ErrorBoundary><Register /></ErrorBoundary>} />
                         <Route path="/register/jobseeker" element={<ErrorBoundary><JobseekerRegistration /></ErrorBoundary>} />
                         <Route path="/register/employer" element={<ErrorBoundary><EmployerRegistration /></ErrorBoundary>} />
-                        <Route path="/register/individual" element={<ErrorBoundary><IndividualRegistration /></ErrorBoundary>} />
+                        <Route path="/register/homeowner" element={<ErrorBoundary><HomeownerRegistration /></ErrorBoundary>} />
+                        {/* Redirect old URL */}
+                        <Route path="/register/individual" element={<Navigate to="/register/homeowner" replace />} />
                         <Route path="/jobs" element={<ErrorBoundary><JobListings /></ErrorBoundary>} />
                         <Route path="/jobs/:id" element={<ErrorBoundary><JobDetail /></ErrorBoundary>} />
                         <Route path="/diagnostic" element={<ErrorBoundary><Diagnostic /></ErrorBoundary>} />
@@ -109,10 +111,10 @@ function AppContent() {
                             }
                         />
                         <Route
-                            path="/profile/edit/individual"
+                            path="/profile/edit/homeowner"
                             element={
-                                <ProtectedRoute allowedRoles={['individual']}>
-                                    <ErrorBoundary><IndividualProfileEdit /></ErrorBoundary>
+                                <ProtectedRoute allowedRoles={['homeowner']}>
+                                    <ErrorBoundary><HomeownerProfileEdit /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
                         />
@@ -139,7 +141,7 @@ function AppContent() {
                         <Route
                             path="/messages"
                             element={
-                                <ProtectedRoute allowedRoles={['jobseeker', 'employer', 'individual']}>
+                                <ProtectedRoute allowedRoles={['jobseeker', 'homeowner', 'employer']}>
                                     <ErrorBoundary><Messages /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
@@ -147,7 +149,7 @@ function AppContent() {
                         <Route
                             path="/messages/:conversationId"
                             element={
-                                <ProtectedRoute allowedRoles={['jobseeker', 'employer', 'individual']}>
+                                <ProtectedRoute allowedRoles={['jobseeker', 'homeowner', 'employer']}>
                                     <ErrorBoundary><Messages /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
