@@ -18,7 +18,7 @@ import {
     ChevronLeft
 } from 'lucide-react'
 
-const IndividualRegistration = () => {
+const HomeownerRegistration = () => {
     const navigate = useNavigate()
     const { createAccount, completeRegistration, currentUser, userData } = useAuth()
 
@@ -39,7 +39,7 @@ const IndividualRegistration = () => {
 
     useEffect(() => {
         if (restoredRef.current) return
-        if (userData && userData.registration_complete === false && userData.role === 'individual') {
+        if (userData && userData.registration_complete === false && userData.role === 'user' && userData.subtype === 'homeowner') {
             restoredRef.current = true
             setAccountCreated(true)
             setFormData(prev => ({
@@ -78,7 +78,7 @@ const IndividualRegistration = () => {
         setLoading(true)
         setError('')
         try {
-            await createAccount(formData.email.trim().toLowerCase(), formData.password, 'individual')
+            await createAccount(formData.email.trim().toLowerCase(), formData.password, 'user', 'homeowner')
             setAccountCreated(true)
             setCurrentStep(2)
         } catch (err) {
@@ -104,7 +104,7 @@ const IndividualRegistration = () => {
                 full_name: formData.fullName.trim(),
                 name: formData.fullName.trim(),
                 contact_number: formData.contactNumber.trim(),
-                individual_status: 'active',
+                homeowner_status: 'active',
             })
             setSuccess(true)
         } catch (err) {
@@ -349,4 +349,4 @@ const IndividualRegistration = () => {
     )
 }
 
-export default IndividualRegistration
+export default HomeownerRegistration
