@@ -29,7 +29,7 @@ import {
 
 // ─── Quick Contact Modal ────────────────────────────────────────────────────
 // Shown when a non-logged-in user tries to message a worker.
-// Creates a lite "individual" account in the background, then opens messaging.
+// Creates a lite homeowner account in the background, then opens messaging.
 const QuickContactModal = ({ worker, onClose, onAccountCreated }) => {
     const { createAccount, completeRegistration } = useAuth()
     const [form, setForm] = useState({ name: '', phone: '', email: '', password: '' })
@@ -54,13 +54,14 @@ const QuickContactModal = ({ worker, onClose, onAccountCreated }) => {
             const result = await createAccount(
                 form.email.trim().toLowerCase(),
                 form.password,
-                'individual'
+                'user',
+                'homeowner'
             )
             await completeRegistration({
                 full_name: form.name.trim(),
                 name: form.name.trim(),
                 contact_number: form.phone.trim(),
-                individual_status: 'active',
+                homeowner_status: 'active',
             })
             onAccountCreated(result)
         } catch (err) {
