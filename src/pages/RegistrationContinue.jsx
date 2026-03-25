@@ -20,18 +20,15 @@ const RegistrationContinue = () => {
             return
         }
 
-        switch (userData.role) {
-            case 'jobseeker':
-                navigate('/register/jobseeker', { replace: true })
-                break
-            case 'employer':
-                navigate('/register/employer', { replace: true })
-                break
-            case 'individual':
-                navigate('/register/individual', { replace: true })
-                break
-            default:
-                navigate('/dashboard', { replace: true })
+        // Route by role for employer, by subtype for user accounts
+        if (userData.role === 'employer') {
+            navigate('/register/employer', { replace: true })
+        } else if (userData.subtype === 'jobseeker') {
+            navigate('/register/jobseeker', { replace: true })
+        } else if (userData.subtype === 'homeowner') {
+            navigate('/register/homeowner', { replace: true })
+        } else {
+            navigate('/dashboard', { replace: true })
         }
     }, [userData, loading, navigate])
 
