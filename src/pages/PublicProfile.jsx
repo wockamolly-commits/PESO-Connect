@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { getProfileTable } from '../utils/roles'
 import {
     MapPin, Briefcase, GraduationCap, Award, Globe, Calendar, Users,
     ExternalLink, MessageSquare, ArrowLeft, Loader2, Building
@@ -17,12 +18,6 @@ const PublicProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const PROFILE_TABLE = {
-                    jobseeker: 'jobseeker_profiles',
-                    employer: 'employer_profiles',
-                    individual: 'individual_profiles',
-                }
-
                 // Fetch base user row
                 const { data: baseData, error } = await supabase
                     .from('users')
@@ -34,7 +29,7 @@ const PublicProfile = () => {
                 if (!baseData) return // profile not found — setProfile stays null, finally still runs
 
                 // Fetch role-specific profile
-                const profileTable = PROFILE_TABLE[baseData.role]
+                const profileTable = getProfileTable(baseData.role, baseData.subtype)
                 let profileData = {}
                 if (profileTable) {
                     const { data: roleProfile } = await supabase
@@ -143,7 +138,7 @@ const PublicProfile = () => {
                 {/* Role-specific content */}
                 {profile.role === 'jobseeker' && <JobseekerProfile profile={profile} />}
                 {profile.role === 'employer' && <EmployerProfile profile={profile} />}
-                {profile.role === 'individual' && <IndividualProfile profile={profile} />}
+                {profile.subtype === 'homeowner' && <HomeownerProfile profile={profile} />}
 
                 {/* Actions */}
                 {currentUser && !isOwn && (
@@ -313,7 +308,7 @@ const EmployerProfile = ({ profile }) => (
     </div>
 )
 
-const IndividualProfile = ({ profile }) => (
+const HomeownerProfile = ({ profile }) => (
     <div className="space-y-6">
         {profile.bio && (
             <div className="card">

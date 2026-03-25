@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { getProfileTable } from '../utils/roles'
 import {
     User,
     Mail,
@@ -31,14 +32,14 @@ const Profile = () => {
 
     // Redirect all roles to their comprehensive profile edit pages
     useEffect(() => {
-        if (userData?.role === 'jobseeker') {
-            navigate('/profile/edit', { replace: true })
-        } else if (userData?.role === 'employer') {
+        if (userData?.role === 'employer') {
             navigate('/profile/edit/employer', { replace: true })
-        } else if (userData?.role === 'individual') {
-            navigate('/profile/edit/individual', { replace: true })
+        } else if (userData?.subtype === 'homeowner') {
+            navigate('/profile/edit/homeowner', { replace: true })
+        } else if (userData?.subtype === 'jobseeker') {
+            navigate('/profile/edit', { replace: true })
         }
-    }, [userData?.role, navigate])
+    }, [userData?.role, userData?.subtype, navigate])
 
     useEffect(() => {
         if (userData) {
@@ -70,11 +71,7 @@ const Profile = () => {
                 .eq('id', currentUser.uid)
             if (baseErr) throw baseErr
 
-            const profileTable = {
-                jobseeker: 'jobseeker_profiles',
-                employer: 'employer_profiles',
-                individual: 'individual_profiles',
-            }[userData?.role]
+            const profileTable = getProfileTable(userData?.role, userData?.subtype)
 
             if (profileTable) {
                 const { error: profileErr } = await supabase
