@@ -116,10 +116,16 @@ export const AuthProvider = ({ children }) => {
         const role = userData?.role || currentUser?.user_metadata?.role
         const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
         const profileTable = getProfileTable(role, subtype)
-        if (profileTable && Object.keys(profile).length > 0) {
+        if (profileTable) {
+            // Write profile-specific fields + mirror registration_step in a single upsert
             const { error: profileError } = await supabase
                 .from(profileTable)
-                .upsert({ id: currentUser.uid, ...profile, updated_at: now }, { onConflict: 'id' })
+                .upsert({
+                    id: currentUser.uid,
+                    ...profile,
+                    registration_step: stepNumber,
+                    updated_at: now,
+                }, { onConflict: 'id' })
             if (profileError) throw profileError
         }
 
@@ -136,24 +142,43 @@ export const AuthProvider = ({ children }) => {
         const { base, profile } = splitFields(finalData)
 
         const now = new Date().toISOString()
+        const role = userData?.role || currentUser?.user_metadata?.role
+        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
+
+        // Build users update — homeowners get is_verified synced to true
+        const usersUpdate = { ...base, registration_complete: true, registration_step: null, updated_at: now }
+        if (subtype === SUBTYPES.HOMEOWNER) {
+            usersUpdate.is_verified = true
+        }
         const { error } = await supabase
             .from('users')
-            .update({ ...base, registration_complete: true, registration_step: null, updated_at: now })
+            .update(usersUpdate)
             .eq('id', currentUser.uid)
         if (error) throw error
 
-        const role = userData?.role || currentUser?.user_metadata?.role
-        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
         const profileTable = getProfileTable(role, subtype)
-        if (profileTable && Object.keys(profile).length > 0) {
+        if (profileTable) {
+            // Write profile-specific fields + mirror registration state in a single upsert
+            const profileUpsert = {
+                id: currentUser.uid,
+                ...profile,
+                registration_complete: true,
+                registration_step: null,
+                updated_at: now,
+            }
+            // Homeowners are always auto-verified on registration completion
+            if (subtype === SUBTYPES.HOMEOWNER) {
+                profileUpsert.is_verified = true
+            }
             const { error: profileError } = await supabase
                 .from(profileTable)
-                .upsert({ id: currentUser.uid, ...profile, updated_at: now }, { onConflict: 'id' })
+                .upsert(profileUpsert, { onConflict: 'id' })
             if (profileError) throw profileError
         }
 
         setUserData(prev => {
             const next = { ...prev, ...finalData, registration_complete: true, registration_step: null }
+            if (subtype === SUBTYPES.HOMEOWNER) next.is_verified = true
             try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(next)) } catch {}
             return next
         })
