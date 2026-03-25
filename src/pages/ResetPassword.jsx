@@ -31,6 +31,8 @@ const ResetPassword = () => {
                 password,
             })
             if (updateError) throw updateError
+            // Sign out the temporary recovery session
+            await supabase.auth.signOut({ scope: 'local' })
             setSuccess(true)
         } catch (err) {
             console.error('Password reset error:', err)
@@ -52,12 +54,12 @@ const ResetPassword = () => {
                             <CheckCircle className="w-8 h-8 text-green-600" />
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">Password Updated</h1>
-                        <p className="text-gray-600 mb-6">Your password has been reset successfully.</p>
+                        <p className="text-gray-600 mb-6">Your password has been reset successfully. Please sign in with your new password.</p>
                         <button
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate('/login')}
                             className="btn-primary w-full"
                         >
-                            Go to Dashboard
+                            Sign In
                         </button>
                     </div>
                 </div>
