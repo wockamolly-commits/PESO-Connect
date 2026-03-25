@@ -54,10 +54,10 @@ const ResetPassword = () => {
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">Password Updated</h1>
                         <p className="text-gray-600 mb-6">Your password has been reset successfully.</p>
                         <button
-                            onClick={() => navigate('/login')}
+                            onClick={() => navigate('/dashboard')}
                             className="btn-primary w-full"
                         >
-                            Sign In
+                            Go to Dashboard
                         </button>
                     </div>
                 </div>
