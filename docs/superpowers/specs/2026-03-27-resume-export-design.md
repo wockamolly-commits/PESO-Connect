@@ -61,6 +61,7 @@ Two-column sidebar layout:
 - Skills: rendered as light-background pill/tag elements
 - Portfolio URL: blue text with PDF link annotation
 - Empty sections are omitted entirely (no heading, no placeholder)
+- If `profile_photo` is null: render a circle with the user's initials (extracted from `full_name`) on a slightly lighter blue background, maintaining the sidebar's visual structure
 
 ## Technical Approach
 
