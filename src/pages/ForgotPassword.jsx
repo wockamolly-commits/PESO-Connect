@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Mail, Loader2, AlertCircle, ArrowLeft, KeyRound, Lock, ShieldCheck } from 'lucide-react'
 
 const ForgotPassword = () => {
-    const [email, setEmail] = useState('')
+    const location = useLocation()
+    const [email, setEmail] = useState(location.state?.email || '')
     const [code, setCode] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const [step, setStep] = useState(1) // 1 = email, 2 = code + new password
-    const [cooldown, setCooldown] = useState(0)
+    const [step, setStep] = useState(location.state?.step === 2 ? 2 : 1)
+    const [cooldown, setCooldown] = useState(location.state?.step === 2 ? 60 : 0)
+    const fromSettings = location.state?.fromSettings || false
     const cooldownRef = useRef(null)
     const navigate = useNavigate()
 
@@ -60,8 +62,12 @@ const ForgotPassword = () => {
         setLoading(true)
 
         try {
-            await verifyPasswordResetOtp(email, code, newPassword)
-            navigate('/login', { state: { message: 'Password reset successfully. Please sign in with your new password.' } })
+            await verifyPasswordResetOtp(email, code, newPassword, { keepSession: fromSettings })
+            if (fromSettings) {
+                navigate('/settings', { state: { message: 'Password changed successfully.' } })
+            } else {
+                navigate('/login', { state: { message: 'Password reset successfully. Please sign in with your new password.' } })
+            }
         } catch (err) {
             console.error('Verify OTP error:', err)
             const msg = err.message?.toLowerCase() || ''

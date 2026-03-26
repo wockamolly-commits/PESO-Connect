@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
+    const passwordResetInProgressRef = useRef(false)
 
     const BASE_FIELDS = new Set([
         'id', 'email', 'role', 'subtype', 'name', 'is_verified',
@@ -113,15 +114,23 @@ export const AuthProvider = ({ children }) => {
     }
 
     const sendPasswordResetOtp = async (email) => {
-        const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
+        const { error } = await supabase.auth.resetPasswordForEmail(email)
         if (error) throw error
     }
 
-    const verifyPasswordResetOtp = async (email, token, newPassword) => {
-        const { error: otpError } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' })
-        if (otpError) throw otpError
-        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
-        if (updateError) throw updateError
+    const verifyPasswordResetOtp = async (email, token, newPassword, { keepSession = false } = {}) => {
+        passwordResetInProgressRef.current = true
+        try {
+            const { error: otpError } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' })
+            if (otpError) throw otpError
+            const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+            if (updateError) throw updateError
+            if (!keepSession) await supabase.auth.signOut({ scope: 'local' })
+        } finally {
+            // Delay clearing the flag — onAuthStateChange fires asynchronously
+            // after verifyOtp resolves, so the guard must still be up when it arrives.
+            setTimeout(() => { passwordResetInProgressRef.current = false }, 2000)
+        }
     }
 
     // Split stepData into base (public.users) and profile-specific fields
@@ -301,6 +310,13 @@ export const AuthProvider = ({ children }) => {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
+                // Password reset creates a temporary session for updateUser —
+                // don't treat it as a real login.
+                if (passwordResetInProgressRef.current) {
+                    setLoading(false)
+                    return
+                }
+
                 if (session?.user) {
                     const user = session.user
                     setCurrentUser({ ...user, uid: user.id })

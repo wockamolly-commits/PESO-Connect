@@ -244,7 +244,7 @@ const Settings = () => {
         setResetLoading(true)
         try {
             await sendPasswordResetOtp(currentUser.email)
-            setResetSent(true)
+            navigate('/forgot-password', { state: { email: currentUser.email, step: 2, fromSettings: true } })
         } catch (error) {
             console.error('Reset password error:', error)
         } finally {
