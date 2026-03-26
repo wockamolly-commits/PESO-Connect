@@ -12,6 +12,7 @@ import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
 import { compressAndEncode } from '../utils/fileUtils'
 import Select from '../components/common/Select'
+import ExportResumeButton from '../components/profile/ExportResumeButton'
 
 const JobseekerProfileEdit = () => {
     const { userData, currentUser, fetchUserData, isVerified } = useAuth()
@@ -973,6 +974,11 @@ const JobseekerProfileEdit = () => {
                                 )}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Export Resume */}
+                    <div className="pt-4">
+                        <ExportResumeButton />
                     </div>
 
                     {/* Action Buttons */}
