@@ -208,7 +208,7 @@ const Dashboard = () => {
                             <div className="flex-1">
                                 <h3 className="font-semibold text-blue-800 mb-1">Verify Your Email</h3>
                                 <p className="text-blue-700 text-sm">
-                                    Please check your inbox and click the verification link we sent to <strong>{currentUser?.email}</strong>. You won't be able to apply for jobs until your email is verified.
+                                    Please verify your email (<strong>{currentUser?.email}</strong>) using the 6-digit code we sent you. You won't be able to apply for jobs until your email is verified.
                                 </p>
                             </div>
                         </div>

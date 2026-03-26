@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { supabase } from '../config/supabase'
-import { Mail, Loader2, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { Mail, Loader2, CheckCircle, RefreshCw, AlertCircle, ShieldCheck } from 'lucide-react'
 
 const EmailVerificationPending = () => {
     const location = useLocation()
+    const navigate = useNavigate()
+    const { sendSignupOtp, verifySignupOtp } = useAuth()
     const [email, setEmail] = useState('')
+    const [code, setCode] = useState('')
     const [resending, setResending] = useState(false)
+    const [verifying, setVerifying] = useState(false)
     const [resent, setResent] = useState(false)
     const [error, setError] = useState('')
     const [cooldown, setCooldown] = useState(0)
 
     useEffect(() => {
-        // Get email from navigation state or localStorage fallback
         const stateEmail = location.state?.email
         if (stateEmail) {
             setEmail(stateEmail)
@@ -39,25 +42,42 @@ const EmailVerificationPending = () => {
         setResent(false)
 
         try {
-            const { error: resendError } = await supabase.auth.resend({
-                type: 'signup',
-                email,
-                options: {
-                    emailRedirectTo: `${window.location.origin}/auth/callback`,
-                },
-            })
-            if (resendError) throw resendError
+            await sendSignupOtp(email)
             setResent(true)
-            setCooldown(60) // 60-second cooldown between resends
+            setCooldown(60)
         } catch (err) {
             console.error('Resend error:', err)
             if (err.message?.includes('rate')) {
                 setError('Too many requests. Please wait a few minutes before trying again.')
             } else {
-                setError('Failed to resend verification email. Please try again.')
+                setError('Failed to resend verification code. Please try again.')
             }
         } finally {
             setResending(false)
+        }
+    }
+
+    const handleVerify = async (e) => {
+        e.preventDefault()
+        setError('')
+        setVerifying(true)
+
+        try {
+            await verifySignupOtp(email, code)
+            try { localStorage.removeItem('peso-verify-email') } catch {}
+            navigate('/register/continue', { replace: true })
+        } catch (err) {
+            console.error('Verify OTP error:', err)
+            const msg = err.message?.toLowerCase() || ''
+            if (msg.includes('expired') || msg.includes('otp_expired')) {
+                setError('That code has expired. Please request a new one.')
+            } else if (msg.includes('invalid') || msg.includes('otp_invalid') || msg.includes('token')) {
+                setError('Incorrect code. Please check and try again.')
+            } else {
+                setError('Verification failed. Please try again.')
+            }
+        } finally {
+            setVerifying(false)
         }
     }
 
@@ -80,24 +100,24 @@ const EmailVerificationPending = () => {
                     </div>
 
                     <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
-                        Check Your Email
+                        Verify Your Email
                     </h1>
 
                     <p className="text-gray-600 text-center mb-6">
-                        We sent a verification link to{' '}
+                        We sent a 6-digit code to{' '}
                         {email ? (
                             <span className="font-semibold text-gray-900">{email}</span>
                         ) : (
                             'your email address'
                         )}
-                        . Click the link to verify your account and continue registration.
+                        . Enter the code below to verify your account.
                     </p>
 
                     {/* Success message */}
                     {resent && (
                         <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 mb-4">
                             <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                            <p className="text-sm">Verification email resent successfully!</p>
+                            <p className="text-sm">Verification code resent successfully!</p>
                         </div>
                     )}
 
@@ -109,15 +129,51 @@ const EmailVerificationPending = () => {
                         </div>
                     )}
 
+                    {/* OTP input form */}
+                    <form onSubmit={handleVerify} className="mb-6">
+                        <label className="label">6-Digit Code</label>
+                        <div className="relative mb-4">
+                            <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={code}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '')
+                                    setCode(val)
+                                    setError('')
+                                }}
+                                className="input-field pl-12 text-center tracking-[0.3em] text-lg font-mono"
+                                placeholder="000000"
+                                required
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={verifying || code.length !== 6}
+                            className="btn-primary w-full flex items-center justify-center gap-2"
+                        >
+                            {verifying ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    Verifying...
+                                </>
+                            ) : (
+                                'Verify Email'
+                            )}
+                        </button>
+                    </form>
+
                     {/* Tips */}
                     <div className="bg-gray-50 rounded-xl p-4 mb-6">
                         <p className="text-sm text-gray-600 mb-2 font-medium">
-                            Did not receive the email?
+                            Did not receive the code?
                         </p>
                         <ul className="text-sm text-gray-500 space-y-1">
                             <li>Check your spam or junk folder</li>
                             <li>Make sure you entered the correct email</li>
-                            <li>The link expires in 24 hours</li>
+                            <li>The code expires in 60 minutes</li>
                         </ul>
                     </div>
 
@@ -141,7 +197,7 @@ const EmailVerificationPending = () => {
                             ) : (
                                 <>
                                     <RefreshCw className="w-5 h-5" />
-                                    Resend Verification Email
+                                    Resend Code
                                 </>
                             )}
                         </button>

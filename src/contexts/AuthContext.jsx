@@ -11,10 +11,6 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
-    const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
-    const passwordRecoveryRef = useRef(false)
-
-
 
     const BASE_FIELDS = new Set([
         'id', 'email', 'role', 'subtype', 'name', 'is_verified',
@@ -71,7 +67,6 @@ export const AuthProvider = ({ children }) => {
             password,
             options: {
                 data: { role, subtype },
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
             },
         })
         if (error) throw error
@@ -106,15 +101,27 @@ export const AuthProvider = ({ children }) => {
         return { user: { ...user, uid: user.id }, userData: minimalDoc, emailVerificationRequired }
     }
 
-    const resendVerificationEmail = async (email) => {
-        const { error } = await supabase.auth.resend({
-            type: 'signup',
-            email,
-            options: {
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
-            },
-        })
+    const sendSignupOtp = async (email) => {
+        const { error } = await supabase.auth.resend({ type: 'signup', email })
         if (error) throw error
+    }
+
+    const verifySignupOtp = async (email, token) => {
+        const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'signup' })
+        if (error) throw error
+        return data
+    }
+
+    const sendPasswordResetOtp = async (email) => {
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
+        if (error) throw error
+    }
+
+    const verifyPasswordResetOtp = async (email, token, newPassword) => {
+        const { error: otpError } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' })
+        if (otpError) throw otpError
+        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+        if (updateError) throw updateError
     }
 
     // Split stepData into base (public.users) and profile-specific fields
@@ -251,13 +258,6 @@ export const AuthProvider = ({ children }) => {
         window.location.href = '/login'
     }
 
-    const resetPassword = async (email) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/auth/callback`,
-        })
-        if (error) throw error
-    }
-
     // Delete account — re-authenticates then calls a Postgres RPC that
     // deletes from auth.users (cascades to public.users)
     const deleteAccount = async (password) => {
@@ -295,44 +295,13 @@ export const AuthProvider = ({ children }) => {
     const authInitRef = useRef(false)
 
     useEffect(() => {
-        // Detect password-recovery PKCE link BEFORE subscribing so the flag
-        // is already set when the auto code-exchange fires SIGNED_IN.
-        // Also check localStorage — another tab may have started recovery.
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('type') === 'recovery') {
-            passwordRecoveryRef.current = true
-            setIsPasswordRecovery(true)
-            try { localStorage.setItem('peso-password-recovery', 'true') } catch {}
-        } else if (localStorage.getItem('peso-password-recovery') === 'true') {
-            passwordRecoveryRef.current = true
-            setIsPasswordRecovery(true)
-        }
-
         // Only subscribe once — skip on Strict Mode's second mount
         if (authInitRef.current) return
         authInitRef.current = true
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             try {
-                // Password recovery creates a temporary session only for
-                // calling updateUser — don't treat it as a real login.
-                if (event === 'PASSWORD_RECOVERY') {
-                    passwordRecoveryRef.current = true
-                    setIsPasswordRecovery(true)
-                    try { localStorage.setItem('peso-password-recovery', 'true') } catch {}
-                    setLoading(false)
-                    return
-                }
-
                 if (session?.user) {
-                    // If we're in password-recovery mode, the session exists
-                    // (needed by updateUser) but we don't populate app-level
-                    // auth state so the user isn't treated as logged in.
-                    if (passwordRecoveryRef.current) {
-                        setLoading(false)
-                        return
-                    }
-
                     const user = session.user
                     setCurrentUser({ ...user, uid: user.id })
                     // Restore cached profile instantly so Navbar never shows "User"
@@ -354,9 +323,6 @@ export const AuthProvider = ({ children }) => {
                 } else {
                     setCurrentUser(null)
                     setUserData(null)
-                    passwordRecoveryRef.current = false
-                    setIsPasswordRecovery(false)
-                    try { localStorage.removeItem('peso-password-recovery') } catch {}
                 }
             } catch (err) {
                 console.error('Auth state change error:', err)
@@ -375,7 +341,6 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         userData,
         loading,
-        isPasswordRecovery,
         register,
         createAccount,
         saveRegistrationStep,
@@ -383,9 +348,11 @@ export const AuthProvider = ({ children }) => {
         compressAndEncode,
         login,
         logout,
-        resetPassword,
         deleteAccount,
-        resendVerificationEmail,
+        sendSignupOtp,
+        verifySignupOtp,
+        sendPasswordResetOtp,
+        verifyPasswordResetOtp,
         isVerified,
         isEmailVerified,
         hasRole,

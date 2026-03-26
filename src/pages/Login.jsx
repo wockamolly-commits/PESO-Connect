@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, Info } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, Info, CheckCircle } from 'lucide-react'
 
 const Login = () => {
     const [email, setEmail] = useState('')
@@ -13,6 +13,8 @@ const Login = () => {
 
     const { login, fetchUserData } = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
+    const successMessage = location.state?.message
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -32,7 +34,7 @@ const Login = () => {
             const msg = err.message?.toLowerCase() || ''
             if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
                 setEmailNotVerified(true)
-                setError('Your email has not been verified yet. Please check your inbox for the verification link.')
+                setError('Your email has not been verified yet. Please check your inbox for the verification code.')
             } else if (err.code === 'auth/invalid-credential' || msg.includes('invalid login')) {
                 setError('Invalid email or password. Please try again.')
             } else if (err.code === 'auth/user-not-found') {
@@ -64,6 +66,12 @@ const Login = () => {
                 {/* Login Form */}
                 <div className="card animate-slide-up">
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {successMessage && (
+                            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
+                                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                <p className="text-sm">{successMessage}</p>
+                            </div>
+                        )}
                         {error && (
                             <div className={`flex items-start gap-3 p-4 ${emailNotVerified ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-red-50 border-red-200 text-red-700'} border rounded-xl`}>
                                 {emailNotVerified ? <Info className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}

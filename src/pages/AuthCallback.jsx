@@ -7,7 +7,7 @@ import { supabase } from '../config/supabase'
 const AuthCallback = () => {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
-    const { currentUser, userData, loading, isPasswordRecovery } = useAuth()
+    const { currentUser, userData, loading } = useAuth()
     const [error, setError] = useState('')
     const [processing, setProcessing] = useState(true)
 
@@ -20,7 +20,7 @@ const AuthCallback = () => {
         if (errorParam) {
             let message = 'Email verification failed.'
             if (errorCode === 'otp_expired' || errorDescription?.includes('expired')) {
-                message = 'This verification link has expired. Please request a new one.'
+                message = 'This verification code has expired. Please request a new one.'
             } else if (errorDescription) {
                 message = errorDescription.replace(/\+/g, ' ')
             }
@@ -34,16 +34,9 @@ const AuthCallback = () => {
         // Calling it manually caused lock contention + 422 (double exchange).
     }, [searchParams])
 
-    // Redirect to reset page when AuthContext detects PASSWORD_RECOVERY
-    useEffect(() => {
-        if (isPasswordRecovery) {
-            navigate('/reset-password', { replace: true })
-        }
-    }, [isPasswordRecovery, navigate])
-
     // Once auth state settles, redirect based on user state
     useEffect(() => {
-        if (loading || error || isPasswordRecovery) return
+        if (loading || error) return
 
         // Still waiting for session to be established
         if (!currentUser) {
@@ -76,7 +69,7 @@ const AuthCallback = () => {
         }
         // If userData is null but currentUser exists, fetchUserData is still running
         // The AuthContext useEffect will populate userData
-    }, [currentUser, userData, loading, error, isPasswordRecovery, navigate])
+    }, [currentUser, userData, loading, error, navigate])
 
     if (error) {
         return (
@@ -107,7 +100,7 @@ const AuthCallback = () => {
                                 className="btn-primary w-full flex items-center justify-center gap-2"
                             >
                                 <RefreshCw className="w-5 h-5" />
-                                Request New Link
+                                Request New Code
                             </button>
 
                             <button

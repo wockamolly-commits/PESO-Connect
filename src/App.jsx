@@ -22,7 +22,6 @@ import NotFound from './pages/NotFound'
 import Unauthorized from './pages/Unauthorized'
 import EmailVerificationPending from './pages/EmailVerificationPending'
 import AuthCallback from './pages/AuthCallback'
-import ResetPassword from './pages/ResetPassword'
 
 // Protected Pages
 import Dashboard from './pages/Dashboard'
@@ -49,7 +48,7 @@ import AdminLogin from './pages/admin/Login'
 function AppContent() {
     const location = useLocation()
     const isAdminRoute = location.pathname.startsWith('/admin')
-    const hideNavbar = isAdminRoute || location.pathname === '/reset-password'
+    const hideNavbar = isAdminRoute
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -73,7 +72,6 @@ function AppContent() {
                         <Route path="/admin/login" element={<ErrorBoundary><AdminLogin /></ErrorBoundary>} />
                         <Route path="/verify-email" element={<ErrorBoundary><EmailVerificationPending /></ErrorBoundary>} />
                         <Route path="/auth/callback" element={<ErrorBoundary><AuthCallback /></ErrorBoundary>} />
-                        <Route path="/reset-password" element={<ErrorBoundary><ResetPassword /></ErrorBoundary>} />
                         <Route path="/unauthorized" element={<Unauthorized />} />
 
                         {/* Protected Routes (Any authenticated user) */}

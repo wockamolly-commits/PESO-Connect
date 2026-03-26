@@ -137,7 +137,7 @@ const Toggle = ({ enabled, onChange, disabled = false }) => (
 // ─── Main Settings Page ──────────────────────────────────────────────────────
 const Settings = () => {
     const navigate = useNavigate()
-    const { currentUser, userData, resetPassword, deleteAccount, isJobseeker, isEmployer } = useAuth()
+    const { currentUser, userData, sendPasswordResetOtp, deleteAccount, isJobseeker, isEmployer } = useAuth()
 
     const [activeTab, setActiveTab] = useState('account')
     const [resetSent, setResetSent] = useState(false)
@@ -243,7 +243,7 @@ const Settings = () => {
     const handleResetPassword = async () => {
         setResetLoading(true)
         try {
-            await resetPassword(currentUser.email)
+            await sendPasswordResetOtp(currentUser.email)
             setResetSent(true)
         } catch (error) {
             console.error('Reset password error:', error)
@@ -333,14 +333,14 @@ const Settings = () => {
                                 <div className="card">
                                     <h2 className="text-lg font-semibold text-gray-900 mb-2">Password</h2>
                                     <p className="text-sm text-gray-500 mb-4">
-                                        We'll send a password reset link to your email address.
+                                        We'll send a password reset code to your email address.
                                     </p>
                                     {resetSent ? (
                                         <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
                                             <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                                             <div>
-                                                <p className="font-medium text-green-800">Reset email sent!</p>
-                                                <p className="text-sm text-green-600">Check your inbox for the reset link.</p>
+                                                <p className="font-medium text-green-800">Reset code sent!</p>
+                                                <p className="text-sm text-green-600">Check your inbox for the 6-digit code, then use the <a href="/forgot-password" className="underline font-semibold">Reset Password</a> page to enter it.</p>
                                             </div>
                                         </div>
                                     ) : (
