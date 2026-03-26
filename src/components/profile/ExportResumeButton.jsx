@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { Download, Loader2, X, AlertTriangle } from 'lucide-react'
+import { Download, Loader2, AlertTriangle } from 'lucide-react'
 
 const FIELD_CHECKS = [
   { key: 'profile_photo', label: 'Profile Photo', check: (v) => !!v },
