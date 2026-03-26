@@ -230,11 +230,13 @@ export default function ResumeDocument({ userData }) {
           )}
           <Text style={styles.sidebarName}>{full_name || 'Name'}</Text>
 
-          <SidebarSection title="Contact">
-            {email && <Text style={styles.contactItem}>{email}</Text>}
-            {mobile_number && <Text style={styles.contactItem}>{mobile_number}</Text>}
-            {location && <Text style={styles.contactItem}>{location}</Text>}
-          </SidebarSection>
+          {(email || mobile_number || location) && (
+            <SidebarSection title="Contact">
+              {email && <Text style={styles.contactItem}>{email}</Text>}
+              {mobile_number && <Text style={styles.contactItem}>{mobile_number}</Text>}
+              {location && <Text style={styles.contactItem}>{location}</Text>}
+            </SidebarSection>
+          )}
 
           {hasSkills && (
             <SidebarSection title="Skills">
