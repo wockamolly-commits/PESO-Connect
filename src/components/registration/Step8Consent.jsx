@@ -19,7 +19,7 @@ const CONSENT_ITEMS = [
   }
 ];
 
-export default function Step7Consent({ formData, setFormData }) {
+export default function Step8Consent({ formData, setFormData }) {
 
   const toggleConsent = (field) => {
     setFormData(prev => ({ ...prev, [field]: !prev[field] }));
