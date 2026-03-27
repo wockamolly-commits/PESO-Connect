@@ -23,6 +23,7 @@ const EDUCATION_LEVELS = [
     { value: 'Elementary', label: 'Elementary (Grade 1\u20136)' },
     { value: 'High School', label: 'High School (Non K-12)' },
     { value: 'Senior High School (K-12)', label: 'Senior High School (K-12)' },
+    { value: 'Vocational/Technical', label: 'Vocational/Technical (TESDA)' },
     { value: 'College', label: 'College / University' },
     { value: 'Graduate Studies', label: 'Graduate Studies / Post-Graduate' },
 ]
@@ -453,12 +454,16 @@ const JobseekerProfileEdit = () => {
             if (formData.portfolio_url && !/^https?:\/\//i.test(formData.portfolio_url.trim())) {
                 throw new Error('Portfolio URL must start with https:// or http://')
             }
+            if (formData.tvet_certification_level && !formData.tvet_certification_title?.trim()) {
+                setError('Please enter your TVET certification title')
+                return
+            }
 
             const updateData = {
                 ...formData,
                 full_name: fullName || formData.full_name,
                 name: fullName || formData.full_name,
-                languages: languages,
+                languages: formData.languages,
                 updated_at: new Date().toISOString()
             }
 
