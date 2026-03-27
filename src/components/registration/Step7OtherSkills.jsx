@@ -90,7 +90,7 @@ export default function Step7OtherSkills({ formData, setFormData, handleChange }
           <div className="flex flex-wrap gap-2 mt-2">
             {skills.map((skill, i) => (
               <span
-                key={i}
+                key={skill}
                 className="flex items-center gap-1 px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm rounded-full"
               >
                 {skill}
