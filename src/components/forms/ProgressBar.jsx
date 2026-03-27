@@ -7,10 +7,11 @@ const STEP_LABELS = [
   'Employment',
   'Job Preference',
   'Education & Language',
+  'Skills & Qualifications',
   'Consent'
 ];
 
-export default function ProgressBar({ currentStep, totalSteps = 7 }) {
+export default function ProgressBar({ currentStep, totalSteps = 8 }) {
   const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
   const label = STEP_LABELS[currentStep - 1] || '';
 

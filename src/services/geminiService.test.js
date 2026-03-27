@@ -584,4 +584,31 @@ describe('geminiService', () => {
       })
     })
   })
+
+  describe('calculateDeterministicScore', () => {
+    let calculateDeterministicScore
+
+    beforeAll(async () => {
+      vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
+      vi.resetModules()
+      const mod = await import('./geminiService')
+      calculateDeterministicScore = mod.calculateDeterministicScore
+    })
+
+    it('scores Vocational/Technical education at ordinal 2 (matches vocational job requirement)', () => {
+      const job = { requirements: [], education_level: 'vocational', category: '' }
+      const user = { skills: [], skill_aliases: {}, experience_categories: [], highest_education: 'Vocational/Technical', languages: [] }
+      const { matchScore } = calculateDeterministicScore(job, user)
+      // skillScore=100, experienceScore=100, educationScore=100 → 100*0.5 + 100*0.3 + 100*0.2 = 100
+      expect(matchScore).toBe(100)
+    })
+
+    it('gives partial credit when Vocational/Technical user applies for college-level job', () => {
+      const job = { requirements: [], education_level: 'college', category: '' }
+      const user = { skills: [], skill_aliases: {}, experience_categories: [], highest_education: 'Vocational/Technical', languages: [] }
+      const { matchScore } = calculateDeterministicScore(job, user)
+      // skillScore=100, experienceScore=100, educationScore=60 → 100*0.5 + 100*0.3 + 60*0.2 = 50+30+12 = 92
+      expect(matchScore).toBe(92)
+    })
+  })
 })

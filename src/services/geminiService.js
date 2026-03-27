@@ -181,6 +181,7 @@ const USER_EDUCATION_ORDINAL = {
     'Elementary Graduate': 0,
     'High School Graduate': 1,
     'Senior High School Graduate': 1.5,
+    'Vocational/Technical': 2,
     'Vocational/Technical Graduate': 2,
     'College Undergraduate': 2.5,
     'College Graduate': 3,
