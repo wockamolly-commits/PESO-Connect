@@ -3,30 +3,12 @@ import { Calendar } from 'lucide-react';
 
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Solo Parent'];
 const SUFFIX_OPTIONS = ['', 'Jr.', 'Sr.', 'III', 'IV', 'V'];
-const DISABILITY_OPTIONS = ['Visual', 'Hearing', 'Speech', 'Physical', 'Mental', 'Others'];
 
 export default function Step2PersonalInfo({ formData, handleChange, setFormData }) {
 
   const handleSexSelect = (value) => {
     setFormData(prev => ({ ...prev, sex: value }));
   };
-
-  const handleDisabilityToggle = (type) => {
-    setFormData(prev => {
-      const current = prev.disability || [];
-      if (type === 'None') {
-        return { ...prev, disability: [], disability_other: '' };
-      }
-      const updated = current.includes(type)
-        ? current.filter(d => d !== type)
-        : [...current, type];
-      const newData = { ...prev, disability: updated };
-      if (!updated.includes('Others')) newData.disability_other = '';
-      return newData;
-    });
-  };
-
-  const hasNoDisability = !formData.disability || formData.disability.length === 0;
 
   return (
     <div className="space-y-5">
@@ -159,114 +141,6 @@ export default function Step2PersonalInfo({ formData, handleChange, setFormData 
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-      </div>
-
-      {/* Optional Details Divider */}
-      <div className="flex items-center gap-3 pt-2">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Optional Details</span>
-        <div className="flex-1 h-px bg-gray-200" />
-      </div>
-
-      {/* Religion (full-width) */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-1">
-          Religion <span className="text-gray-400 font-normal text-xs">(optional)</span>
-        </label>
-        <input
-          type="text"
-          name="religion"
-          value={formData.religion || ''}
-          onChange={handleChange}
-          placeholder="e.g. Roman Catholic"
-          className="input-field w-full"
-        />
-      </div>
-
-      {/* TIN (full-width) */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-1">
-          TIN <span className="text-gray-400 font-normal text-xs">(optional)</span>
-        </label>
-        <input
-          type="text"
-          name="tin"
-          value={formData.tin || ''}
-          onChange={handleChange}
-          placeholder="000-000-000-000"
-          className="input-field w-full"
-        />
-      </div>
-
-      {/* Height */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-1">
-          Height (ft) <span className="text-gray-400 font-normal text-xs">(optional)</span>
-        </label>
-        <input
-          type="text"
-          name="height"
-          value={formData.height || ''}
-          onChange={handleChange}
-          placeholder={`e.g. 5'7"`}
-          className="input-field w-full"
-        />
-      </div>
-
-      {/* Disability */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-1">
-          Disability <span className="text-gray-400 font-normal text-xs">(optional)</span>
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleDisabilityToggle('None')}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] text-sm transition-all ${
-              hasNoDisability
-                ? 'border-indigo-500 bg-indigo-50 text-indigo-600 font-medium'
-                : 'border-gray-200 text-gray-500 hover:border-gray-300'
-            }`}
-          >
-            <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-xs ${
-              hasNoDisability ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-gray-300'
-            }`}>
-              {hasNoDisability && '✓'}
-            </span>
-            None
-          </button>
-          {DISABILITY_OPTIONS.map(option => {
-            const isSelected = (formData.disability || []).includes(option);
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => handleDisabilityToggle(option)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] text-sm transition-all ${
-                  isSelected
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-600 font-medium'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}
-              >
-                <span className={`w-4 h-4 rounded border-2 flex items-center justify-center text-xs ${
-                  isSelected ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-gray-300'
-                }`}>
-                  {isSelected && '✓'}
-                </span>
-                {option}
-              </button>
-            );
-          })}
-        </div>
-        {(formData.disability || []).includes('Others') && (
-          <input
-            type="text"
-            name="disability_other"
-            value={formData.disability_other || ''}
-            onChange={handleChange}
-            placeholder="Please specify disability"
-            className="input-field w-full mt-2"
-          />
-        )}
       </div>
     </div>
   );
