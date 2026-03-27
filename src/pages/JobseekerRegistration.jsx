@@ -14,12 +14,13 @@ import Step3AddressContact from '../components/registration/Step3AddressContact'
 import Step4EmploymentStatus from '../components/registration/Step4EmploymentStatus'
 import Step5JobPreference from '../components/registration/Step5JobPreference'
 import Step6EducationLanguage from '../components/registration/Step6EducationLanguage'
-import Step7Consent from '../components/registration/Step7Consent'
+import Step7OtherSkills from '../components/registration/Step7OtherSkills'
+import Step8Consent from '../components/registration/Step7Consent'
 
 // Components
 import ProgressBar from '../components/forms/ProgressBar'
 
-const totalSteps = 7
+const totalSteps = 8
 
 const JobseekerRegistration = () => {
     const [currentStep, setCurrentStep] = useState(1)
@@ -29,8 +30,6 @@ const JobseekerRegistration = () => {
         // Step 2: Personal Info
         surname: '', first_name: '', middle_name: '', suffix: '',
         date_of_birth: '', sex: '', civil_status: '',
-        religion: '', tin: '', height: '',
-        disability: [], disability_other: '',
         // Step 3: Address & Contact
         house_street: '',
         province: '', city: '', barangay: '',
@@ -56,7 +55,12 @@ const JobseekerRegistration = () => {
         course_or_field: '', year_graduated: '',
         level_reached: '', year_last_attended: '',
         languages: [],
-        // Step 7: Consent
+        // Step 7: Skills & Qualifications
+        skills: [],
+        other_skills: [], other_skills_other: '',
+        tvet_certification_level: '', tvet_certification_title: '',
+        recent_job_title: '', recent_job_company: '',
+        // Step 8: Consent
         terms_accepted: false,
         data_processing_consent: false,
         peso_verification_consent: false,
@@ -94,11 +98,6 @@ const JobseekerRegistration = () => {
                 date_of_birth: userData.date_of_birth || '',
                 sex: userData.sex || '',
                 civil_status: userData.civil_status || '',
-                religion: userData.religion || '',
-                tin: userData.tin || '',
-                height: userData.height || '',
-                disability: userData.disability || [],
-                disability_other: userData.disability_other || '',
                 // Address
                 house_street: userData.house_street || '',
                 province: userData.province || '',
@@ -137,6 +136,14 @@ const JobseekerRegistration = () => {
                 level_reached: userData.level_reached || '',
                 year_last_attended: userData.year_last_attended || '',
                 languages: userData.languages || [],
+                // Skills & Qualifications
+                skills: userData.skills || [],
+                other_skills: userData.other_skills || [],
+                other_skills_other: userData.other_skills_other || '',
+                tvet_certification_level: userData.tvet_certification_level || '',
+                tvet_certification_title: userData.tvet_certification_title || '',
+                recent_job_title: '',
+                recent_job_company: '',
                 // Consent
                 terms_accepted: userData.terms_accepted || false,
                 data_processing_consent: userData.data_processing_consent || false,
@@ -146,6 +153,17 @@ const JobseekerRegistration = () => {
             setCurrentStep(Math.min(savedStep + 1, totalSteps))
         }
     }, [userData])
+
+    // Auto-populate TVET title from Step 6 course when education is Vocational/Technical
+    useEffect(() => {
+        if (
+            formData.highest_education === 'Vocational/Technical' &&
+            formData.course_or_field &&
+            !formData.tvet_certification_title
+        ) {
+            setFormData(prev => ({ ...prev, tvet_certification_title: formData.course_or_field }))
+        }
+    }, [formData.highest_education, formData.course_or_field])
 
     const handleBlur = useCallback((e) => {
         const { name } = e.target
@@ -250,8 +268,8 @@ const JobseekerRegistration = () => {
 
             case 6:
                 if (!formData.highest_education) { setError('Highest educational attainment is required'); return false }
-                if (['Tertiary', 'Graduate Studies / Post-graduate'].includes(formData.highest_education) && !formData.course_or_field) {
-                    setError('Course/Field of study is required for tertiary education'); return false
+                if (['College', 'Graduate Studies', 'Vocational/Technical'].includes(formData.highest_education) && !formData.course_or_field) {
+                    setError('Course/Program is required'); return false
                 }
                 if (!formData.currently_enrolled && !formData.year_graduated) {
                     setError('Year graduated is required'); return false
@@ -263,7 +281,22 @@ const JobseekerRegistration = () => {
                 }
                 break
 
-            case 7:
+            case 7: {
+                const tagCount = (formData.skills || []).length
+                const otherCount = (formData.other_skills || []).filter(s => s !== 'Others').length
+                if (tagCount + otherCount < 3) {
+                    setError('Add at least 3 skills combined (tag input + checkboxes)'); return false
+                }
+                if ((formData.other_skills || []).includes('Others') && !formData.other_skills_other?.trim()) {
+                    setError('Please specify your other skill'); return false
+                }
+                if (formData.tvet_certification_level && !formData.tvet_certification_title?.trim()) {
+                    setError('Please enter your TVET certification title'); return false
+                }
+                break
+            }
+
+            case 8:
                 if (!formData.terms_accepted || !formData.data_processing_consent || !formData.peso_verification_consent) {
                     setError('You must accept all terms and confirmations to proceed')
                     return false
@@ -283,8 +316,6 @@ const JobseekerRegistration = () => {
                     full_name: [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' '),
                     name: [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' '),
                     date_of_birth: formData.date_of_birth, sex: formData.sex, civil_status: formData.civil_status,
-                    religion: formData.religion, tin: formData.tin, height: formData.height,
-                    disability: formData.disability, disability_other: formData.disability_other,
                 }
             case 3:
                 return {
@@ -324,6 +355,16 @@ const JobseekerRegistration = () => {
                     level_reached: formData.level_reached,
                     year_last_attended: formData.year_last_attended,
                     languages: formData.languages,
+                }
+            case 7:
+                return {
+                    skills: formData.skills || [],
+                    other_skills: formData.other_skills,
+                    other_skills_other: formData.other_skills_other,
+                    tvet_certification_level: formData.tvet_certification_level,
+                    tvet_certification_title: formData.tvet_certification_title,
+                    recent_job_title: formData.recent_job_title,
+                    recent_job_company: formData.recent_job_company,
                 }
             default:
                 return {}
@@ -446,14 +487,16 @@ const JobseekerRegistration = () => {
             case 6:
                 return <Step6EducationLanguage formData={formData} handleChange={handleChange} setFormData={setFormData} />
             case 7:
-                return <Step7Consent formData={formData} setFormData={setFormData} />
+                return <Step7OtherSkills formData={formData} handleChange={handleChange} setFormData={setFormData} />
+            case 8:
+                return <Step8Consent formData={formData} setFormData={setFormData} />
             default:
                 return null
         }
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 pb-24">
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 pb-8">
             {/* Header */}
             <div className="max-w-lg mx-auto px-4 pt-8">
                 <div className="text-center mb-6 animate-fade-in">
@@ -479,6 +522,34 @@ const JobseekerRegistration = () => {
 
                     {renderStep()}
 
+                    {/* Navigation Buttons */}
+                    <div className="flex gap-3 mt-8">
+                        {currentStep > 1 && (
+                            <button
+                                type="button"
+                                onClick={prevStep}
+                                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm hover:bg-gray-200 transition-all flex items-center justify-center gap-1"
+                            >
+                                <ChevronLeft className="w-4 h-4" /> Back
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={currentStep === totalSteps ? handleSubmit : nextStep}
+                            disabled={loading || saving}
+                            className="flex-[2] py-3 rounded-xl font-semibold text-sm text-white transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
+                        >
+                            {(loading || saving) ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : currentStep === totalSteps ? (
+                                <><Check className="w-4 h-4" /> Submit Registration</>
+                            ) : (
+                                <>Continue <ChevronRight className="w-4 h-4" /></>
+                            )}
+                        </button>
+                    </div>
+
                     <div className="mt-6 text-center">
                         <p className="text-gray-600 text-sm">
                             Already have an account?{' '}
@@ -493,36 +564,6 @@ const JobseekerRegistration = () => {
                 <p className="text-center text-gray-500 text-xs mt-6">
                     PESO Connect | San Carlos City, Negros Occidental
                 </p>
-            </div>
-
-            {/* Floating Bottom Navigation */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 p-4 z-10">
-                <div className="max-w-lg mx-auto flex gap-3">
-                    {currentStep > 1 && (
-                        <button
-                            type="button"
-                            onClick={prevStep}
-                            className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm hover:bg-gray-200 transition-all flex items-center justify-center gap-1"
-                        >
-                            <ChevronLeft className="w-4 h-4" /> Back
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={currentStep === totalSteps ? handleSubmit : nextStep}
-                        disabled={loading || saving}
-                        className="flex-[2] py-3 rounded-xl font-semibold text-sm text-white transition-all flex items-center justify-center gap-1 disabled:opacity-50"
-                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
-                    >
-                        {(loading || saving) ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : currentStep === totalSteps ? (
-                            <><Check className="w-4 h-4" /> Submit Registration</>
-                        ) : (
-                            <>Continue <ChevronRight className="w-4 h-4" /></>
-                        )}
-                    </button>
-                </div>
             </div>
         </div>
     )
