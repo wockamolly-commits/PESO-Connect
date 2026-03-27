@@ -1,74 +1,67 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../config/supabase'
 import { sendJobseekerRegistrationEmail } from '../services/emailService'
 import { validators } from '../utils/validation'
-import { normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import {
-    Loader2, AlertCircle, ChevronRight, ChevronLeft, CheckCircle
+    Loader2, AlertCircle, ChevronRight, ChevronLeft, Check
 } from 'lucide-react'
-import { StepIndicator } from '../components/forms'
-import {
-    Step1AccountCredentials,
-    Step2PersonalInfo,
-    Step3EmploymentPreferences,
-    Step4Education,
-    Step5SkillsExperience,
-    Step6Consent
-} from '../components/registration'
+
+// Registration steps
+import Step1AccountCredentials from '../components/registration/Step1AccountCredentials'
+import Step2PersonalInfo from '../components/registration/Step2PersonalInfo'
+import Step3AddressContact from '../components/registration/Step3AddressContact'
+import Step4EmploymentStatus from '../components/registration/Step4EmploymentStatus'
+import Step5JobPreference from '../components/registration/Step5JobPreference'
+import Step6EducationLanguage from '../components/registration/Step6EducationLanguage'
+import Step7Consent from '../components/registration/Step7Consent'
+
+// Components
+import ProgressBar from '../components/forms/ProgressBar'
+
+const totalSteps = 7
 
 const JobseekerRegistration = () => {
     const [currentStep, setCurrentStep] = useState(1)
     const [formData, setFormData] = useState({
-        // Account Credentials
-        email: '',
-        password: '',
-        confirmPassword: '',
-
-        // Personal Information
-        full_name: '',
-        date_of_birth: '',
-        barangay: '',
-        city: '',
-        province: '',
-
-        // Contact Information
+        // Step 1: Account
+        email: '', password: '', confirmPassword: '',
+        // Step 2: Personal Info
+        surname: '', first_name: '', middle_name: '', suffix: '',
+        date_of_birth: '', sex: '', civil_status: '',
+        religion: '', tin: '', height: '',
+        disability: [], disability_other: '',
+        // Step 3: Address & Contact
+        house_street: '',
+        province: '', city: '', barangay: '',
         mobile_number: '',
-        preferred_contact_method: 'email',
-
-        // Employment Preferences
-        preferred_job_type: [],
-        preferred_job_location: '',
-        expected_salary_min: '',
-        expected_salary_max: '',
-        willing_to_relocate: 'no',
-
-        // Educational Background
-        highest_education: '',
-        school_name: '',
-        course_or_field: '',
-        year_graduated: '',
-
-        // Skills and Work Experience
-        skills: [],
-        work_experiences: [],
-        certifications: [],
-        portfolio_url: '',
-
-        // Consent
+        // Step 4: Employment Status
+        employment_status: '',
+        employment_type: '',
+        self_employed_type: [], self_employed_other: '',
+        unemployment_months: '', unemployment_reason: [], unemployment_reason_other: '',
+        terminated_abroad_country: '',
+        is_ofw: 'no', ofw_country: '',
+        is_former_ofw: 'no', former_ofw_country: '', former_ofw_return_date: '',
+        is_4ps: 'no', household_id: '',
+        // Step 5: Job Preference
+        preferred_occupations: ['', '', ''],
+        work_type: [],
+        work_location_type: '',
+        preferred_local_locations: ['', '', ''],
+        preferred_overseas_locations: ['', '', ''],
+        // Step 6: Education & Language
+        highest_education: '', currently_in_school: 'no', currently_enrolled: false,
+        senior_high_strand: '',
+        course_or_field: '', year_graduated: '',
+        level_reached: '', year_last_attended: '',
+        languages: [],
+        // Step 7: Consent
         terms_accepted: false,
         data_processing_consent: false,
         peso_verification_consent: false,
-        info_accuracy_confirmation: false
     })
 
-    const [skillInput, setSkillInput] = useState('')
-    const [workExpInput, setWorkExpInput] = useState({ company: '', position: '', duration: '' })
-    const [certInput, setCertInput] = useState('')
-    const [resumeFile, setResumeFile] = useState(null)
-    const [resumeUrl, setResumeUrl] = useState('')
-    const [certificateFiles, setCertificateFiles] = useState([])
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -78,7 +71,7 @@ const JobseekerRegistration = () => {
     const [touchedFields, setTouchedFields] = useState({})
     const restoredRef = useRef(false)
 
-    const { createAccount, saveRegistrationStep, completeRegistration, compressAndEncode, currentUser, userData } = useAuth()
+    const { createAccount, saveRegistrationStep, completeRegistration, currentUser, userData } = useAuth()
     const navigate = useNavigate()
 
     const passwordStrength = validators.passwordStrength(formData.password)
@@ -92,30 +85,62 @@ const JobseekerRegistration = () => {
             setFormData(prev => ({
                 ...prev,
                 email: userData.email || '',
-                full_name: userData.full_name || '',
+                // Split name fields
+                surname: userData.surname || '',
+                first_name: userData.first_name || '',
+                middle_name: userData.middle_name || '',
+                suffix: userData.suffix || '',
+                // Personal info
                 date_of_birth: userData.date_of_birth || '',
-                barangay: userData.barangay || '',
-                city: userData.city || '',
+                sex: userData.sex || '',
+                civil_status: userData.civil_status || '',
+                religion: userData.religion || '',
+                tin: userData.tin || '',
+                height: userData.height || '',
+                disability: userData.disability || [],
+                disability_other: userData.disability_other || '',
+                // Address
+                house_street: userData.house_street || '',
                 province: userData.province || '',
+                city: userData.city || '',
+                barangay: userData.barangay || '',
                 mobile_number: userData.mobile_number || '',
-                preferred_contact_method: userData.preferred_contact_method || 'email',
-                preferred_job_type: userData.preferred_job_type || [],
-                preferred_job_location: userData.preferred_job_location || '',
-                expected_salary_min: userData.expected_salary_min || '',
-                expected_salary_max: userData.expected_salary_max || '',
-                willing_to_relocate: userData.willing_to_relocate || 'no',
+                // Employment
+                employment_status: userData.employment_status || '',
+                employment_type: userData.employment_type || '',
+                self_employed_type: userData.self_employed_type || [],
+                self_employed_other: userData.self_employed_other || '',
+                unemployment_months: userData.unemployment_months || '',
+                unemployment_reason: userData.unemployment_reason || [],
+                unemployment_reason_other: userData.unemployment_reason_other || '',
+                terminated_abroad_country: userData.terminated_abroad_country || '',
+                is_ofw: userData.is_ofw || 'no',
+                ofw_country: userData.ofw_country || '',
+                is_former_ofw: userData.is_former_ofw || 'no',
+                former_ofw_country: userData.former_ofw_country || '',
+                former_ofw_return_date: userData.former_ofw_return_date || '',
+                is_4ps: userData.is_4ps || 'no',
+                household_id: userData.household_id || '',
+                // Job preference
+                preferred_occupations: userData.preferred_occupations || ['', '', ''],
+                work_type: userData.work_type || [],
+                work_location_type: userData.work_location_type || '',
+                preferred_local_locations: userData.preferred_local_locations || ['', '', ''],
+                preferred_overseas_locations: userData.preferred_overseas_locations || ['', '', ''],
+                // Education & Language
                 highest_education: userData.highest_education || '',
-                school_name: userData.school_name || '',
+                currently_in_school: userData.currently_in_school || 'no',
+                currently_enrolled: userData.currently_enrolled || false,
+                senior_high_strand: userData.senior_high_strand || '',
                 course_or_field: userData.course_or_field || '',
                 year_graduated: userData.year_graduated || '',
-                skills: userData.skills || [],
-                work_experiences: userData.work_experiences || [],
-                certifications: userData.certifications || [],
-                portfolio_url: userData.portfolio_url || '',
+                level_reached: userData.level_reached || '',
+                year_last_attended: userData.year_last_attended || '',
+                languages: userData.languages || [],
+                // Consent
                 terms_accepted: userData.terms_accepted || false,
                 data_processing_consent: userData.data_processing_consent || false,
                 peso_verification_consent: userData.peso_verification_consent || false,
-                info_accuracy_confirmation: userData.info_accuracy_confirmation || false,
             }))
             const savedStep = userData.registration_step || 1
             setCurrentStep(Math.min(savedStep + 1, totalSteps))
@@ -126,14 +151,13 @@ const JobseekerRegistration = () => {
         const { name } = e.target
         setTouchedFields(prev => ({ ...prev, [name]: true }))
 
-        // Inline validation on blur
         let fieldError = null
         switch (name) {
             case 'email':
                 fieldError = validators.required(formData.email, 'Email') || validators.email(formData.email)
                 break
             case 'password':
-                fieldError = validators.required(formData.password, 'Password') || validators.minLength(formData.password, 6, 'Password')
+                fieldError = validators.required(formData.password, 'Password') || validators.minLength(formData.password, 8, 'Password')
                 break
             case 'confirmPassword':
                 fieldError = validators.passwordMatch(formData.password, formData.confirmPassword)
@@ -141,23 +165,9 @@ const JobseekerRegistration = () => {
             case 'mobile_number':
                 fieldError = validators.required(formData.mobile_number, 'Mobile number') || validators.phone(formData.mobile_number)
                 break
-            case 'full_name':
-                fieldError = validators.required(formData.full_name, 'Full name')
-                break
-            case 'expected_salary_min':
-            case 'expected_salary_max':
-                if (formData.expected_salary_min && formData.expected_salary_max) {
-                    const rangeErrors = validators.salaryRange(formData.expected_salary_min, formData.expected_salary_max)
-                    if (rangeErrors) {
-                        fieldError = rangeErrors.min || rangeErrors.max
-                    }
-                }
-                break
         }
         setFieldErrors(prev => ({ ...prev, [name]: fieldError }))
     }, [formData])
-
-    const totalSteps = 6
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target
@@ -167,107 +177,10 @@ const JobseekerRegistration = () => {
         }))
     }
 
-    const handleJobTypeToggle = (type) => {
-        setFormData(prev => ({
-            ...prev,
-            preferred_job_type: prev.preferred_job_type.includes(type)
-                ? prev.preferred_job_type.filter(t => t !== type)
-                : [...prev.preferred_job_type, type]
-        }))
-    }
-
-    const addSkill = () => {
-        const normalized = normalizeSkillName(skillInput.trim())
-        if (normalized && !formData.skills.includes(normalized)) {
-            setFormData(prev => ({ ...prev, skills: [...prev.skills, normalized] }))
-            setSkillInput('')
-        }
-    }
-
-    const removeSkill = (skillToRemove) => {
-        setFormData(prev => ({
-            ...prev,
-            skills: prev.skills.filter(skill => skill !== skillToRemove)
-        }))
-    }
-
-    const addWorkExperience = () => {
-        if (workExpInput.company.trim() && workExpInput.position.trim()) {
-            setFormData(prev => ({
-                ...prev,
-                work_experiences: [...prev.work_experiences, { ...workExpInput }]
-            }))
-            setWorkExpInput({ company: '', position: '', duration: '' })
-        }
-    }
-
-    const removeWorkExp = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            work_experiences: prev.work_experiences.filter((_, i) => i !== index)
-        }))
-    }
-
-    const addCertification = () => {
-        if (certInput.trim() && !formData.certifications.includes(certInput.trim())) {
-            setFormData(prev => ({ ...prev, certifications: [...prev.certifications, certInput.trim()] }))
-            setCertInput('')
-        }
-    }
-
-    const removeCertification = (certToRemove) => {
-        setFormData(prev => ({
-            ...prev,
-            certifications: prev.certifications.filter(cert => cert !== certToRemove)
-        }))
-    }
-
-    const handleResumeChange = (e) => {
-        const file = e.target.files[0]
-        if (file) {
-            const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-            if (!validTypes.includes(file.type)) {
-                setError('Resume must be PDF or DOC format')
-                return
-            }
-            if (file.size > 2 * 1024 * 1024) {
-                setError('Resume must be under 2MB')
-                return
-            }
-            setResumeFile(file)
-            setError('')
-        }
-    }
-
-    const handleCertificateChange = (e) => {
-        const files = Array.from(e.target.files)
-        const validFiles = []
-
-        for (const file of files) {
-            const validTypes = ['application/pdf', 'image/jpeg', 'image/png']
-            if (!validTypes.includes(file.type)) {
-                setError('Certificates must be PDF, JPG, or PNG format')
-                continue
-            }
-            if (file.size > 2 * 1024 * 1024) {
-                setError('Each certificate must be under 2MB')
-                continue
-            }
-            validFiles.push(file)
-        }
-
-        setCertificateFiles(prev => [...prev, ...validFiles])
-        setError('')
-    }
-
-    const removeCertificateFile = (index) => {
-        setCertificateFiles(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const validateStep = (step) => {
+    const validateStep = () => {
         setError('')
 
-        switch (step) {
+        switch (currentStep) {
             case 1:
                 if (!formData.email || !formData.password || !formData.confirmPassword) {
                     setError('Please fill in all required fields')
@@ -288,41 +201,70 @@ const JobseekerRegistration = () => {
                 break
 
             case 2:
-                if (!formData.full_name || !formData.date_of_birth || !formData.barangay ||
-                    !formData.city || !formData.province || !formData.mobile_number) {
-                    setError('Please fill in all required fields')
-                    return false
-                }
+                if (!formData.surname?.trim()) { setError('Surname is required'); return false }
+                if (!formData.first_name?.trim()) { setError('First name is required'); return false }
+                if (!formData.date_of_birth) { setError('Date of birth is required'); return false }
+                if (!formData.sex) { setError('Sex is required'); return false }
+                if (!formData.civil_status) { setError('Civil status is required'); return false }
                 break
 
             case 3:
-                if (formData.preferred_job_type.length === 0 || !formData.preferred_job_location) {
-                    setError('Please select at least one job type and specify preferred location')
-                    return false
+                if (!formData.province) { setError('Province is required'); return false }
+                if (!formData.city) { setError('City/Municipality is required'); return false }
+                if (!formData.barangay) { setError('Barangay is required'); return false }
+                if (!formData.mobile_number?.trim()) { setError('Contact number is required'); return false }
+                else {
+                    const phoneErr = validators.phone(formData.mobile_number)
+                    if (phoneErr) { setError(phoneErr); return false }
                 }
                 break
 
             case 4:
-                if (!formData.highest_education || !formData.school_name) {
-                    setError('Please fill in your educational background')
-                    return false
+                if (!formData.employment_status) { setError('Employment status is required'); return false }
+                if (formData.employment_status === 'employed' && !formData.employment_type) {
+                    setError('Employment type is required'); return false
+                }
+                if (formData.employment_type === 'self_employed' && (!formData.self_employed_type || formData.self_employed_type.length === 0)) {
+                    setError('Select at least one type of self-employment'); return false
+                }
+                if (formData.employment_status === 'unemployed' && (!formData.unemployment_reason || formData.unemployment_reason.length === 0)) {
+                    setError('Select at least one reason for unemployment'); return false
                 }
                 break
 
-            case 5:
-                if (formData.skills.length === 0) {
-                    setError('Please add at least one skill')
-                    return false
+            case 5: {
+                const occupations = (formData.preferred_occupations || []).filter(o => o.trim())
+                if (occupations.length === 0) { setError('At least 1 preferred occupation is required'); return false }
+                if (!formData.work_type || formData.work_type.length === 0) { setError('Select work type (Part-time/Full-time)'); return false }
+                if (!formData.work_location_type) { setError('Select preferred work location type'); return false }
+                if (formData.work_location_type === 'local') {
+                    const locs = (formData.preferred_local_locations || []).filter(l => l.trim())
+                    if (locs.length === 0) { setError('At least 1 preferred city is required'); return false }
                 }
-                if (!resumeUrl && !userData?.resume_url) {
-                    setError('Please upload your resume')
-                    return false
+                if (formData.work_location_type === 'overseas') {
+                    const locs = (formData.preferred_overseas_locations || []).filter(l => l.trim())
+                    if (locs.length === 0) { setError('At least 1 preferred country is required'); return false }
                 }
                 break
+            }
 
             case 6:
-                if (!formData.terms_accepted || !formData.data_processing_consent ||
-                    !formData.peso_verification_consent || !formData.info_accuracy_confirmation) {
+                if (!formData.highest_education) { setError('Highest educational attainment is required'); return false }
+                if (['Tertiary', 'Graduate Studies / Post-graduate'].includes(formData.highest_education) && !formData.course_or_field) {
+                    setError('Course/Field of study is required for tertiary education'); return false
+                }
+                if (!formData.currently_enrolled && !formData.year_graduated) {
+                    setError('Year graduated is required'); return false
+                }
+                {
+                    const langs = formData.languages || []
+                    const hasAnyProficiency = langs.some(l => l.read || l.write || l.speak || l.understand)
+                    if (!hasAnyProficiency) { setError('Check at least 1 language with 1 proficiency'); return false }
+                }
+                break
+
+            case 7:
+                if (!formData.terms_accepted || !formData.data_processing_consent || !formData.peso_verification_consent) {
                     setError('You must accept all terms and confirmations to proceed')
                     return false
                 }
@@ -332,40 +274,56 @@ const JobseekerRegistration = () => {
         return true
     }
 
-    const getStepData = (step) => {
-        switch (step) {
+    const getStepData = () => {
+        switch (currentStep) {
             case 2:
                 return {
-                    name: formData.full_name,
-                    full_name: formData.full_name,
-                    date_of_birth: formData.date_of_birth,
-                    barangay: formData.barangay,
-                    city: formData.city,
-                    province: formData.province,
-                    mobile_number: formData.mobile_number,
-                    preferred_contact_method: formData.preferred_contact_method,
+                    surname: formData.surname, first_name: formData.first_name,
+                    middle_name: formData.middle_name, suffix: formData.suffix,
+                    full_name: [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' '),
+                    name: [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' '),
+                    date_of_birth: formData.date_of_birth, sex: formData.sex, civil_status: formData.civil_status,
+                    religion: formData.religion, tin: formData.tin, height: formData.height,
+                    disability: formData.disability, disability_other: formData.disability_other,
                 }
             case 3:
                 return {
-                    preferred_job_type: formData.preferred_job_type,
-                    preferred_job_location: formData.preferred_job_location,
-                    expected_salary_min: formData.expected_salary_min,
-                    expected_salary_max: formData.expected_salary_max,
-                    willing_to_relocate: formData.willing_to_relocate,
+                    house_street: formData.house_street,
+                    province: formData.province, city: formData.city, barangay: formData.barangay,
+                    mobile_number: formData.mobile_number,
                 }
             case 4:
                 return {
-                    highest_education: formData.highest_education,
-                    school_name: formData.school_name,
-                    course_or_field: formData.course_or_field,
-                    year_graduated: formData.year_graduated,
+                    employment_status: formData.employment_status,
+                    employment_type: formData.employment_type,
+                    self_employed_type: formData.self_employed_type, self_employed_other: formData.self_employed_other,
+                    unemployment_months: formData.unemployment_months ? parseInt(formData.unemployment_months) : null,
+                    unemployment_reason: formData.unemployment_reason, unemployment_reason_other: formData.unemployment_reason_other,
+                    terminated_abroad_country: formData.terminated_abroad_country,
+                    is_ofw: formData.is_ofw, ofw_country: formData.ofw_country,
+                    is_former_ofw: formData.is_former_ofw, former_ofw_country: formData.former_ofw_country,
+                    former_ofw_return_date: formData.former_ofw_return_date,
+                    is_4ps: formData.is_4ps, household_id: formData.household_id,
                 }
             case 5:
                 return {
-                    skills: deduplicateSkills(formData.skills),
-                    work_experiences: formData.work_experiences,
-                    certifications: formData.certifications,
-                    portfolio_url: formData.portfolio_url,
+                    preferred_occupations: (formData.preferred_occupations || []).filter(o => o.trim()),
+                    work_type: formData.work_type,
+                    work_location_type: formData.work_location_type,
+                    preferred_local_locations: (formData.preferred_local_locations || []).filter(l => l.trim()),
+                    preferred_overseas_locations: (formData.preferred_overseas_locations || []).filter(l => l.trim()),
+                }
+            case 6:
+                return {
+                    highest_education: formData.highest_education,
+                    currently_in_school: formData.currently_in_school,
+                    currently_enrolled: formData.currently_enrolled,
+                    senior_high_strand: formData.senior_high_strand,
+                    course_or_field: formData.course_or_field,
+                    year_graduated: formData.year_graduated,
+                    level_reached: formData.level_reached,
+                    year_last_attended: formData.year_last_attended,
+                    languages: formData.languages,
                 }
             default:
                 return {}
@@ -373,7 +331,7 @@ const JobseekerRegistration = () => {
     }
 
     const nextStep = async () => {
-        if (!validateStep(currentStep)) return
+        if (!validateStep()) return
 
         if (currentStep === 1 && !accountCreated) {
             setLoading(true)
@@ -403,19 +361,7 @@ const JobseekerRegistration = () => {
         setSaving(true)
         setError('')
         try {
-            let stepData = getStepData(currentStep)
-
-            if (currentStep === 5) {
-                let certificatesData = []
-                if (certificateFiles && certificateFiles.length > 0) {
-                    for (const file of certificateFiles) {
-                        const encoded = await compressAndEncode(file)
-                        certificatesData.push({ name: file.name, data: encoded, type: file.type })
-                    }
-                }
-                stepData = { ...stepData, resume_url: resumeUrl || userData?.resume_url || '', certificate_urls: certificatesData }
-            }
-
+            const stepData = getStepData()
             await saveRegistrationStep(stepData, currentStep)
             setCurrentStep(prev => Math.min(prev + 1, totalSteps))
         } catch (err) {
@@ -431,33 +377,23 @@ const JobseekerRegistration = () => {
         setCurrentStep(prev => Math.max(prev - 1, 1))
     }
 
-    const handleSubmit = async (e) => {
-        e.preventDefault()
-        if (!validateStep(currentStep)) return
+    const handleSubmit = async () => {
+        if (!validateStep()) return
 
         setLoading(true)
         setError('')
 
         try {
+            const fullName = [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' ')
+
             const finalData = {
                 terms_accepted: formData.terms_accepted,
                 data_processing_consent: formData.data_processing_consent,
                 peso_verification_consent: formData.peso_verification_consent,
-                info_accuracy_confirmation: formData.info_accuracy_confirmation,
+                full_name: fullName,
+                name: fullName,
                 jobseeker_status: 'pending',
                 rejection_reason: '',
-            }
-
-            if (resumeUrl && !userData?.resume_url) {
-                finalData.resume_url = resumeUrl
-            }
-            if (certificateFiles.length > 0 && !userData?.certificate_urls?.length) {
-                const certificatesData = []
-                for (const file of certificateFiles) {
-                    const encoded = await compressAndEncode(file)
-                    certificatesData.push({ name: file.name, data: encoded, type: file.type })
-                }
-                finalData.certificate_urls = certificatesData
             }
 
             await completeRegistration(finalData)
@@ -465,13 +401,12 @@ const JobseekerRegistration = () => {
             try {
                 await sendJobseekerRegistrationEmail({
                     email: formData.email || userData?.email,
-                    full_name: formData.full_name || userData?.full_name
+                    full_name: fullName
                 })
             } catch (emailErr) {
                 console.error('Failed to send registration email:', emailErr)
             }
 
-            // Redirect to email verification if not yet confirmed
             if (!currentUser?.email_confirmed_at && !currentUser?.confirmed_at) {
                 navigate('/verify-email', { state: { email: formData.email || userData?.email } })
             } else {
@@ -501,153 +436,51 @@ const JobseekerRegistration = () => {
                     />
                 )
             case 2:
-                return (
-                    <Step2PersonalInfo
-                        formData={formData}
-                        handleChange={handleChange}
-                        setFormData={setFormData}
-                    />
-                )
+                return <Step2PersonalInfo formData={formData} handleChange={handleChange} setFormData={setFormData} />
             case 3:
-                return (
-                    <Step3EmploymentPreferences
-                        formData={formData}
-                        handleChange={handleChange}
-                        setFormData={setFormData}
-                        handleJobTypeToggle={handleJobTypeToggle}
-                    />
-                )
+                return <Step3AddressContact formData={formData} handleChange={handleChange} setFormData={setFormData} />
             case 4:
-                return (
-                    <Step4Education
-                        formData={formData}
-                        handleChange={handleChange}
-                    />
-                )
+                return <Step4EmploymentStatus formData={formData} handleChange={handleChange} setFormData={setFormData} />
             case 5:
-                return (
-                    <Step5SkillsExperience
-                        formData={formData}
-                        handleChange={handleChange}
-                        skillInput={skillInput}
-                        setSkillInput={setSkillInput}
-                        addSkill={addSkill}
-                        removeSkill={removeSkill}
-                        workExpInput={workExpInput}
-                        setWorkExpInput={setWorkExpInput}
-                        addWorkExperience={addWorkExperience}
-                        removeWorkExp={removeWorkExp}
-                        certInput={certInput}
-                        setCertInput={setCertInput}
-                        addCertification={addCertification}
-                        removeCertification={removeCertification}
-                        userId={currentUser?.uid}
-                        resumeUrl={resumeUrl || userData?.resume_url || ''}
-                        onResumeUploaded={(url) => setResumeUrl(url)}
-                        onResumeRemoved={() => setResumeUrl('')}
-                        certificateFiles={certificateFiles}
-                        handleCertificateChange={handleCertificateChange}
-                        removeCertificateFile={removeCertificateFile}
-                    />
-                )
+                return <Step5JobPreference formData={formData} handleChange={handleChange} setFormData={setFormData} />
             case 6:
-                return (
-                    <Step6Consent
-                        formData={formData}
-                        handleChange={handleChange}
-                        resumeUrl={resumeUrl || userData?.resume_url || ''}
-                    />
-                )
+                return <Step6EducationLanguage formData={formData} handleChange={handleChange} setFormData={setFormData} />
+            case 7:
+                return <Step7Consent formData={formData} setFormData={setFormData} />
             default:
                 return null
         }
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-accent-50 p-4 py-12">
-            <div className="w-full max-w-3xl">
-                {/* Logo and Header */}
-                <div className="text-center mb-8 animate-fade-in">
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 pb-24">
+            {/* Header */}
+            <div className="max-w-lg mx-auto px-4 pt-8">
+                <div className="text-center mb-6 animate-fade-in">
                     <img
                         src="/peso-logo.png"
                         alt="PESO Connect"
-                        className="w-20 h-20 mx-auto mb-4"
+                        className="w-16 h-16 mx-auto mb-3"
                     />
-                    <h1 className="text-3xl font-bold gradient-text">Jobseeker Registration</h1>
-                    <p className="text-gray-600 mt-2">Step {currentStep} of {totalSteps}</p>
+                    <h1 className="text-2xl font-bold gradient-text">Jobseeker Registration</h1>
                 </div>
 
                 {/* Progress Bar */}
-                <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
+                <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
 
-                {/* Form */}
+                {/* Form Content */}
                 <div className="card animate-slide-up">
-                    <form onSubmit={handleSubmit}>
-                        {error && (
-                            <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-                                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                <p className="text-sm">{error}</p>
-                            </div>
-                        )}
-
-                        {renderStep()}
-
-                        {/* Navigation Buttons */}
-                        <div className="flex gap-3 mt-8">
-                            {currentStep > 1 && !(currentStep === 2 && accountCreated) && (
-                                <button
-                                    type="button"
-                                    onClick={prevStep}
-                                    className="btn-secondary flex items-center gap-2"
-                                >
-                                    <ChevronLeft className="w-5 h-5" />
-                                    Previous
-                                </button>
-                            )}
-
-                            {currentStep < totalSteps ? (
-                                <button
-                                    type="button"
-                                    onClick={nextStep}
-                                    disabled={loading || saving}
-                                    className="btn-primary flex-1 flex items-center justify-center gap-2"
-                                >
-                                    {(loading || saving) ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            {currentStep === 1 ? 'Creating account...' : 'Saving...'}
-                                        </>
-                                    ) : (
-                                        <>
-                                            Next
-                                            <ChevronRight className="w-5 h-5" />
-                                        </>
-                                    )}
-                                </button>
-                            ) : (
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="btn-primary flex-1 flex items-center justify-center gap-2"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            Creating account...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle className="w-5 h-5" />
-                                            Complete Registration
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                    {error && (
+                        <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                            <p className="text-sm">{error}</p>
                         </div>
-                    </form>
+                    )}
+
+                    {renderStep()}
 
                     <div className="mt-6 text-center">
-                        <p className="text-gray-600">
+                        <p className="text-gray-600 text-sm">
                             Already have an account?{' '}
                             <Link to="/login" className="text-primary-600 hover:text-primary-700 font-semibold">
                                 Sign in here
@@ -657,9 +490,39 @@ const JobseekerRegistration = () => {
                 </div>
 
                 {/* Footer */}
-                <p className="text-center text-gray-500 text-sm mt-8">
+                <p className="text-center text-gray-500 text-xs mt-6">
                     PESO Connect | San Carlos City, Negros Occidental
                 </p>
+            </div>
+
+            {/* Floating Bottom Navigation */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 p-4 z-10">
+                <div className="max-w-lg mx-auto flex gap-3">
+                    {currentStep > 1 && (
+                        <button
+                            type="button"
+                            onClick={prevStep}
+                            className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm hover:bg-gray-200 transition-all flex items-center justify-center gap-1"
+                        >
+                            <ChevronLeft className="w-4 h-4" /> Back
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={currentStep === totalSteps ? handleSubmit : nextStep}
+                        disabled={loading || saving}
+                        className="flex-[2] py-3 rounded-xl font-semibold text-sm text-white transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}
+                    >
+                        {(loading || saving) ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : currentStep === totalSteps ? (
+                            <><Check className="w-4 h-4" /> Submit Registration</>
+                        ) : (
+                            <>Continue <ChevronRight className="w-4 h-4" /></>
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
     )
