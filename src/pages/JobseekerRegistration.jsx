@@ -366,8 +366,8 @@ const JobseekerRegistration = () => {
                     other_skills_other: formData.other_skills_other,
                     tvet_certification_level: formData.tvet_certification_level,
                     tvet_certification_title: formData.tvet_certification_title,
-                    recent_job_title: formData.recent_job_title,
-                    recent_job_company: formData.recent_job_company,
+                    // recent_job_title/company are transient — used only in handleSubmit
+                    // to seed work_experiences; not saved as separate DB columns
                 }
             default:
                 return {}
