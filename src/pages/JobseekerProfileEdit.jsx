@@ -224,10 +224,10 @@ const JobseekerProfileEdit = () => {
                 // Employment
                 employment_status: userData.employment_status || '',
                 employment_type: userData.employment_type || '',
-                self_employed_type: userData.self_employed_type || '',
+                self_employed_type: Array.isArray(userData.self_employed_type) ? (userData.self_employed_type[0] || '') : (userData.self_employed_type || ''),
                 self_employed_other: userData.self_employed_other || '',
                 unemployment_months: userData.unemployment_months || '',
-                unemployment_reason: userData.unemployment_reason || '',
+                unemployment_reason: Array.isArray(userData.unemployment_reason) ? (userData.unemployment_reason[0] || '') : (userData.unemployment_reason || ''),
                 unemployment_reason_other: userData.unemployment_reason_other || '',
                 terminated_abroad_country: userData.terminated_abroad_country || '',
                 is_ofw: userData.is_ofw === 'yes',
@@ -468,6 +468,9 @@ const JobseekerProfileEdit = () => {
                 is_ofw: formData.is_ofw ? 'yes' : 'no',
                 is_former_ofw: formData.is_former_ofw ? 'yes' : 'no',
                 is_4ps: formData.is_4ps ? 'yes' : 'no',
+                // Convert string UI values back to text[] for DB columns
+                self_employed_type: formData.self_employed_type ? [formData.self_employed_type] : [],
+                unemployment_reason: formData.unemployment_reason ? [formData.unemployment_reason] : [],
                 updated_at: new Date().toISOString()
             }
 
@@ -511,7 +514,8 @@ const JobseekerProfileEdit = () => {
             }
 
             // All other fields go to jobseeker_profiles
-            const { profile_photo, ...profileFields } = updateData
+            // Exclude profile_photo (handled separately) and name (belongs to users table only)
+            const { profile_photo, name, ...profileFields } = updateData
             const { error: profileErr } = await supabase
                 .from('jobseeker_profiles')
                 .upsert({
