@@ -72,27 +72,27 @@ export default function Step7Consent({ formData, setFormData }) {
       </div>
 
       <div className="p-4 bg-gray-50 rounded-xl space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Name</span>
-          <span className="font-medium text-gray-800">{displayName || '—'}</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Name</span>
+          <span className="font-medium text-gray-800 text-right">{displayName || '—'}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Email</span>
-          <span className="font-medium text-gray-800">{formData.email || '—'}</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Email</span>
+          <span className="font-medium text-gray-800 text-right break-all">{formData.email || '—'}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Location</span>
-          <span className="font-medium text-gray-800">
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Location</span>
+          <span className="font-medium text-gray-800 text-right">
             {[formData.barangay, formData.city, formData.province].filter(Boolean).join(', ') || '—'}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Education</span>
-          <span className="font-medium text-gray-800">{formData.highest_education || '—'}</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Education</span>
+          <span className="font-medium text-gray-800 text-right">{formData.highest_education || '—'}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Status</span>
-          <span className="font-medium text-gray-800 capitalize">{formData.employment_status || '—'}</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Status</span>
+          <span className="font-medium text-gray-800 text-right capitalize">{formData.employment_status || '—'}</span>
         </div>
       </div>
 

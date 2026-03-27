@@ -15,7 +15,7 @@ import Step4EmploymentStatus from '../components/registration/Step4EmploymentSta
 import Step5JobPreference from '../components/registration/Step5JobPreference'
 import Step6EducationLanguage from '../components/registration/Step6EducationLanguage'
 import Step7OtherSkills from '../components/registration/Step7OtherSkills'
-import Step8Consent from '../components/registration/Step7Consent'
+import Step8Consent from '../components/registration/Step8Consent'
 
 // Components
 import ProgressBar from '../components/forms/ProgressBar'
@@ -142,6 +142,7 @@ const JobseekerRegistration = () => {
                 other_skills_other: userData.other_skills_other || '',
                 tvet_certification_level: userData.tvet_certification_level || '',
                 tvet_certification_title: userData.tvet_certification_title || '',
+                // recent_job fields are not persisted mid-registration — always start fresh
                 recent_job_title: '',
                 recent_job_company: '',
                 // Consent
@@ -161,7 +162,7 @@ const JobseekerRegistration = () => {
             formData.course_or_field &&
             !formData.tvet_certification_title
         ) {
-            setFormData(prev => ({ ...prev, tvet_certification_title: formData.course_or_field }))
+            setFormData(prev => ({ ...prev, tvet_certification_title: prev.course_or_field }))
         }
     }, [formData.highest_education, formData.course_or_field])
 
