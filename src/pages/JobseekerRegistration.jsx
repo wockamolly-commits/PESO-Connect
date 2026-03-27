@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { sendJobseekerRegistrationEmail } from '../services/emailService'
 import { validators } from '../utils/validation'
+import { supabase } from '../config/supabase'
+import { expandProfileAliases, deduplicateSkills } from '../services/geminiService'
 import {
     Loader2, AlertCircle, ChevronRight, ChevronLeft, Check
 } from 'lucide-react'
@@ -428,6 +430,21 @@ const JobseekerRegistration = () => {
         try {
             const fullName = [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' ')
 
+            // 1. Merge skills: tag input + other_skills checkbox labels (exclude 'Others')
+            const tagSkills = formData.skills || []
+            const otherSkillLabels = (formData.other_skills || []).filter(s => s !== 'Others')
+            const mergedSkills = deduplicateSkills([...tagSkills, ...otherSkillLabels])
+
+            // 2. Seed work_experiences from most recent job (if filled)
+            const workExperiences = []
+            if (formData.recent_job_title?.trim()) {
+                workExperiences.push({
+                    position: formData.recent_job_title.trim(),
+                    company: formData.recent_job_company?.trim() || '',
+                    duration: '',
+                })
+            }
+
             const finalData = {
                 terms_accepted: formData.terms_accepted,
                 data_processing_consent: formData.data_processing_consent,
@@ -436,9 +453,34 @@ const JobseekerRegistration = () => {
                 name: fullName,
                 jobseeker_status: 'pending',
                 rejection_reason: '',
+                // Matching signals
+                skills: mergedSkills,
+                work_experiences: workExperiences,
+                tvet_certification_level: formData.tvet_certification_level,
+                tvet_certification_title: formData.tvet_certification_title,
             }
 
             await completeRegistration(finalData)
+
+            // 3. Non-blocking: expand skill aliases + experience categories
+            try {
+                const skillsForExpansion = [...mergedSkills]
+                if (formData.tvet_certification_title?.trim()) {
+                    skillsForExpansion.push(formData.tvet_certification_title.trim())
+                }
+                const aliasData = await expandProfileAliases(skillsForExpansion, workExperiences)
+                if (aliasData.skillAliases && Object.keys(aliasData.skillAliases).length > 0) {
+                    await supabase
+                        .from('jobseeker_profiles')
+                        .update({
+                            skill_aliases: aliasData.skillAliases,
+                            experience_categories: aliasData.experienceCategories,
+                        })
+                        .eq('id', currentUser.uid)
+                }
+            } catch (aliasErr) {
+                console.warn('Alias expansion failed (non-blocking):', aliasErr.message)
+            }
 
             try {
                 await sendJobseekerRegistrationEmail({
