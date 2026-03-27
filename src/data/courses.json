@@ -1,0 +1,153 @@
+{
+  "categories": [
+    {
+      "name": "Engineering & Technology",
+      "courses": [
+        "BS Civil Engineering",
+        "BS Mechanical Engineering",
+        "BS Electrical Engineering",
+        "BS Electronics Engineering",
+        "BS Chemical Engineering",
+        "BS Industrial Engineering",
+        "BS Computer Engineering",
+        "BS Geodetic Engineering",
+        "BS Mining Engineering",
+        "BS Agricultural Engineering",
+        "BS Environmental Engineering",
+        "BS Sanitary Engineering"
+      ]
+    },
+    {
+      "name": "Information Technology & Computer Science",
+      "courses": [
+        "BS Computer Science",
+        "BS Information Technology",
+        "BS Information Systems",
+        "BS Data Science",
+        "BS Cybersecurity",
+        "BS Entertainment and Multimedia Computing",
+        "Associate in Computer Technology"
+      ]
+    },
+    {
+      "name": "Business & Management",
+      "courses": [
+        "BS Business Administration",
+        "BS Accountancy",
+        "BS Management Accounting",
+        "BS Accounting Technology",
+        "BS Entrepreneurship",
+        "BS Office Administration",
+        "BS Customs Administration",
+        "BS Hotel and Restaurant Management",
+        "BS Tourism Management",
+        "BS Real Estate Management"
+      ]
+    },
+    {
+      "name": "Education & Teaching",
+      "courses": [
+        "Bachelor of Elementary Education",
+        "Bachelor of Secondary Education",
+        "Bachelor of Early Childhood Education",
+        "Bachelor of Special Needs Education",
+        "Bachelor of Physical Education",
+        "Bachelor of Technical-Vocational Teacher Education",
+        "Bachelor of Technology and Livelihood Education"
+      ]
+    },
+    {
+      "name": "Health Sciences & Medicine",
+      "courses": [
+        "BS Nursing",
+        "BS Pharmacy",
+        "BS Medical Technology",
+        "BS Physical Therapy",
+        "BS Occupational Therapy",
+        "BS Radiologic Technology",
+        "BS Respiratory Therapy",
+        "BS Midwifery",
+        "BS Nutrition and Dietetics",
+        "BS Speech-Language Pathology",
+        "Doctor of Medicine",
+        "Doctor of Dental Medicine"
+      ]
+    },
+    {
+      "name": "Arts & Humanities",
+      "courses": [
+        "BA Communication",
+        "BA Journalism",
+        "BA Broadcasting",
+        "BA English",
+        "BA Filipino",
+        "BA Literature",
+        "BA Philosophy",
+        "BA History",
+        "Bachelor of Fine Arts",
+        "Bachelor of Music",
+        "Bachelor of Performing Arts"
+      ]
+    },
+    {
+      "name": "Social Sciences",
+      "courses": [
+        "BS Psychology",
+        "BS Social Work",
+        "BA Political Science",
+        "BA Sociology",
+        "BS Economics",
+        "BA Anthropology",
+        "BS Development Communication",
+        "BS Public Administration"
+      ]
+    },
+    {
+      "name": "Agriculture & Fisheries",
+      "courses": [
+        "BS Agriculture",
+        "BS Agricultural Business",
+        "BS Fisheries",
+        "BS Forestry",
+        "BS Environmental Science",
+        "BS Food Technology",
+        "BS Animal Science"
+      ]
+    },
+    {
+      "name": "Law & Legal Studies",
+      "courses": [
+        "Bachelor of Laws (LLB)",
+        "Juris Doctor (JD)",
+        "BS Legal Management",
+        "BS Criminology"
+      ]
+    },
+    {
+      "name": "Architecture & Fine Arts",
+      "courses": [
+        "BS Architecture",
+        "BS Interior Design",
+        "BS Landscape Architecture",
+        "Bachelor of Fine Arts - Industrial Design",
+        "Bachelor of Fine Arts - Advertising Arts"
+      ]
+    },
+    {
+      "name": "Maritime",
+      "courses": [
+        "BS Marine Transportation",
+        "BS Marine Engineering",
+        "BS Naval Architecture and Marine Engineering"
+      ]
+    },
+    {
+      "name": "Public Safety & Defense",
+      "courses": [
+        "BS Criminology",
+        "BS Industrial Security Administration",
+        "BS Fire Technology"
+      ]
+    }
+  ]
+}
