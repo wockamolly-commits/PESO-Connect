@@ -166,7 +166,7 @@ const JobseekerRegistration = () => {
         ) {
             setFormData(prev => ({ ...prev, tvet_certification_title: prev.course_or_field }))
         }
-    }, [formData.highest_education, formData.course_or_field])
+    }, [formData.highest_education, formData.course_or_field, formData.tvet_certification_title])
 
     const handleBlur = useCallback((e) => {
         const { name } = e.target
@@ -450,6 +450,9 @@ const JobseekerRegistration = () => {
                 })
             }
 
+            // Note: other_skills/other_skills_other raw data is already persisted
+            // from the Step 7 intermediate save. The merged `skills` array below
+            // is the authoritative field for the matching pipeline.
             const finalData = {
                 terms_accepted: formData.terms_accepted,
                 data_processing_consent: formData.data_processing_consent,

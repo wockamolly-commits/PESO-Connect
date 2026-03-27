@@ -230,12 +230,12 @@ const JobseekerProfileEdit = () => {
                 unemployment_reason: userData.unemployment_reason || '',
                 unemployment_reason_other: userData.unemployment_reason_other || '',
                 terminated_abroad_country: userData.terminated_abroad_country || '',
-                is_ofw: userData.is_ofw || false,
+                is_ofw: userData.is_ofw === 'yes',
                 ofw_country: userData.ofw_country || '',
-                is_former_ofw: userData.is_former_ofw || false,
+                is_former_ofw: userData.is_former_ofw === 'yes',
                 former_ofw_country: userData.former_ofw_country || '',
                 former_ofw_return_date: userData.former_ofw_return_date || '',
-                is_4ps: userData.is_4ps || false,
+                is_4ps: userData.is_4ps === 'yes',
                 household_id: userData.household_id || '',
 
                 // Job Preferences
@@ -464,6 +464,10 @@ const JobseekerProfileEdit = () => {
                 full_name: fullName || formData.full_name,
                 name: fullName || formData.full_name,
                 languages: formData.languages,
+                // Convert boolean checkboxes back to text values for DB text columns
+                is_ofw: formData.is_ofw ? 'yes' : 'no',
+                is_former_ofw: formData.is_former_ofw ? 'yes' : 'no',
+                is_4ps: formData.is_4ps ? 'yes' : 'no',
                 updated_at: new Date().toISOString()
             }
 

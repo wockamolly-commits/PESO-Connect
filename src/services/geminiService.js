@@ -135,7 +135,7 @@ const normalizeSkillName = (name) => {
 
 const deduplicateSkills = (skills) => {
     const seen = new Set()
-    return skills.filter(s => {
+    return skills.filter(Boolean).filter(s => {
         const key = s.toLowerCase()
         if (seen.has(key)) return false
         seen.add(key)
@@ -147,6 +147,7 @@ const VALID_EDUCATION_LEVELS = [
     'Elementary Graduate',
     'High School Graduate',
     'Senior High School Graduate',
+    'Vocational/Technical',
     'Vocational/Technical Graduate',
     'College Undergraduate',
     'College Graduate',
