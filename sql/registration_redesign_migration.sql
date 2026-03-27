@@ -97,3 +97,15 @@ WHERE
   AND full_name NOT LIKE '% %'
   AND surname = ''
   AND first_name = '';
+
+-- ------------------------------------------------------------
+-- Other Skills Acquired Without Certificate (Section VIII)
+-- ------------------------------------------------------------
+ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS other_skills text[] DEFAULT '{}';
+ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS other_skills_other text DEFAULT '';
+
+-- ------------------------------------------------------------
+-- TVET / TESDA Certification (Approach C — AI matching signals)
+-- ------------------------------------------------------------
+ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS tvet_certification_level text DEFAULT '';
+ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS tvet_certification_title text DEFAULT '';
