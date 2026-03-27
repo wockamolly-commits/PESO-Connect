@@ -1,2 +1,2 @@
-export { StepIndicator } from './StepIndicator'
 export { TagInput } from './TagInput'
+export { default as ProgressBar } from './ProgressBar'

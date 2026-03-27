@@ -1,0 +1,58 @@
+<h2>Registration Step Structure</h2>
+<p class="subtitle">How should the required PESO fields be grouped into steps?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>5 Steps (Compact)</h3>
+      <p>Fewer screens, more fields per step. Faster to complete but denser.</p>
+      <div style="font-size:0.85em; color:#888; margin-top:8px; line-height:1.6">
+        <strong>1.</strong> Account (email, password)<br>
+        <strong>2.</strong> Personal Info (name, DOB, sex, civil status, address, contact, disability)<br>
+        <strong>3.</strong> Employment Status + Job Preference (status/type, preferred occupations, work location)<br>
+        <strong>4.</strong> Education + Language (highest attainment, course, language proficiency)<br>
+        <strong>5.</strong> Consent & Submit
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>7 Steps (Balanced)</h3>
+      <p>One clear topic per step. Good balance of progress and focus.</p>
+      <div style="font-size:0.85em; color:#888; margin-top:8px; line-height:1.6">
+        <strong>1.</strong> Account Credentials<br>
+        <strong>2.</strong> Personal Information (name, DOB, sex, civil status, religion)<br>
+        <strong>3.</strong> Address & Contact (full address, phone, email)<br>
+        <strong>4.</strong> Employment Status (employed/unemployed, type, OFW, 4Ps)<br>
+        <strong>5.</strong> Job Preference (occupations, part/full-time, preferred locations)<br>
+        <strong>6.</strong> Education & Language (attainment, course, language proficiency)<br>
+        <strong>7.</strong> Consent & Submit
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>8 Steps (Granular)</h3>
+      <p>Each section gets its own step. Feels lighter per screen but more clicks.</p>
+      <div style="font-size:0.85em; color:#888; margin-top:8px; line-height:1.6">
+        <strong>1.</strong> Account Credentials<br>
+        <strong>2.</strong> Personal Information<br>
+        <strong>3.</strong> Address & Contact<br>
+        <strong>4.</strong> Employment Status<br>
+        <strong>5.</strong> Job Preference<br>
+        <strong>6.</strong> Education<br>
+        <strong>7.</strong> Language Proficiency<br>
+        <strong>8.</strong> Consent & Submit
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:16px; background:rgba(99,102,241,0.1); border-radius:8px; border-left:3px solid #6366f1">
+  <strong>Recommendation:</strong> Option B (7 Steps) — each step has a clear, single topic without being overwhelming. Employment Status and Job Preference are distinct enough to warrant separate steps, but Education + Language can share a step since language proficiency is just a quick checkbox grid.
+</div>

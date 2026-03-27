@@ -1,0 +1,44 @@
+<h2>UI / Interaction Pattern</h2>
+<p class="subtitle">How should the 7-step form look and feel?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Enhanced Current Style</h3>
+      <p>Keep the existing card-based layout with the numbered step indicator at top. Upgrade with better field grouping, inline validation, and modern input components (searchable dropdowns, checkbox grids). Minimal disruption to existing design language.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Consistent with rest of app</li><li>Less work — reuse existing StepIndicator and styling</li><li>Familiar to returning users</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Step indicator gets crowded at 7 steps on mobile</li><li>Card layout may feel dense with more fields</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Modern Wizard with Progress Bar</h3>
+      <p>Replace numbered circles with a slim progress bar + step title. Each step is a clean, spacious form section with grouped fields in subtle bordered sections. Floating "Back / Next" buttons pinned to bottom. More modern, breathing room.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Scales well to 7+ steps</li><li>Cleaner, less visual clutter</li><li>Better mobile experience</li><li>Progress bar feels more encouraging</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Slightly different from current app style</li><li>Users can't see all step names at once</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid — Progress Bar + Step Labels</h3>
+      <p>Slim progress bar at top showing percentage, with compact step labels below (collapsible on mobile to show only current + adjacent steps). Best of both worlds — progress visibility with step context.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Users see where they are AND what's coming</li><li>Works well on both mobile and desktop</li><li>Progress bar is motivating</li><li>Step labels provide context</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More complex step indicator component</li><li>Slightly more vertical space used</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:16px; background:rgba(99,102,241,0.1); border-radius:8px; border-left:3px solid #6366f1">
+  <strong>Recommendation:</strong> Option B (Modern Wizard with Progress Bar) — it scales best for 7 steps, feels clean and modern, and the slim progress bar takes less space than numbered circles while being more encouraging. The step title on each page provides enough context about where you are.
+</div>

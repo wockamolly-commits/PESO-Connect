@@ -1,0 +1,129 @@
+<h2>Which PDF resume layout style?</h2>
+<p class="subtitle">Click to select your preferred layout for the exported resume</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #fff;">
+      <!-- Single column mockup -->
+      <div style="font-family: Georgia, serif; font-size: 11px; color: #333; line-height: 1.4;">
+        <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 8px;">
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: #e5e7eb; margin: 0 auto 6px;"></div>
+          <div style="font-size: 16px; font-weight: bold;">Juan Dela Cruz</div>
+          <div style="font-size: 9px; color: #666;">juan@email.com · 0917-XXX-XXXX · Makati, Metro Manila</div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 11px; font-weight: bold; color: #2563eb; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Skills</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+            <span style="background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-size: 8px;">JavaScript</span>
+            <span style="background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-size: 8px;">React</span>
+            <span style="background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-size: 8px;">Node.js</span>
+            <span style="background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-size: 8px;">SQL</span>
+          </div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 11px; font-weight: bold; color: #2563eb; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Work Experience</div>
+          <div><strong>Frontend Developer</strong> — TechCorp</div>
+          <div style="font-size: 8px; color: #666;">Jan 2023 – Present</div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 11px; font-weight: bold; color: #2563eb; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Education</div>
+          <div><strong>BS Computer Science</strong> — UP Diliman</div>
+          <div style="font-size: 8px; color: #666;">Graduated 2022</div>
+        </div>
+        <div style="font-size: 8px; color: #999; text-align: center; margin-top: 6px;">Certifications · Languages · Portfolio</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Single Column</h3>
+      <p>Clean, top-to-bottom flow. Photo + name centered at top. Each section stacks vertically. Simple and universally readable.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #fff;">
+      <!-- Two column mockup -->
+      <div style="font-family: Georgia, serif; font-size: 11px; color: #333; line-height: 1.4; display: flex; gap: 10px;">
+        <!-- Left sidebar -->
+        <div style="width: 35%; background: #1e3a5f; color: white; padding: 10px; border-radius: 4px;">
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: #4a7ab5; margin: 0 auto 6px;"></div>
+          <div style="text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 8px;">Juan Dela Cruz</div>
+          <div style="font-size: 8px; margin-bottom: 8px; opacity: 0.9;">
+            <div>juan@email.com</div>
+            <div>0917-XXX-XXXX</div>
+            <div>Makati, Metro Manila</div>
+          </div>
+          <div style="font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 2px; margin-bottom: 4px;">Skills</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 8px;">
+            <span style="background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 8px; font-size: 7px;">JavaScript</span>
+            <span style="background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 8px; font-size: 7px;">React</span>
+            <span style="background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 8px; font-size: 7px;">Node.js</span>
+          </div>
+          <div style="font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 2px; margin-bottom: 4px;">Languages</div>
+          <div style="font-size: 8px;">English · Filipino</div>
+        </div>
+        <!-- Right main -->
+        <div style="width: 65%;">
+          <div style="margin-bottom: 6px;">
+            <div style="font-size: 11px; font-weight: bold; color: #1e3a5f; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Work Experience</div>
+            <div><strong>Frontend Developer</strong> — TechCorp</div>
+            <div style="font-size: 8px; color: #666;">Jan 2023 – Present</div>
+          </div>
+          <div style="margin-bottom: 6px;">
+            <div style="font-size: 11px; font-weight: bold; color: #1e3a5f; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Education</div>
+            <div><strong>BS Computer Science</strong> — UP Diliman</div>
+            <div style="font-size: 8px; color: #666;">Graduated 2022</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; font-weight: bold; color: #1e3a5f; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px;">Certifications</div>
+            <div style="font-size: 9px;">AWS Certified · Google Analytics</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Two Column (Sidebar)</h3>
+      <p>Photo, contact, skills & languages in a colored sidebar. Work experience, education & certs in the main column. Modern and compact.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #fff;">
+      <!-- Minimal/classic mockup -->
+      <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #333; line-height: 1.4;">
+        <div style="margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: #e5e7eb; flex-shrink: 0;"></div>
+            <div>
+              <div style="font-size: 18px; font-weight: 300; letter-spacing: 1px;">JUAN DELA CRUZ</div>
+              <div style="font-size: 8px; color: #888; letter-spacing: 0.5px;">juan@email.com · 0917-XXX-XXXX · Makati, Metro Manila</div>
+            </div>
+          </div>
+          <div style="height: 1px; background: #333; margin-top: 4px;"></div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px;">Skills</div>
+          <div style="font-size: 9px;">JavaScript · React · Node.js · SQL · Python</div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px;">Experience</div>
+          <div style="display: flex; justify-content: space-between;">
+            <div><strong>Frontend Developer</strong>, TechCorp</div>
+            <div style="font-size: 8px; color: #888;">2023 – Present</div>
+          </div>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div style="font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 3px;">Education</div>
+          <div style="display: flex; justify-content: space-between;">
+            <div><strong>BS Computer Science</strong>, UP Diliman</div>
+            <div style="font-size: 8px; color: #888;">2022</div>
+          </div>
+        </div>
+        <div style="font-size: 8px; color: #999; margin-top: 6px;">Certifications · Languages · Portfolio</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Minimal Classic</h3>
+      <p>Photo left-aligned with name. No colors or borders — just clean typography, thin dividers, and whitespace. Timeless and formal.</p>
+    </div>
+  </div>
+</div>

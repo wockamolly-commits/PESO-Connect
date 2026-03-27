@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PESO Registration Mockup</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f1f5f9; min-height:100vh; display:flex; justify-content:center; padding:20px; }
+  .phone-frame { width:420px; background:#fff; border-radius:24px; box-shadow:0 20px 60px rgba(0,0,0,0.12); overflow:hidden; position:relative; }
+
+  /* Progress bar */
+  .progress-section { padding:24px 24px 0; }
+  .progress-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .step-label { font-size:13px; color:#6366f1; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+  .step-count { font-size:13px; color:#94a3b8; }
+  .progress-bar { height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; background:linear-gradient(90deg, #6366f1, #8b5cf6); border-radius:3px; transition:width 0.3s; }
+
+  /* Step title */
+  .step-title { padding:16px 24px 4px; }
+  .step-title h2 { font-size:22px; font-weight:700; color:#1e293b; }
+  .step-title p { font-size:14px; color:#94a3b8; margin-top:4px; }
+
+  /* Form content */
+  .form-content { padding:12px 24px 100px; }
+  .field-group { margin-bottom:20px; }
+  .field-row { display:flex; gap:12px; }
+  .field-row .field-group { flex:1; }
+
+  label { display:block; font-size:13px; font-weight:600; color:#475569; margin-bottom:6px; }
+  label .required { color:#ef4444; margin-left:2px; }
+  label .optional { color:#94a3b8; font-weight:400; font-size:12px; margin-left:4px; }
+
+  input, select { width:100%; padding:10px 12px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:14px; color:#1e293b; background:#fff; outline:none; transition:border-color 0.2s; }
+  input:focus, select:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
+  input::placeholder { color:#cbd5e1; }
+
+  /* Radio/checkbox groups */
+  .radio-group { display:flex; gap:8px; flex-wrap:wrap; }
+  .radio-pill { display:flex; align-items:center; gap:6px; padding:8px 16px; border:1.5px solid #e2e8f0; border-radius:10px; cursor:pointer; font-size:14px; color:#64748b; transition:all 0.2s; }
+  .radio-pill.selected { border-color:#6366f1; background:rgba(99,102,241,0.06); color:#6366f1; font-weight:500; }
+  .radio-dot { width:16px; height:16px; border-radius:50%; border:2px solid #cbd5e1; display:flex; align-items:center; justify-content:center; }
+  .radio-pill.selected .radio-dot { border-color:#6366f1; }
+  .radio-pill.selected .radio-dot::after { content:''; width:8px; height:8px; border-radius:50%; background:#6366f1; }
+
+  /* Checkbox grid for language */
+  .lang-grid { width:100%; border-collapse:separate; border-spacing:0; }
+  .lang-grid th { font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; padding:8px 4px; text-align:center; }
+  .lang-grid th:first-child { text-align:left; }
+  .lang-grid td { padding:8px 4px; text-align:center; border-top:1px solid #f1f5f9; }
+  .lang-grid td:first-child { text-align:left; font-size:14px; color:#1e293b; font-weight:500; }
+  .check-box { width:20px; height:20px; border:2px solid #cbd5e1; border-radius:5px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; }
+  .check-box.checked { background:#6366f1; border-color:#6366f1; }
+  .check-box.checked::after { content:'✓'; color:#fff; font-size:13px; font-weight:700; }
+
+  /* Searchable dropdown */
+  .search-select { position:relative; }
+  .search-select input { padding-right:32px; }
+  .search-select .chevron { position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; }
+
+  /* Conditional reveal */
+  .conditional { margin-top:12px; padding:16px; background:#f8fafc; border-radius:12px; border-left:3px solid #6366f1; }
+  .conditional .field-group:last-child { margin-bottom:0; }
+
+  /* Bottom bar */
+  .bottom-bar { position:absolute; bottom:0; left:0; right:0; padding:16px 24px; background:rgba(255,255,255,0.95); backdrop-filter:blur(8px); border-top:1px solid #f1f5f9; display:flex; gap:12px; }
+  .btn { flex:1; padding:12px; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; }
+  .btn-back { background:#f1f5f9; color:#64748b; }
+  .btn-next { background:linear-gradient(135deg, #6366f1, #8b5cf6); color:#fff; box-shadow:0 4px 12px rgba(99,102,241,0.3); }
+
+  /* Section divider */
+  .section-divider { display:flex; align-items:center; gap:12px; margin:24px 0 16px; }
+  .section-divider span { font-size:12px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+  .section-divider::after { content:''; flex:1; height:1px; background:#e2e8f0; }
+
+  /* Tab navigation */
+  .tabs { display:flex; gap:0; margin-bottom:20px; background:#f1f5f9; border-radius:10px; padding:3px; }
+  .tab { flex:1; text-align:center; padding:8px; font-size:13px; font-weight:500; color:#64748b; border-radius:8px; cursor:pointer; transition:all 0.2s; }
+  .tab.active { background:#fff; color:#6366f1; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+
+  /* Layout */
+  .screens { display:flex; gap:40px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+  .screen-label { text-align:center; margin-bottom:12px; font-size:14px; font-weight:600; color:#6366f1; letter-spacing:0.5px; }
+
+  /* Occupation multi-entry */
+  .multi-entry { display:flex; flex-direction:column; gap:8px; }
+  .entry-row { display:flex; gap:8px; align-items:center; }
+  .entry-num { width:24px; height:24px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#6366f1; flex-shrink:0; }
+  .entry-row input { flex:1; }
+
+  /* Error state example */
+  .field-error input { border-color:#ef4444; }
+  .error-msg { font-size:12px; color:#ef4444; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<div class="screens">
+
+  <!-- SCREEN 1: Step 2 - Personal Information -->
+  <div>
+    <div class="screen-label">STEP 2 — Personal Information</div>
+    <div class="phone-frame">
+      <div class="progress-section">
+        <div class="progress-meta">
+          <span class="step-label">Personal Information</span>
+          <span class="step-count">Step 2 of 7</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:28.5%"></div></div>
+      </div>
+
+      <div class="step-title">
+        <h2>Tell us about yourself</h2>
+        <p>Fields marked with * are required</p>
+      </div>
+
+      <div class="form-content">
+        <div class="field-row">
+          <div class="field-group" style="flex:2">
+            <label>Surname <span class="required">*</span></label>
+            <input type="text" placeholder="e.g. Dela Cruz" value="Dela Cruz">
+          </div>
+          <div class="field-group" style="flex:0.8">
+            <label>Suffix <span class="optional">(optional)</span></label>
+            <select><option>None</option><option>Jr.</option><option>Sr.</option><option>III</option></select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label>First Name <span class="required">*</span></label>
+            <input type="text" placeholder="e.g. Juan" value="Juan">
+          </div>
+          <div class="field-group">
+            <label>Middle Name <span class="optional">(optional)</span></label>
+            <input type="text" placeholder="e.g. Santos">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Date of Birth <span class="required">*</span></label>
+          <input type="date" value="1995-03-15">
+        </div>
+
+        <div class="field-group">
+          <label>Sex <span class="required">*</span></label>
+          <div class="radio-group">
+            <div class="radio-pill selected"><div class="radio-dot"></div> Male</div>
+            <div class="radio-pill"><div class="radio-dot"></div> Female</div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Civil Status <span class="required">*</span></label>
+          <select>
+            <option>Select...</option>
+            <option selected>Single</option>
+            <option>Married</option>
+            <option>Widowed</option>
+            <option>Separated</option>
+          </select>
+        </div>
+
+        <div class="section-divider"><span>Optional Details</span></div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label>Religion <span class="optional">(optional)</span></label>
+            <input type="text" placeholder="e.g. Roman Catholic">
+          </div>
+          <div class="field-group">
+            <label>TIN <span class="optional">(optional)</span></label>
+            <input type="text" placeholder="000-000-000-000">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Height (ft) <span class="optional">(optional)</span></label>
+          <input type="text" placeholder="e.g. 5'7&quot;">
+        </div>
+
+        <div class="field-group">
+          <label>Disability <span class="optional">(optional)</span></label>
+          <div class="radio-group">
+            <div class="radio-pill selected" style="border-radius:10px"><div class="check-box checked" style="border-radius:5px"></div> None</div>
+            <div class="radio-pill" style="border-radius:10px"><div class="check-box" style="border-radius:5px"></div> Visual</div>
+            <div class="radio-pill" style="border-radius:10px"><div class="check-box" style="border-radius:5px"></div> Hearing</div>
+            <div class="radio-pill" style="border-radius:10px"><div class="check-box" style="border-radius:5px"></div> Speech</div>
+            <div class="radio-pill" style="border-radius:10px"><div class="check-box" style="border-radius:5px"></div> Physical</div>
+            <div class="radio-pill" style="border-radius:10px"><div class="check-box" style="border-radius:5px"></div> Mental</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <button class="btn btn-back">Back</button>
+        <button class="btn btn-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: Step 4 - Employment Status (conditional reveal) -->
+  <div>
+    <div class="screen-label">STEP 4 — Employment Status</div>
+    <div class="phone-frame">
+      <div class="progress-section">
+        <div class="progress-meta">
+          <span class="step-label">Employment Status</span>
+          <span class="step-count">Step 4 of 7</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:57%"></div></div>
+      </div>
+
+      <div class="step-title">
+        <h2>Your employment status</h2>
+        <p>This helps us match you with the right opportunities</p>
+      </div>
+
+      <div class="form-content">
+        <div class="field-group">
+          <label>Current Status <span class="required">*</span></label>
+          <div class="radio-group">
+            <div class="radio-pill"><div class="radio-dot"></div> Employed</div>
+            <div class="radio-pill selected"><div class="radio-dot"></div> Unemployed</div>
+          </div>
+        </div>
+
+        <div class="conditional">
+          <div class="field-group">
+            <label>How long have you been looking for work?</label>
+            <div class="field-row">
+              <input type="number" placeholder="e.g. 6" style="flex:1">
+              <span style="align-self:center; color:#64748b; font-size:14px; flex-shrink:0">months</span>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label>Reason <span class="required">*</span></label>
+            <div class="radio-group">
+              <div class="radio-pill selected" style="border-radius:10px; font-size:13px"><div class="check-box checked" style="border-radius:5px"></div> New Entrant / Fresh Graduate</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Finished Contract</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Resigned</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Retired</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Terminated (Local)</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Terminated (Abroad)</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Calamity</div>
+              <div class="radio-pill" style="border-radius:10px; font-size:13px"><div class="check-box" style="border-radius:5px"></div> Others</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-divider"><span>Optional</span></div>
+
+        <div class="field-group">
+          <label>Are you an OFW? <span class="optional">(optional)</span></label>
+          <div class="radio-group">
+            <div class="radio-pill"><div class="radio-dot"></div> Yes</div>
+            <div class="radio-pill selected"><div class="radio-dot"></div> No</div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Are you a former OFW? <span class="optional">(optional)</span></label>
+          <div class="radio-group">
+            <div class="radio-pill"><div class="radio-dot"></div> Yes</div>
+            <div class="radio-pill selected"><div class="radio-dot"></div> No</div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Are you a 4Ps beneficiary? <span class="optional">(optional)</span></label>
+          <div class="radio-group">
+            <div class="radio-pill"><div class="radio-dot"></div> Yes</div>
+            <div class="radio-pill selected"><div class="radio-dot"></div> No</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <button class="btn btn-back">Back</button>
+        <button class="btn btn-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Step 6 - Education & Language -->
+  <div>
+    <div class="screen-label">STEP 6 — Education & Language</div>
+    <div class="phone-frame">
+      <div class="progress-section">
+        <div class="progress-meta">
+          <span class="step-label">Education & Language</span>
+          <span class="step-count">Step 6 of 7</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:85.7%"></div></div>
+      </div>
+
+      <div class="step-title">
+        <h2>Education & Language</h2>
+        <p>Your educational background and language skills</p>
+      </div>
+
+      <div class="form-content">
+        <div class="section-divider"><span>Educational Background</span></div>
+
+        <div class="field-group">
+          <label>Highest Educational Attainment <span class="required">*</span></label>
+          <select>
+            <option>Select...</option>
+            <option>Elementary</option>
+            <option>Secondary (Non-K12)</option>
+            <option selected>Secondary (K-12)</option>
+            <option>Tertiary</option>
+            <option>Graduate Studies / Post-graduate</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label>Senior High Strand <span class="optional">(optional)</span></label>
+          <select>
+            <option>Select strand...</option>
+            <option selected>TVL - Information and Communications Technology</option>
+            <option>STEM</option>
+            <option>ABM</option>
+            <option>HUMSS</option>
+            <option>GAS</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label>Year Graduated <span class="required">*</span></label>
+            <input type="number" placeholder="e.g. 2020" value="2020">
+          </div>
+          <div class="field-group">
+            <label>Currently in school?</label>
+            <div class="radio-group">
+              <div class="radio-pill"><div class="radio-dot"></div> Yes</div>
+              <div class="radio-pill selected"><div class="radio-dot"></div> No</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-divider"><span>Language Proficiency</span></div>
+
+        <table class="lang-grid">
+          <thead>
+            <tr>
+              <th>Language</th>
+              <th>Read</th>
+              <th>Write</th>
+              <th>Speak</th>
+              <th>Understand</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>English</td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+            </tr>
+            <tr>
+              <td>Filipino</td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+              <td><div class="check-box checked"></div></td>
+            </tr>
+            <tr>
+              <td>Mandarin</td>
+              <td><div class="check-box"></div></td>
+              <td><div class="check-box"></div></td>
+              <td><div class="check-box"></div></td>
+              <td><div class="check-box"></div></td>
+            </tr>
+            <tr>
+              <td style="color:#6366f1; cursor:pointer">+ Add language</td>
+              <td></td><td></td><td></td><td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bottom-bar">
+        <button class="btn btn-back">Back</button>
+        <button class="btn btn-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
