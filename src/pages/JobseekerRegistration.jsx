@@ -430,10 +430,15 @@ const JobseekerRegistration = () => {
         try {
             const fullName = [formData.first_name, formData.middle_name, formData.surname].filter(Boolean).join(' ')
 
-            // 1. Merge skills: tag input + other_skills checkbox labels (exclude 'Others')
+            // 1. Merge skills: tag input + other_skills checkbox labels (exclude 'Others') + free-text
             const tagSkills = formData.skills || []
             const otherSkillLabels = (formData.other_skills || []).filter(s => s !== 'Others')
-            const mergedSkills = deduplicateSkills([...tagSkills, ...otherSkillLabels])
+            const freeTextSkill = formData.other_skills_other?.trim()
+            const mergedSkills = deduplicateSkills([
+                ...tagSkills,
+                ...otherSkillLabels,
+                ...(freeTextSkill ? [freeTextSkill] : []),
+            ])
 
             // 2. Seed work_experiences from most recent job (if filled)
             const workExperiences = []
@@ -469,7 +474,7 @@ const JobseekerRegistration = () => {
                     skillsForExpansion.push(formData.tvet_certification_title.trim())
                 }
                 const aliasData = await expandProfileAliases(skillsForExpansion, workExperiences)
-                if (aliasData.skillAliases && Object.keys(aliasData.skillAliases).length > 0) {
+                if (aliasData.skillAliases && Object.keys(aliasData.skillAliases).length > 0 && currentUser?.uid) {
                     await supabase
                         .from('jobseeker_profiles')
                         .update({
