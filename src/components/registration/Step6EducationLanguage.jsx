@@ -1,16 +1,28 @@
-import React, { useState, useMemo } from 'react';
-import { GraduationCap, Plus, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import coursesData from '../../data/courses.json';
 
 const EDUCATION_LEVELS = [
-  'Elementary',
-  'Secondary (Non-K12)',
-  'Secondary (K-12)',
-  'Tertiary',
-  'Graduate Studies / Post-graduate'
+  { value: 'Elementary', label: 'Elementary (Grade 1\u20136)' },
+  { value: 'High School', label: 'High School (Non K-12)' },
+  { value: 'Senior High School (K-12)', label: 'Senior High School (K-12)' },
+  { value: 'Vocational/Technical', label: 'Vocational/Technical (TESDA)' },
+  { value: 'College', label: 'College / University' },
+  { value: 'Graduate Studies', label: 'Graduate Studies / Post-Graduate' },
 ];
 
+const EDUCATION_SUB_LEVELS = {
+  'Elementary': ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+  'High School': ['1st Year', '2nd Year', '3rd Year', '4th Year'],
+  'Senior High School (K-12)': ['Grade 11', 'Grade 12'],
+  'College': ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'],
+  'Graduate Studies': ["Master's", 'Doctorate'],
+};
+
 const SHS_STRANDS = ['STEM', 'ABM', 'HUMSS', 'GAS', 'TVL', 'Sports', 'Arts & Design'];
+
+const ALL_COURSE_NAMES = new Set();
+coursesData.categories.forEach(cat => cat.courses.forEach(c => ALL_COURSE_NAMES.add(c)));
 
 const DEFAULT_LANGUAGES = [
   { language: 'English', read: false, write: false, speak: false, understand: false },
@@ -34,30 +46,15 @@ function RadioPill({ selected, onClick, children }) {
 
 export default function Step6EducationLanguage({ formData, handleChange, setFormData }) {
   const [newLanguage, setNewLanguage] = useState('');
-  const [courseSearch, setCourseSearch] = useState('');
+  const [isCustomCourse, setIsCustomCourse] = useState(
+    () => !!formData.course_or_field && !ALL_COURSE_NAMES.has(formData.course_or_field)
+  );
 
-  const isTertiaryOrHigher = ['Tertiary', 'Graduate Studies / Post-graduate'].includes(formData.highest_education);
-  const isK12 = formData.highest_education === 'Secondary (K-12)';
+  const showCourseField = ['College', 'Graduate Studies'].includes(formData.highest_education);
+  const isVocational = formData.highest_education === 'Vocational/Technical';
+  const isK12 = formData.highest_education === 'Senior High School (K-12)';
   const isCurrentlyEnrolled = formData.currently_in_school === 'yes';
-
-  // Flatten courses for search
-  const allCourses = useMemo(() => {
-    const result = [];
-    coursesData.categories.forEach(cat => {
-      cat.courses.forEach(course => {
-        result.push({ category: cat.name, course });
-      });
-    });
-    return result;
-  }, []);
-
-  const filteredCourses = useMemo(() => {
-    if (!courseSearch) return allCourses;
-    const q = courseSearch.toLowerCase();
-    return allCourses.filter(c =>
-      c.course.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)
-    );
-  }, [courseSearch, allCourses]);
+  const subLevels = EDUCATION_SUB_LEVELS[formData.highest_education] || [];
 
   // Language helpers
   const languages = formData.languages && formData.languages.length > 0
@@ -91,8 +88,21 @@ export default function Step6EducationLanguage({ formData, handleChange, setForm
       ...prev,
       highest_education: value,
       senior_high_strand: '',
+      level_reached: '',
       course_or_field: value === prev.highest_education ? prev.course_or_field : '',
     }));
+    setIsCustomCourse(false);
+  };
+
+  const handleCourseSelect = (e) => {
+    const val = e.target.value;
+    if (val === '__other__') {
+      setIsCustomCourse(true);
+      setFormData(prev => ({ ...prev, course_or_field: '' }));
+    } else {
+      setIsCustomCourse(false);
+      setFormData(prev => ({ ...prev, course_or_field: val }));
+    }
   };
 
   const handleCurrentlyInSchoolChange = (value) => {
@@ -100,7 +110,7 @@ export default function Step6EducationLanguage({ formData, handleChange, setForm
       ...prev,
       currently_in_school: value,
       currently_enrolled: value === 'yes',
-      ...(value === 'yes' ? { year_graduated: '' } : { level_reached: '', year_last_attended: '' }),
+      ...(value === 'yes' ? { year_graduated: '' } : { year_last_attended: '' }),
     }));
   };
 
@@ -130,10 +140,30 @@ export default function Step6EducationLanguage({ formData, handleChange, setForm
         >
           <option value="">Select...</option>
           {EDUCATION_LEVELS.map(level => (
-            <option key={level} value={level}>{level}</option>
+            <option key={level.value} value={level.value}>{level.label}</option>
           ))}
         </select>
       </div>
+
+      {/* Grade / Year Level */}
+      {subLevels.length > 0 && (
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">
+            Grade / Year Level <span className="text-gray-400 font-normal text-xs">(optional)</span>
+          </label>
+          <select
+            name="level_reached"
+            value={formData.level_reached || ''}
+            onChange={handleChange}
+            className="input-field w-full"
+          >
+            <option value="">Select level...</option>
+            {subLevels.map(level => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Currently in school */}
       {formData.highest_education && (
@@ -166,72 +196,57 @@ export default function Step6EducationLanguage({ formData, handleChange, setForm
         </div>
       )}
 
-      {/* Course (Tertiary+ only) */}
-      {isTertiaryOrHigher && (
+      {/* Course / Program (Vocational/Technical only) */}
+      {isVocational && (
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">
+            Course / Program <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="course_or_field"
+            value={formData.course_or_field || ''}
+            onChange={handleChange}
+            placeholder="e.g. Automotive Servicing, Electrical Installation and Maintenance"
+            className="input-field w-full"
+          />
+        </div>
+      )}
+
+      {/* Course / Field of Study (College+ only) */}
+      {showCourseField && (
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">
             Course / Field of Study <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={courseSearch || formData.course_or_field || ''}
-            onChange={(e) => setCourseSearch(e.target.value)}
-            onFocus={() => { if (formData.course_or_field && !courseSearch) setCourseSearch(''); }}
-            placeholder="Search courses..."
+          <select
+            value={isCustomCourse ? '__other__' : (formData.course_or_field || '')}
+            onChange={handleCourseSelect}
             className="input-field w-full"
-          />
-          {courseSearch && (
-            <div className="mt-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-lg">
-              {filteredCourses.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData(prev => ({ ...prev, course_or_field: courseSearch }));
-                    setCourseSearch('');
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50"
-                >
-                  Use "{courseSearch}" as custom course
-                </button>
-              ) : (
-                <>
-                  {filteredCourses.slice(0, 20).map((c, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, course_or_field: c.course }));
-                        setCourseSearch('');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 border-b border-gray-50 last:border-0"
-                    >
-                      <span className="font-medium">{c.course}</span>
-                      <span className="text-xs text-gray-400 ml-2">{c.category}</span>
-                    </button>
-                  ))}
-                  {filteredCourses.length > 20 && (
-                    <div className="px-3 py-2 text-xs text-gray-400">
-                      {filteredCourses.length - 20} more results — keep typing to narrow down
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          {formData.course_or_field && !courseSearch && (
-            <div className="mt-1 flex items-center gap-2 text-sm text-indigo-600">
-              <GraduationCap className="w-4 h-4" />
-              {formData.course_or_field}
-              <button type="button" onClick={() => setFormData(prev => ({ ...prev, course_or_field: '' }))}
-                className="text-gray-400 hover:text-red-500">
-                <X className="w-3 h-3" />
-              </button>
-            </div>
+          >
+            <option value="">Select course...</option>
+            {coursesData.categories.map(cat => (
+              <optgroup key={cat.name} label={cat.name}>
+                {cat.courses.map(course => (
+                  <option key={course} value={course}>{course}</option>
+                ))}
+              </optgroup>
+            ))}
+            <option value="__other__">Others (please specify)</option>
+          </select>
+          {isCustomCourse && (
+            <input
+              type="text"
+              value={formData.course_or_field || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, course_or_field: e.target.value }))}
+              placeholder="Enter your course or field of study..."
+              className="input-field w-full mt-2"
+            />
           )}
         </div>
       )}
 
-      {/* Year Graduated OR Level Reached */}
+      {/* Year Graduated (not currently enrolled) */}
       {formData.highest_education && !isCurrentlyEnrolled && (
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -250,36 +265,22 @@ export default function Step6EducationLanguage({ formData, handleChange, setForm
         </div>
       )}
 
+      {/* Year Last Attended (currently enrolled) */}
       {formData.highest_education && isCurrentlyEnrolled && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Level Reached <span className="text-gray-400 font-normal text-xs">(optional)</span>
-            </label>
-            <input
-              type="text"
-              name="level_reached"
-              value={formData.level_reached || ''}
-              onChange={handleChange}
-              placeholder="e.g. 3rd Year"
-              className="input-field w-full"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Year Last Attended <span className="text-gray-400 font-normal text-xs">(optional)</span>
-            </label>
-            <input
-              type="number"
-              name="year_last_attended"
-              value={formData.year_last_attended || ''}
-              onChange={handleChange}
-              placeholder="e.g. 2024"
-              min="1950"
-              max={new Date().getFullYear()}
-              className="input-field w-full"
-            />
-          </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">
+            Year Last Attended <span className="text-gray-400 font-normal text-xs">(optional)</span>
+          </label>
+          <input
+            type="number"
+            name="year_last_attended"
+            value={formData.year_last_attended || ''}
+            onChange={handleChange}
+            placeholder="e.g. 2024"
+            min="1950"
+            max={new Date().getFullYear()}
+            className="input-field w-full"
+          />
         </div>
       )}
 
