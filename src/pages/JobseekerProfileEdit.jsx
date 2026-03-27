@@ -471,6 +471,8 @@ const JobseekerProfileEdit = () => {
                 // Convert string UI values back to text[] for DB columns
                 self_employed_type: formData.self_employed_type ? [formData.self_employed_type] : [],
                 unemployment_reason: formData.unemployment_reason ? [formData.unemployment_reason] : [],
+                // Convert integer fields — empty string must become null, not ''
+                unemployment_months: formData.unemployment_months !== '' ? Number(formData.unemployment_months) : null,
                 updated_at: new Date().toISOString()
             }
 
