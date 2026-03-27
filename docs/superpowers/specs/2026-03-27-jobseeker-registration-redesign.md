@@ -247,7 +247,7 @@ This aligns with job posting `education_level: 'vocational'` (ordinal 2).
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
-| Skills | Tag input with autocomplete | Yes | Minimum 3 skills |
+| Skills | Tag input with autocomplete | No | -- |
 
 - User types a skill, hits Enter to add as a tag pill
 - Autocomplete suggests from curated skill list (optional enhancement)
@@ -260,12 +260,14 @@ This aligns with job posting `education_level: 'vocational'` (ordinal 2).
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
-| Other skills checkboxes | Checkbox pills | Yes | At least 1 selected |
+| Other skills checkboxes | Checkbox pills | No | -- |
 | If "Others": specify | Text input | Conditional | Required if "Others" checked |
 
 **Options:** Auto Mechanic, Beautician, Carpentry Work, Computer Literate, Domestic Chores, Driver, Electrician, Embroidery, Gardening, Masonry, Painter/Artist, Painting Jobs, Photography, Plumbing, Sewing Dresses, Stenography, Tailoring, Others
 
 **Pipeline behavior:** During `completeRegistration`, checked labels (excluding "Others") are merged into `skills[]` array, deduplicated case-insensitively. This makes the 18 NSRP checkbox skills visible to the matching engine.
+
+**Step 7 combined validation (Fix 1):** "Continue" is blocked unless `(skills tag input count) + (checked other_skills labels count, excluding "Others") >= 3`. Neither section is individually required — a user with 0 tag skills but 5 checked boxes passes. A user with 3 tag skills but 0 boxes also passes.
 
 **Section C: TVET/TESDA Certification (NEW — NSRP Section V-b)**
 
@@ -277,6 +279,7 @@ This aligns with job posting `education_level: 'vocational'` (ordinal 2).
 - Example title: "Shielded Metal Arc Welding NC II"
 - Stored in new columns: `tvet_certification_level`, `tvet_certification_title`
 - During alias expansion, certification title is appended to skills list for AI processing
+- **Auto-populate (Fix 2):** When `JobseekerRegistration` renders Step 7, if `formData.highest_education === 'Vocational/Technical'` and `formData.tvet_certification_title` is empty, pre-fill `tvet_certification_title` with `formData.course_or_field`. The field remains editable — the user can overwrite it if the TVET title differs from the course name.
 
 **Section D: Most Recent Work (NEW — lightweight NSRP Section VII)**
 
@@ -397,7 +400,7 @@ The existing `languages` JSONB column structure:
 4. **Step 4:** Employment status selected + relevant required sub-fields filled
 5. **Step 5:** At least 1 occupation, work type selected, location type + at least 1 location
 6. **Step 6:** Highest attainment selected, year graduated filled (unless enrolled), at least 1 language with 1 proficiency; course required if Vocational/Technical or College+
-7. **Step 7:** At least 3 skills in tag input; at least 1 other_skills checkbox; if "Others" checked, specify text required; if TVET level selected, certification title required
+7. **Step 7:** Combined skill count (tag input + checked other_skills labels, excluding "Others") >= 3; if "Others" checkbox checked, specify text required; if TVET level selected, certification title required
 8. **Step 8:** All 3 consent checkboxes checked
 
 ### Inline validation (on blur):
