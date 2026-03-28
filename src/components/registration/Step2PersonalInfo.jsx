@@ -1,141 +1,89 @@
-import { User, MapPin, Phone, Home, Building, Calendar } from 'lucide-react'
+import { User, Calendar } from 'lucide-react'
+import { FloatingLabelInput } from '../forms/FloatingLabelInput'
+import { SearchableSelect } from '../forms/SearchableSelect'
+import { AnimatedSection } from '../forms/AnimatedSection'
+import { Tooltip } from '../forms/Tooltip'
 
-const CONTACT_METHODS = [
-    { id: 'email', label: 'Email' },
-    { id: 'sms', label: 'SMS/Text' },
-    { id: 'call', label: 'Phone Call' }
-]
+const SUFFIX_OPTIONS = ['None', 'Jr.', 'Sr.', 'III', 'IV', 'V']
+const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Solo Parent']
+const DISABILITY_TYPES = ['Visual', 'Hearing', 'Speech', 'Physical', 'Mental', 'Others']
 
-const Step2PersonalInfo = ({ formData, handleChange, setFormData }) => {
-    return (
-        <div className="space-y-6">
-            <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Personal & Contact Information</h2>
-                <p className="text-gray-600">Tell us about yourself</p>
-            </div>
+function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} }) {
+  const handleDisabilityToggle = (type) => {
+    const current = formData.disability_type || []
+    const updated = current.includes(type)
+      ? current.filter(t => t !== type)
+      : [...current, type]
+    setFormData(prev => ({ ...prev, disability_type: updated }))
+  }
 
-            {/* Full Name */}
-            <div>
-                <label className="label">Full Name *</label>
-                <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                        type="text"
-                        name="full_name"
-                        value={formData.full_name}
-                        onChange={handleChange}
-                        className="input-field pl-12"
-                        placeholder="Enter your full name"
-                        required
-                    />
-                </div>
-            </div>
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FloatingLabelInput label="Surname" name="surname" value={formData.surname} onChange={handleChange} icon={User} required error={errors.surname} />
+        <FloatingLabelInput label="First Name" name="first_name" value={formData.first_name} onChange={handleChange} required error={errors.first_name} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FloatingLabelInput label="Middle Name" name="middle_name" value={formData.middle_name} onChange={handleChange} />
+        <SearchableSelect label="Suffix" name="suffix" value={formData.suffix} onChange={handleChange} options={SUFFIX_OPTIONS} placeholder="None" />
+      </div>
 
-            {/* Date of Birth */}
-            <div>
-                <label className="label">Date of Birth *</label>
-                <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                        type="date"
-                        name="date_of_birth"
-                        value={formData.date_of_birth}
-                        onChange={handleChange}
-                        className="input-field pl-12"
-                        required
-                    />
-                </div>
-            </div>
+      <FloatingLabelInput label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} type="date" icon={Calendar} required error={errors.date_of_birth} />
 
-            {/* Address */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label className="label">Barangay *</label>
-                    <div className="relative">
-                        <Home className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            name="barangay"
-                            value={formData.barangay}
-                            onChange={handleChange}
-                            className="input-field pl-12"
-                            placeholder="Barangay"
-                            required
-                        />
-                    </div>
-                </div>
-                <div>
-                    <label className="label">City *</label>
-                    <div className="relative">
-                        <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            name="city"
-                            value={formData.city}
-                            onChange={handleChange}
-                            className="input-field pl-12"
-                            placeholder="City"
-                            required
-                        />
-                    </div>
-                </div>
-                <div>
-                    <label className="label">Province *</label>
-                    <div className="relative">
-                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            name="province"
-                            value={formData.province}
-                            onChange={handleChange}
-                            className="input-field pl-12"
-                            placeholder="Province"
-                            required
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Mobile Number */}
-            <div>
-                <label className="label">Mobile Number *</label>
-                <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                        type="tel"
-                        name="mobile_number"
-                        value={formData.mobile_number}
-                        onChange={handleChange}
-                        className="input-field pl-12"
-                        placeholder="e.g., 09123456789"
-                        required
-                    />
-                </div>
-            </div>
-
-            {/* Preferred Contact Method */}
-            <div>
-                <label className="label">Preferred Communication Method *</label>
-                <div className="grid grid-cols-3 gap-3">
-                    {CONTACT_METHODS.map((method) => (
-                        <button
-                            key={method.id}
-                            type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, preferred_contact_method: method.id }))}
-                            className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                                formData.preferred_contact_method === method.id
-                                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
-                            }`}
-                        >
-                            {method.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+      <div>
+        <label className="label">Sex <span className="text-red-500">*</span></label>
+        <div className="grid grid-cols-2 gap-3">
+          {['Male', 'Female'].map(option => (
+            <button key={option} type="button" onClick={() => handleChange({ target: { name: 'sex', value: option } })}
+              className={`p-3 rounded-xl border-2 text-center transition-all duration-200 ${formData.sex === option ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
+              {option}
+            </button>
+          ))}
         </div>
-    )
+        {errors.sex && <p className="mt-1 text-sm text-red-500">{errors.sex}</p>}
+      </div>
+
+      <SearchableSelect label="Civil Status" name="civil_status" value={formData.civil_status} onChange={handleChange} options={CIVIL_STATUS_OPTIONS} required error={errors.civil_status} />
+
+      <div>
+        <label className="label">
+          Person with Disability (PWD) <span className="text-red-500">*</span>
+          <Tooltip text="Select 'Yes' if you have any form of disability. This helps us connect you with inclusive employers." />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {[{ label: 'Yes', value: true }, { label: 'No', value: false }].map(opt => (
+            <button key={opt.label} type="button"
+              onClick={() => setFormData(prev => ({ ...prev, is_pwd: opt.value, ...(!opt.value && { disability_type: [], pwd_id_number: '' }) }))}
+              className={`p-3 rounded-xl border-2 text-center transition-all duration-200 ${formData.is_pwd === opt.value ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <AnimatedSection show={formData.is_pwd === true}>
+        <div className="space-y-4 mt-4 p-4 bg-gray-50 rounded-xl">
+          <div>
+            <label className="label">
+              Disability Type <span className="text-red-500">*</span>
+              <Tooltip text="Select all types of disability that apply to you." />
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {DISABILITY_TYPES.map(type => (
+                <label key={type} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                  <input type="checkbox" checked={(formData.disability_type || []).includes(type)} onChange={() => handleDisabilityToggle(type)}
+                    className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  <span className="text-sm text-gray-700">{type}</span>
+                </label>
+              ))}
+            </div>
+            {errors.disability_type && <p className="mt-1 text-sm text-red-500">{errors.disability_type}</p>}
+          </div>
+          <FloatingLabelInput label="PWD ID Number" name="pwd_id_number" value={formData.pwd_id_number} onChange={handleChange} />
+        </div>
+      </AnimatedSection>
+    </div>
+  )
 }
 
-export { Step2PersonalInfo, CONTACT_METHODS }
-export default Step2PersonalInfo
+export { Step2PersonalInfo, SUFFIX_OPTIONS, CIVIL_STATUS_OPTIONS, DISABILITY_TYPES }
