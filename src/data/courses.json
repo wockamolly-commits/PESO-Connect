@@ -1,0 +1,237 @@
+{
+  "seniorHigh": [
+    {
+      "category": "Academic Track",
+      "courses": [
+        "ABM (Accountancy, Business and Management)",
+        "HUMSS (Humanities and Social Sciences)",
+        "STEM (Science, Technology, Engineering and Mathematics)",
+        "GAS (General Academic Strand)"
+      ]
+    },
+    {
+      "category": "TVL Track",
+      "courses": [
+        "Home Economics",
+        "Information and Communication Technology",
+        "Industrial Arts",
+        "Agri-Fishery Arts"
+      ]
+    },
+    {
+      "category": "Other Tracks",
+      "courses": [
+        "Sports Track",
+        "Arts and Design Track"
+      ]
+    }
+  ],
+  "tertiary": [
+    {
+      "category": "Humanities",
+      "courses": [
+        "Bachelor of Arts in History",
+        "Bachelor of Arts in Philosophy",
+        "Bachelor of Fine Arts Major in Industrial Design",
+        "Bachelor of Fine Arts Major in Painting",
+        "Bachelor of Fine Arts Major in Sculpture",
+        "Bachelor of Fine Arts Major in Visual Communication"
+      ]
+    },
+    {
+      "category": "Social Sciences",
+      "courses": [
+        "Bachelor of Arts in Economics",
+        "Bachelor of Science in Economics",
+        "Bachelor of Arts in Psychology",
+        "Bachelor of Science in Psychology",
+        "Bachelor of Science in Criminology",
+        "Bachelor of Arts in Political Science",
+        "Bachelor of Arts in Linguistics",
+        "Bachelor of Arts in Literature",
+        "Bachelor of Arts in English",
+        "Bachelor of Arts in Filipino",
+        "Bachelor of Arts in Anthropology",
+        "Bachelor of Arts in Sociology",
+        "Bachelor of Science in Islamic Studies"
+      ]
+    },
+    {
+      "category": "Natural Sciences",
+      "courses": [
+        "Bachelor of Science in Environmental Science",
+        "Bachelor of Science in Forestry",
+        "Bachelor of Science in Fisheries",
+        "Bachelor of Science in Geology",
+        "Bachelor of Science in Biology",
+        "Bachelor of Science in Physics",
+        "Bachelor of Science in Applied Physics",
+        "Bachelor of Science in Chemistry",
+        "Bachelor of Science in Molecular Biology",
+        "Bachelor of Science in Agroforestry"
+      ]
+    },
+    {
+      "category": "Formal Sciences",
+      "courses": [
+        "Bachelor of Science in Computer Science",
+        "Bachelor of Science in Information Technology",
+        "Bachelor of Science in Information Systems",
+        "Bachelor of Science in Mathematics",
+        "Bachelor of Science in Applied Mathematics",
+        "Bachelor of Science in Statistics"
+      ]
+    },
+    {
+      "category": "Agriculture",
+      "courses": [
+        "Bachelor of Science in Agriculture",
+        "Bachelor of Science in Agribusiness"
+      ]
+    },
+    {
+      "category": "Architecture and Design",
+      "courses": [
+        "Bachelor of Science in Architecture",
+        "Bachelor of Science in Interior Design",
+        "Bachelor in Landscape Architecture"
+      ]
+    },
+    {
+      "category": "Business",
+      "courses": [
+        "Bachelor of Science in Accountancy",
+        "Bachelor of Science in Accounting Technology",
+        "Bachelor of Science in Business Administration (Business Economics)",
+        "Bachelor of Science in Business Administration (Financial Management)",
+        "Bachelor of Science in Business Administration (Human Resource Development)",
+        "Bachelor of Science in Business Administration (Marketing Management)",
+        "Bachelor of Science in Business Administration (Operations Management)",
+        "Bachelor of Science in Hotel and Restaurant Management",
+        "Bachelor of Science in Entrepreneurship",
+        "Bachelor of Science in Tourism Management",
+        "Bachelor of Science in Real Estate Management"
+      ]
+    },
+    {
+      "category": "Health Sciences",
+      "courses": [
+        "Bachelor of Science in Nursing",
+        "Bachelor of Science in Physical Therapy",
+        "Bachelor of Science in Occupational Therapy",
+        "Bachelor of Science in Pharmacy",
+        "Bachelor of Science in Midwifery",
+        "Bachelor of Science in Medical Technology",
+        "Bachelor of Science in Radiologic Technology",
+        "Bachelor of Science in Respiratory Therapy",
+        "Bachelor of Science in Speech-Language Pathology"
+      ]
+    },
+    {
+      "category": "Education",
+      "courses": [
+        "Bachelor in Secondary Education",
+        "Bachelor in Elementary Education",
+        "Bachelor in Secondary Education (Technology and Livelihood Education)",
+        "Bachelor in Secondary Education (Biological Sciences)",
+        "Bachelor in Secondary Education (English)",
+        "Bachelor in Secondary Education (Filipino)",
+        "Bachelor in Secondary Education (Mathematics)",
+        "Bachelor in Secondary Education (Islamic Studies)",
+        "Bachelor in Secondary Education (MAPEH)",
+        "Bachelor in Secondary Education (Physical Sciences)",
+        "Bachelor in Secondary Education (Social Studies)",
+        "Bachelor in Secondary Education (Values Education)",
+        "Bachelor in Elementary Education (Preschool Education)",
+        "Bachelor in Elementary Education (Special Education)",
+        "Bachelor of Library and Information Science",
+        "Bachelor of Physical Education",
+        "Bachelor of Sports Science"
+      ]
+    },
+    {
+      "category": "Engineering",
+      "courses": [
+        "Bachelor of Science in Aeronautical Engineering",
+        "Bachelor of Science in Chemical Engineering",
+        "Bachelor of Science in Ceramic Engineering",
+        "Bachelor of Science in Civil Engineering",
+        "Bachelor of Science in Electrical Engineering",
+        "Bachelor of Science in Electronics and Communications Engineering",
+        "Bachelor of Science in Geodetic Engineering",
+        "Bachelor of Science in Geological Engineering",
+        "Bachelor of Science in Industrial Engineering",
+        "Bachelor of Science in Marine Engineering",
+        "Bachelor of Science in Materials Engineering",
+        "Bachelor of Science in Mechanical Engineering",
+        "Bachelor of Science in Metallurgical Engineering",
+        "Bachelor of Science in Mining Engineering",
+        "Bachelor of Science in Sanitary Engineering",
+        "Bachelor of Science in Computer Engineering",
+        "Bachelor of Science in Agricultural Engineering",
+        "Bachelor of Science in Petroleum Engineering"
+      ]
+    },
+    {
+      "category": "Media and Communication",
+      "courses": [
+        "Bachelor of Science in Development Communication",
+        "Bachelor of Arts in Journalism",
+        "Bachelor of Arts in Communication",
+        "Bachelor of Arts in Broadcasting"
+      ]
+    },
+    {
+      "category": "Public Administration",
+      "courses": [
+        "Bachelor of Science in Customs Administration",
+        "Bachelor of Science in Community Development",
+        "Bachelor of Science in Foreign Service",
+        "Bachelor of Arts in International Studies",
+        "Bachelor of Public Administration",
+        "Bachelor of Science in Social Work",
+        "Bachelor of Science in Public Safety"
+      ]
+    },
+    {
+      "category": "Transportation",
+      "courses": [
+        "Bachelor of Science in Marine Transportation"
+      ]
+    },
+    {
+      "category": "Family and Consumer Science",
+      "courses": [
+        "Bachelor of Science in Nutrition and Dietetics"
+      ]
+    },
+    {
+      "category": "Criminal Justice",
+      "courses": [
+        "Bachelor of Science in Forensic Science"
+      ]
+    }
+  ],
+  "graduate": [
+    {
+      "category": "Master's Programs",
+      "courses": [
+        "Master of Arts (MA)",
+        "Master of Science (MS)",
+        "Master of Business Administration (MBA)",
+        "Master in Public Administration (MPA)",
+        "Master of Education (MEd)",
+        "Master of Engineering (MEng)"
+      ]
+    },
+    {
+      "category": "Doctoral Programs",
+      "courses": [
+        "Doctor of Philosophy (PhD)",
+        "Doctor of Education (EdD)",
+        "Doctor of Medicine (MD)",
+        "Doctor of Juridical Science (JSD)"
+      ]
+    }
+  ]
+}
