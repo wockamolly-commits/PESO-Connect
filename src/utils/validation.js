@@ -122,6 +122,46 @@ export const validators = {
         if (maxDate && d > new Date(maxDate)) return `Date must be before ${maxDate}`
         return null
     },
+
+    age: (dateOfBirth, minAge = 15) => {
+        if (!dateOfBirth) return null
+        const today = new Date()
+        const birth = new Date(dateOfBirth)
+        let age = today.getFullYear() - birth.getFullYear()
+        const monthDiff = today.getMonth() - birth.getMonth()
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+            age--
+        }
+        if (age < minAge) return `Must be at least ${minAge} years old`
+        return null
+    },
+
+    conditionalRequired: (value, condition, fieldName) => {
+        if (condition && (!value || (Array.isArray(value) && value.length === 0) || (typeof value === 'string' && value.trim() === ''))) {
+            return `${fieldName} is required`
+        }
+        return null
+    },
+
+    atLeastOneLocation: (localLocations, overseasLocations) => {
+        const hasLocal = localLocations && localLocations.some(l => l && l.trim() !== '')
+        const hasOverseas = overseasLocations && overseasLocations.some(l => l && l.trim() !== '')
+        if (!hasLocal && !hasOverseas) return 'At least one preferred work location is required'
+        return null
+    },
+
+    atLeastOneSkill: (predefinedSkills, customSkills) => {
+        const hasPredefined = predefinedSkills && predefinedSkills.length > 0
+        const hasCustom = customSkills && customSkills.length > 0
+        if (!hasPredefined && !hasCustom) return 'At least one skill is required'
+        return null
+    },
+
+    atLeastOneOccupation: (occupations) => {
+        const hasOne = occupations && occupations.some(o => o && o.trim() !== '')
+        if (!hasOne) return 'At least one preferred occupation is required'
+        return null
+    },
 }
 
 /**
