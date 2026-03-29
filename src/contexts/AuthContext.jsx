@@ -14,9 +14,10 @@ export const AuthProvider = ({ children }) => {
     const passwordResetInProgressRef = useRef(false)
 
     const BASE_FIELDS = new Set([
-        'id', 'email', 'role', 'subtype', 'name', 'is_verified',
-        'registration_complete', 'registration_step', 'profile_photo',
-        'created_at', 'updated_at',
+        'id', 'email', 'role', 'subtype', 'name',
+        'surname', 'first_name', 'middle_name', 'suffix',
+        'is_verified', 'registration_complete', 'registration_step',
+        'profile_photo', 'created_at', 'updated_at',
     ])
 
     const fetchUserData = async (userId) => {
@@ -56,6 +57,13 @@ export const AuthProvider = ({ children }) => {
             else if (merged[key] === undefined) merged[key] = val
         })
 
+        // Compose display_name from split name fields (with full_name fallback)
+        if (merged.first_name || merged.surname) {
+            merged.display_name = [merged.first_name, merged.surname].filter(Boolean).join(' ')
+        } else if (merged.full_name) {
+            merged.display_name = merged.full_name
+        }
+
         setUserData(merged)
         try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(merged)) } catch {}
         return merged
@@ -90,6 +98,11 @@ export const AuthProvider = ({ children }) => {
             role,
             subtype,
             name: '',
+            surname: '',
+            first_name: '',
+            middle_name: '',
+            suffix: '',
+            display_name: '',
             registration_complete: false,
             registration_step: 1,
             is_verified: role === ROLES.USER && subtype === SUBTYPES.HOMEOWNER,
