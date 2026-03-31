@@ -29,7 +29,7 @@ const JobseekerCard = ({
                     </div>
                     <div className="min-w-0">
                         <h3 className="font-semibold text-slate-100 truncate">
-                            {jobseeker.full_name || jobseeker.name || 'Unnamed User'}
+                            {jobseeker.display_name || jobseeker.full_name || jobseeker.name || 'Unnamed User'}
                         </h3>
                         <p className="text-sm text-slate-500 truncate">
                             {jobseeker.email} &bull; {jobseeker.skills?.length || 0} skill(s)
@@ -76,7 +76,7 @@ const JobseekerCard = ({
                             </h4>
                             <div className="space-y-2.5 text-sm">
                                 {[
-                                    ['Full Name', jobseeker.full_name || jobseeker.name],
+                                    ['Full Name', jobseeker.display_name || jobseeker.full_name || jobseeker.name],
                                     ['Date of Birth', jobseeker.date_of_birth],
                                     ['Address', `${jobseeker.barangay || ''}, ${jobseeker.city || ''}, ${jobseeker.province || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || '\u2014'],
                                     ['Mobile', jobseeker.mobile_number],
@@ -213,7 +213,7 @@ const JobseekerCard = ({
                             {/* Resume */}
                             {jobseeker.resume_url ? (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onViewDocument(jobseeker.resume_url, `Resume \u2014 ${jobseeker.full_name || jobseeker.name}`) }}
+                                    onClick={(e) => { e.stopPropagation(); onViewDocument(jobseeker.resume_url, `Resume \u2014 ${jobseeker.display_name || jobseeker.full_name || jobseeker.name}`) }}
                                     className="group p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl hover:border-indigo-500/30 hover:bg-slate-800 transition-all text-left"
                                 >
                                     <div className="flex items-center justify-between mb-2">

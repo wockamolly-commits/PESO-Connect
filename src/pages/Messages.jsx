@@ -68,10 +68,10 @@ const Messages = () => {
                     .maybeSingle()
 
                 const conversation = await getOrCreateConversation(
-                    { uid: currentUser.uid, name: userData.name, role: userData.role },
+                    { uid: currentUser.uid, name: userData.display_name || userData.full_name || userData.name, role: userData.role },
                     {
                         uid: startWith,
-                        name: otherUserData?.name || 'User',
+                        name: otherUserData?.display_name || otherUserData?.full_name || otherUserData?.name || 'User',
                         role: otherUserData?.role || 'unknown'
                     },
                     jobId ? { jobId, jobTitle: jobTitle || '' } : null

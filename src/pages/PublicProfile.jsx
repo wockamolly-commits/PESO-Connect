@@ -79,7 +79,7 @@ const PublicProfile = () => {
     }
 
     const isOwn = currentUser?.uid === userId
-    const initial = (profile.full_name || profile.company_name || profile.name || '?').charAt(0).toUpperCase()
+    const initial = (profile.display_name || profile.full_name || profile.company_name || profile.name || '?').charAt(0).toUpperCase()
 
     // Privacy: check profile visibility settings
     const isRestricted = !isOwn
@@ -116,7 +116,7 @@ const PublicProfile = () => {
                             </div>
                         )}
                         <h1 className="text-2xl font-bold text-gray-900">
-                            {profile.role === 'employer' ? profile.company_name : (profile.full_name || profile.name)}
+                            {profile.role === 'employer' ? profile.company_name : (profile.display_name || profile.full_name || profile.name)}
                         </h1>
                         {profile.role === 'employer' && profile.nature_of_business && (
                             <p className="text-gray-500 mt-1">{profile.nature_of_business}</p>

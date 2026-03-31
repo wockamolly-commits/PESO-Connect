@@ -216,7 +216,7 @@ const JobDetail = () => {
                     job_id: id,
                     job_title: job.title,
                     user_id: currentUser.uid,
-                    applicant_name: userData?.full_name || userData?.name || 'Unknown',
+                    applicant_name: userData?.display_name || userData?.full_name || userData?.name || 'Unknown',
                     applicant_email: userData?.email || '',
                     applicant_skills: userData?.skills || [],
                     justification_text: justification || null,
@@ -270,8 +270,8 @@ const JobDetail = () => {
                         job.employer_id,
                         'new_application',
                         `New application for ${job.title}`,
-                        `${userData?.full_name || userData?.name || 'A jobseeker'} applied for ${job.title}.`,
-                        { job_id: id, job_title: job.title, applicant_name: userData?.full_name || userData?.name || 'Unknown' }
+                        `${userData?.display_name || userData?.full_name || userData?.name || 'A jobseeker'} applied for ${job.title}.`,
+                        { job_id: id, job_title: job.title, applicant_name: userData?.display_name || userData?.full_name || userData?.name || 'Unknown' }
                     )
                 }
             } catch (err) {
@@ -279,7 +279,7 @@ const JobDetail = () => {
             }
 
             // Send lifecycle emails (fail-silent)
-            const applicantName = userData?.full_name || userData?.name || 'Applicant'
+            const applicantName = userData?.display_name || userData?.full_name || userData?.name || 'Applicant'
             try {
                 await sendApplicationReceivedEmail(userData?.email, applicantName, job.title)
             } catch (err) {
@@ -289,13 +289,16 @@ const JobDetail = () => {
                 if (job.employer_id) {
                     const { data: employer } = await supabase
                         .from('users')
-                        .select('email, full_name, name')
+                        .select('email, full_name, name, first_name, surname')
                         .eq('id', job.employer_id)
                         .maybeSingle()
                     if (employer?.email) {
+                        const employerName = (employer.first_name && employer.surname)
+                            ? `${employer.first_name} ${employer.surname}`
+                            : employer.full_name || employer.name || job.employer_name || 'Employer'
                         await sendNewApplicantEmail(
                             employer.email,
-                            employer.full_name || employer.name || job.employer_name || 'Employer',
+                            employerName,
                             applicantName,
                             job.title
                         )
@@ -958,7 +961,7 @@ const JobDetail = () => {
 
                                 <div className="p-3 bg-gray-50 rounded-lg">
                                     <p className="text-xs text-gray-500">Applicant</p>
-                                    <p className="font-medium text-gray-900">{userData?.full_name || userData?.name}</p>
+                                    <p className="font-medium text-gray-900">{userData?.display_name || userData?.full_name || userData?.name}</p>
                                     <p className="text-sm text-gray-600">{userData?.email}</p>
                                 </div>
 

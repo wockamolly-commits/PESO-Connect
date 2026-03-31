@@ -38,7 +38,7 @@ const JobseekerVerificationSection = ({
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase()
             filtered = filtered.filter(j =>
-                (j.full_name || j.name || '').toLowerCase().includes(q) ||
+                (j.display_name || j.full_name || j.name || '').toLowerCase().includes(q) ||
                 (j.email || '').toLowerCase().includes(q)
             )
         }

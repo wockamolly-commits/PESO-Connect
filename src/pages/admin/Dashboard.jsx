@@ -127,7 +127,7 @@ const AdminDashboard = () => {
                     } else if (userRole === 'jobseeker') {
                         await sendJobseekerVerifiedEmail({
                             email: user.email,
-                            full_name: user.full_name || user.name
+                            full_name: user.display_name || user.full_name || user.name
                         })
                     }
                 }
@@ -182,7 +182,7 @@ const AdminDashboard = () => {
                     } else if (userRole === 'jobseeker') {
                         await sendJobseekerRejectedEmail({
                             email: user.email,
-                            full_name: user.full_name || user.name,
+                            full_name: user.display_name || user.full_name || user.name,
                             rejection_reason: rejectReason
                         })
                     }
