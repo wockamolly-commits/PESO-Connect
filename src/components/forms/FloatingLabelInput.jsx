@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 function FloatingLabelInput({ label, name, value, onChange, type = 'text', icon: Icon, required, error, helpTooltip, ...props }) {
   const [focused, setFocused] = useState(false)
-  const isActive = focused || (value && value.length > 0)
+  const isActive = focused || (value && value.length > 0) || type === 'date'
 
   return (
     <div className="relative">
@@ -32,8 +32,8 @@ function FloatingLabelInput({ label, name, value, onChange, type = 'text', icon:
           absolute transition-all duration-200 pointer-events-none
           ${Icon ? 'left-12' : 'left-4'}
           ${isActive
-            ? '-top-2.5 left-3 text-xs bg-white px-1 ' + (error ? 'text-red-500' : 'text-primary-600')
-            : 'top-3 text-sm text-gray-400'
+            ? '-top-2.5 left-3 text-xs bg-white px-1 translate-y-0 ' + (error ? 'text-red-500' : 'text-primary-600')
+            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400'
           }
         `}
       >

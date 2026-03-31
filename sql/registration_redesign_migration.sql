@@ -37,10 +37,11 @@ ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS preferred_local_l
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS preferred_overseas_locations TEXT[] DEFAULT '{}';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS dole_authorization BOOLEAN DEFAULT false;
 
--- Rename gender to sex
+-- Rename gender to sex (only if gender exists AND sex does not)
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'jobseeker_profiles' AND column_name = 'gender') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'jobseeker_profiles' AND column_name = 'gender')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'jobseeker_profiles' AND column_name = 'sex') THEN
     ALTER TABLE public.jobseeker_profiles RENAME COLUMN gender TO sex;
   END IF;
 END $$;

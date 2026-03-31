@@ -62,8 +62,8 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
           absolute transition-all duration-200 pointer-events-none
           ${Icon ? 'left-12' : 'left-4'}
           ${isActive
-            ? '-top-2.5 left-3 text-xs bg-white px-1 ' + (error ? 'text-red-500' : 'text-primary-600')
-            : 'top-3 text-sm text-gray-400'
+            ? '-top-2.5 left-3 text-xs bg-white px-1 translate-y-0 ' + (error ? 'text-red-500' : 'text-primary-600')
+            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400'
           }
         `}
       >
