@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../config/supabase'
 import { sendJobseekerRegistrationEmail } from '../services/emailService'
 import { validators } from '../utils/validation'
-import { normalizeSkillName, deduplicateSkills } from '../services/geminiService'
 import {
     Loader2, AlertCircle, ChevronRight, ChevronLeft, CheckCircle
 } from 'lucide-react'
@@ -12,63 +11,88 @@ import { StepIndicator } from '../components/forms'
 import {
     Step1AccountCredentials,
     Step2PersonalInfo,
-    Step3EmploymentPreferences,
+    Step3ContactEmployment,
     Step4Education,
     Step5SkillsExperience,
-    Step6Consent
+    Step6JobPreferences,
+    Step7Consent
 } from '../components/registration'
+
+const TOTAL_STEPS = 7
 
 const JobseekerRegistration = () => {
     const [currentStep, setCurrentStep] = useState(1)
     const [formData, setFormData] = useState({
-        // Account Credentials
+        // Step 1: Account Credentials
         email: '',
         password: '',
         confirmPassword: '',
 
-        // Personal Information
-        full_name: '',
+        // Step 2: Personal Information
+        surname: '',
+        first_name: '',
+        middle_name: '',
+        suffix: '',
         date_of_birth: '',
+        sex: '',
+        civil_status: '',
+        is_pwd: false,
+        disability_type: [],
+        pwd_id_number: '',
+
+        // Step 3: Contact & Employment
+        street_address: '',
         barangay: '',
         city: '',
         province: '',
-
-        // Contact Information
         mobile_number: '',
         preferred_contact_method: 'email',
+        employment_status: '',
+        employment_type: '',
+        self_employment_type: '',
+        self_employment_specify: '',
+        unemployment_reason: '',
+        months_looking_for_work: '',
 
-        // Employment Preferences
-        preferred_job_type: [],
-        preferred_job_location: '',
-        expected_salary_min: '',
-        expected_salary_max: '',
-        willing_to_relocate: 'no',
-
-        // Educational Background
+        // Step 4: Education & Training
+        currently_in_school: false,
         highest_education: '',
         school_name: '',
         course_or_field: '',
         year_graduated: '',
+        education_level_reached: '',
+        year_last_attended: '',
+        vocational_training: [],
 
-        // Skills and Work Experience
+        // Step 5: Skills, Licenses & Experience
+        predefined_skills: [],
         skills: [],
+        professional_licenses: [],
+        civil_service_eligibility: '',
+        civil_service_date: '',
         work_experiences: [],
-        certifications: [],
         portfolio_url: '',
+        resume_url: '',
+        certificate_urls: [],
 
-        // Consent
+        // Step 6: Job Preferences & Language
+        preferred_job_type: [],
+        preferred_occupations: ['', '', ''],
+        preferred_local_locations: ['', '', ''],
+        preferred_overseas_locations: ['', '', ''],
+        expected_salary_min: '',
+        expected_salary_max: '',
+        willing_to_relocate: 'no',
+        languages: [],
+
+        // Step 7: Consent
         terms_accepted: false,
         data_processing_consent: false,
         peso_verification_consent: false,
-        info_accuracy_confirmation: false
+        info_accuracy_confirmation: false,
+        dole_authorization: false
     })
 
-    const [skillInput, setSkillInput] = useState('')
-    const [workExpInput, setWorkExpInput] = useState({ company: '', position: '', duration: '' })
-    const [certInput, setCertInput] = useState('')
-    const [resumeFile, setResumeFile] = useState(null)
-    const [resumeUrl, setResumeUrl] = useState('')
-    const [certificateFiles, setCertificateFiles] = useState([])
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
@@ -78,10 +102,17 @@ const JobseekerRegistration = () => {
     const [touchedFields, setTouchedFields] = useState({})
     const restoredRef = useRef(false)
 
-    const { createAccount, saveRegistrationStep, completeRegistration, compressAndEncode, currentUser, userData } = useAuth()
+    const { createAccount, saveRegistrationStep, completeRegistration, currentUser, userData } = useAuth()
     const navigate = useNavigate()
 
     const passwordStrength = validators.passwordStrength(formData.password)
+
+    // Auto-save form state to localStorage
+    useEffect(() => {
+        if (currentUser?.uid) {
+            localStorage.setItem(`peso-reg-draft-${currentUser.uid}`, JSON.stringify(formData))
+        }
+    }, [formData, currentUser?.uid])
 
     // Restore saved progress only once on initial load
     useEffect(() => {
@@ -92,33 +123,71 @@ const JobseekerRegistration = () => {
             setFormData(prev => ({
                 ...prev,
                 email: userData.email || '',
-                full_name: userData.full_name || '',
+                surname: userData.surname || '',
+                first_name: userData.first_name || '',
+                middle_name: userData.middle_name || '',
+                suffix: userData.suffix || '',
                 date_of_birth: userData.date_of_birth || '',
+                sex: userData.sex || '',
+                civil_status: userData.civil_status || '',
+                is_pwd: userData.is_pwd || false,
+                disability_type: userData.disability_type || [],
+                pwd_id_number: userData.pwd_id_number || '',
+                street_address: userData.street_address || '',
                 barangay: userData.barangay || '',
                 city: userData.city || '',
                 province: userData.province || '',
                 mobile_number: userData.mobile_number || '',
                 preferred_contact_method: userData.preferred_contact_method || 'email',
-                preferred_job_type: userData.preferred_job_type || [],
-                preferred_job_location: userData.preferred_job_location || '',
-                expected_salary_min: userData.expected_salary_min || '',
-                expected_salary_max: userData.expected_salary_max || '',
-                willing_to_relocate: userData.willing_to_relocate || 'no',
+                employment_status: userData.employment_status || '',
+                employment_type: userData.employment_type || '',
+                self_employment_type: userData.self_employment_type || '',
+                self_employment_specify: userData.self_employment_specify || '',
+                unemployment_reason: userData.unemployment_reason || '',
+                months_looking_for_work: userData.months_looking_for_work || '',
+                currently_in_school: userData.currently_in_school || false,
                 highest_education: userData.highest_education || '',
                 school_name: userData.school_name || '',
                 course_or_field: userData.course_or_field || '',
                 year_graduated: userData.year_graduated || '',
+                education_level_reached: userData.education_level_reached || '',
+                year_last_attended: userData.year_last_attended || '',
+                vocational_training: userData.vocational_training || [],
+                predefined_skills: userData.predefined_skills || [],
                 skills: userData.skills || [],
+                professional_licenses: userData.professional_licenses || [],
+                civil_service_eligibility: userData.civil_service_eligibility || '',
+                civil_service_date: userData.civil_service_date || '',
                 work_experiences: userData.work_experiences || [],
-                certifications: userData.certifications || [],
                 portfolio_url: userData.portfolio_url || '',
+                resume_url: userData.resume_url || '',
+                certificate_urls: userData.certificate_urls || [],
+                preferred_job_type: userData.preferred_job_type || [],
+                preferred_occupations: userData.preferred_occupations || ['', '', ''],
+                preferred_local_locations: userData.preferred_local_locations || ['', '', ''],
+                preferred_overseas_locations: userData.preferred_overseas_locations || ['', '', ''],
+                expected_salary_min: userData.expected_salary_min || '',
+                expected_salary_max: userData.expected_salary_max || '',
+                willing_to_relocate: userData.willing_to_relocate || 'no',
+                languages: userData.languages || [],
                 terms_accepted: userData.terms_accepted || false,
                 data_processing_consent: userData.data_processing_consent || false,
                 peso_verification_consent: userData.peso_verification_consent || false,
                 info_accuracy_confirmation: userData.info_accuracy_confirmation || false,
+                dole_authorization: userData.dole_authorization || false,
             }))
+
+            // Also restore from localStorage draft if available
+            const draft = localStorage.getItem(`peso-reg-draft-${userData.id}`)
+            if (draft) {
+                try {
+                    const parsed = JSON.parse(draft)
+                    setFormData(prev => ({ ...prev, ...parsed }))
+                } catch (e) { /* ignore parse errors */ }
+            }
+
             const savedStep = userData.registration_step || 1
-            setCurrentStep(Math.min(savedStep + 1, totalSteps))
+            setCurrentStep(Math.min(savedStep + 1, TOTAL_STEPS))
         }
     }, [userData])
 
@@ -126,7 +195,6 @@ const JobseekerRegistration = () => {
         const { name } = e.target
         setTouchedFields(prev => ({ ...prev, [name]: true }))
 
-        // Inline validation on blur
         let fieldError = null
         switch (name) {
             case 'email':
@@ -141,8 +209,11 @@ const JobseekerRegistration = () => {
             case 'mobile_number':
                 fieldError = validators.required(formData.mobile_number, 'Mobile number') || validators.phone(formData.mobile_number)
                 break
-            case 'full_name':
-                fieldError = validators.required(formData.full_name, 'Full name')
+            case 'surname':
+                fieldError = validators.required(formData.surname, 'Surname')
+                break
+            case 'first_name':
+                fieldError = validators.required(formData.first_name, 'First name')
                 break
             case 'expected_salary_min':
             case 'expected_salary_max':
@@ -157,8 +228,6 @@ const JobseekerRegistration = () => {
         setFieldErrors(prev => ({ ...prev, [name]: fieldError }))
     }, [formData])
 
-    const totalSteps = 6
-
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target
         setFormData(prev => ({
@@ -167,205 +236,148 @@ const JobseekerRegistration = () => {
         }))
     }
 
-    const handleJobTypeToggle = (type) => {
-        setFormData(prev => ({
-            ...prev,
-            preferred_job_type: prev.preferred_job_type.includes(type)
-                ? prev.preferred_job_type.filter(t => t !== type)
-                : [...prev.preferred_job_type, type]
-        }))
-    }
+    const validateStep = () => {
+        const newErrors = {}
 
-    const addSkill = () => {
-        const normalized = normalizeSkillName(skillInput.trim())
-        if (normalized && !formData.skills.includes(normalized)) {
-            setFormData(prev => ({ ...prev, skills: [...prev.skills, normalized] }))
-            setSkillInput('')
-        }
-    }
-
-    const removeSkill = (skillToRemove) => {
-        setFormData(prev => ({
-            ...prev,
-            skills: prev.skills.filter(skill => skill !== skillToRemove)
-        }))
-    }
-
-    const addWorkExperience = () => {
-        if (workExpInput.company.trim() && workExpInput.position.trim()) {
-            setFormData(prev => ({
-                ...prev,
-                work_experiences: [...prev.work_experiences, { ...workExpInput }]
-            }))
-            setWorkExpInput({ company: '', position: '', duration: '' })
-        }
-    }
-
-    const removeWorkExp = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            work_experiences: prev.work_experiences.filter((_, i) => i !== index)
-        }))
-    }
-
-    const addCertification = () => {
-        if (certInput.trim() && !formData.certifications.includes(certInput.trim())) {
-            setFormData(prev => ({ ...prev, certifications: [...prev.certifications, certInput.trim()] }))
-            setCertInput('')
-        }
-    }
-
-    const removeCertification = (certToRemove) => {
-        setFormData(prev => ({
-            ...prev,
-            certifications: prev.certifications.filter(cert => cert !== certToRemove)
-        }))
-    }
-
-    const handleResumeChange = (e) => {
-        const file = e.target.files[0]
-        if (file) {
-            const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-            if (!validTypes.includes(file.type)) {
-                setError('Resume must be PDF or DOC format')
-                return
-            }
-            if (file.size > 2 * 1024 * 1024) {
-                setError('Resume must be under 2MB')
-                return
-            }
-            setResumeFile(file)
-            setError('')
-        }
-    }
-
-    const handleCertificateChange = (e) => {
-        const files = Array.from(e.target.files)
-        const validFiles = []
-
-        for (const file of files) {
-            const validTypes = ['application/pdf', 'image/jpeg', 'image/png']
-            if (!validTypes.includes(file.type)) {
-                setError('Certificates must be PDF, JPG, or PNG format')
-                continue
-            }
-            if (file.size > 2 * 1024 * 1024) {
-                setError('Each certificate must be under 2MB')
-                continue
-            }
-            validFiles.push(file)
-        }
-
-        setCertificateFiles(prev => [...prev, ...validFiles])
-        setError('')
-    }
-
-    const removeCertificateFile = (index) => {
-        setCertificateFiles(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const validateStep = (step) => {
-        setError('')
-
-        switch (step) {
+        switch (currentStep) {
             case 1:
-                if (!formData.email || !formData.password || !formData.confirmPassword) {
-                    setError('Please fill in all required fields')
-                    return false
-                }
-                if (formData.password !== formData.confirmPassword) {
-                    setError('Passwords do not match')
-                    return false
-                }
-                if (formData.password.length < 8) {
-                    setError('Password must be at least 8 characters')
-                    return false
-                }
-                if (!/[a-zA-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
-                    setError('Password must contain at least one letter and one number')
-                    return false
-                }
+                if (!formData.email) newErrors.email = 'Email is required'
+                else if (validators.email(formData.email)) newErrors.email = 'Invalid email format'
+                if (!formData.password) newErrors.password = 'Password is required'
+                else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters'
+                else if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) newErrors.password = 'Password must contain at least one letter and one number'
+                if (!formData.confirmPassword) newErrors.confirmPassword = 'Please confirm your password'
+                else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match'
                 break
-
             case 2:
-                if (!formData.full_name || !formData.date_of_birth || !formData.barangay ||
-                    !formData.city || !formData.province || !formData.mobile_number) {
-                    setError('Please fill in all required fields')
-                    return false
+                if (!formData.surname || formData.surname.trim().length < 2) newErrors.surname = 'Surname is required (min 2 characters)'
+                if (!formData.first_name || formData.first_name.trim().length < 2) newErrors.first_name = 'First name is required (min 2 characters)'
+                if (!formData.date_of_birth) newErrors.date_of_birth = 'Date of birth is required'
+                else {
+                    const ageError = validators.age(formData.date_of_birth, 15)
+                    if (ageError) newErrors.date_of_birth = ageError
+                }
+                if (!formData.sex) newErrors.sex = 'Sex is required'
+                if (!formData.civil_status) newErrors.civil_status = 'Civil status is required'
+                if (formData.is_pwd === true && (!formData.disability_type || formData.disability_type.length === 0)) {
+                    newErrors.disability_type = 'Select at least one disability type'
                 }
                 break
-
             case 3:
-                if (formData.preferred_job_type.length === 0 || !formData.preferred_job_location) {
-                    setError('Please select at least one job type and specify preferred location')
-                    return false
-                }
+                if (!formData.street_address) newErrors.street_address = 'Street address is required'
+                if (!formData.province) newErrors.province = 'Province is required'
+                if (!formData.city) newErrors.city = 'Municipality/City is required'
+                if (!formData.barangay) newErrors.barangay = 'Barangay is required'
+                if (!formData.mobile_number) newErrors.mobile_number = 'Mobile number is required'
+                else if (validators.phone(formData.mobile_number)) newErrors.mobile_number = 'Invalid Philippine phone format (09XXXXXXXXX)'
+                if (!formData.employment_status) newErrors.employment_status = 'Employment status is required'
+                if (formData.employment_status === 'Employed' && !formData.employment_type) newErrors.employment_type = 'Employment type is required'
+                if (formData.employment_status === 'Self-Employed' && !formData.self_employment_type) newErrors.self_employment_type = 'Self-employment type is required'
+                if (formData.self_employment_type === 'Others' && !formData.self_employment_specify) newErrors.self_employment_specify = 'Please specify'
+                if (formData.employment_status === 'Unemployed' && !formData.unemployment_reason) newErrors.unemployment_reason = 'Unemployment reason is required'
                 break
-
             case 4:
-                if (!formData.highest_education || !formData.school_name) {
-                    setError('Please fill in your educational background')
-                    return false
+                if (!formData.highest_education) newErrors.highest_education = 'Education level is required'
+                if (!formData.school_name) newErrors.school_name = 'School name is required'
+                break
+            case 5: {
+                const skillsError = validators.atLeastOneSkill(formData.predefined_skills, formData.skills)
+                if (skillsError) newErrors.skills = skillsError
+                if (!formData.resume_url) newErrors.resume_url = 'Resume is required'
+                ;(formData.work_experiences || []).forEach((exp, i) => {
+                    if (!exp.company) newErrors[`exp_company_${i}`] = 'Company name is required'
+                    if (!exp.position) newErrors[`exp_position_${i}`] = 'Position is required'
+                })
+                break
+            }
+            case 6: {
+                if (!formData.preferred_job_type || formData.preferred_job_type.length === 0) newErrors.preferred_job_type = 'Select at least one job type'
+                const occError = validators.atLeastOneOccupation(formData.preferred_occupations)
+                if (occError) newErrors.preferred_occupations = occError
+                const locError = validators.atLeastOneLocation(formData.preferred_local_locations, formData.preferred_overseas_locations)
+                if (locError) newErrors.locations = locError
+                if (formData.expected_salary_min && formData.expected_salary_max) {
+                    const salaryError = validators.salaryRange(formData.expected_salary_min, formData.expected_salary_max)
+                    if (salaryError) newErrors.salary = salaryError
                 }
                 break
-
-            case 5:
-                if (formData.skills.length === 0) {
-                    setError('Please add at least one skill')
-                    return false
-                }
-                if (!resumeUrl && !userData?.resume_url) {
-                    setError('Please upload your resume')
-                    return false
+            }
+            case 7:
+                if (!formData.terms_accepted || !formData.data_processing_consent || !formData.peso_verification_consent || !formData.info_accuracy_confirmation || !formData.dole_authorization) {
+                    newErrors.consent = 'All consent checkboxes must be accepted'
                 }
                 break
-
-            case 6:
-                if (!formData.terms_accepted || !formData.data_processing_consent ||
-                    !formData.peso_verification_consent || !formData.info_accuracy_confirmation) {
-                    setError('You must accept all terms and confirmations to proceed')
-                    return false
-                }
+            default:
                 break
         }
 
-        return true
+        setFieldErrors(newErrors)
+        return Object.keys(newErrors).length === 0
     }
 
     const getStepData = (step) => {
         switch (step) {
             case 2:
                 return {
-                    name: formData.full_name,
-                    full_name: formData.full_name,
+                    surname: formData.surname,
+                    first_name: formData.first_name,
+                    middle_name: formData.middle_name,
+                    suffix: formData.suffix,
                     date_of_birth: formData.date_of_birth,
+                    sex: formData.sex,
+                    civil_status: formData.civil_status,
+                    is_pwd: formData.is_pwd,
+                    disability_type: formData.disability_type,
+                    pwd_id_number: formData.pwd_id_number
+                }
+            case 3:
+                return {
+                    street_address: formData.street_address,
                     barangay: formData.barangay,
                     city: formData.city,
                     province: formData.province,
                     mobile_number: formData.mobile_number,
                     preferred_contact_method: formData.preferred_contact_method,
-                }
-            case 3:
-                return {
-                    preferred_job_type: formData.preferred_job_type,
-                    preferred_job_location: formData.preferred_job_location,
-                    expected_salary_min: formData.expected_salary_min,
-                    expected_salary_max: formData.expected_salary_max,
-                    willing_to_relocate: formData.willing_to_relocate,
+                    employment_status: formData.employment_status,
+                    employment_type: formData.employment_type,
+                    self_employment_type: formData.self_employment_type,
+                    self_employment_specify: formData.self_employment_specify,
+                    unemployment_reason: formData.unemployment_reason,
+                    months_looking_for_work: formData.months_looking_for_work
                 }
             case 4:
                 return {
+                    currently_in_school: formData.currently_in_school,
                     highest_education: formData.highest_education,
                     school_name: formData.school_name,
                     course_or_field: formData.course_or_field,
                     year_graduated: formData.year_graduated,
+                    education_level_reached: formData.education_level_reached,
+                    year_last_attended: formData.year_last_attended,
+                    vocational_training: formData.vocational_training
                 }
             case 5:
                 return {
-                    skills: deduplicateSkills(formData.skills),
+                    predefined_skills: formData.predefined_skills,
+                    skills: formData.skills,
+                    professional_licenses: formData.professional_licenses,
+                    civil_service_eligibility: formData.civil_service_eligibility,
+                    civil_service_date: formData.civil_service_date,
                     work_experiences: formData.work_experiences,
-                    certifications: formData.certifications,
                     portfolio_url: formData.portfolio_url,
+                    resume_url: formData.resume_url,
+                    certificate_urls: formData.certificate_urls
+                }
+            case 6:
+                return {
+                    preferred_job_type: formData.preferred_job_type,
+                    preferred_occupations: formData.preferred_occupations.filter(o => o && o.trim()),
+                    preferred_local_locations: formData.preferred_local_locations.filter(l => l && l.trim()),
+                    preferred_overseas_locations: formData.preferred_overseas_locations.filter(l => l && l.trim()),
+                    expected_salary_min: formData.expected_salary_min,
+                    expected_salary_max: formData.expected_salary_max,
+                    willing_to_relocate: formData.willing_to_relocate,
+                    languages: formData.languages
                 }
             default:
                 return {}
@@ -373,7 +385,7 @@ const JobseekerRegistration = () => {
     }
 
     const nextStep = async () => {
-        if (!validateStep(currentStep)) return
+        if (!validateStep()) return
 
         if (currentStep === 1 && !accountCreated) {
             setLoading(true)
@@ -403,21 +415,9 @@ const JobseekerRegistration = () => {
         setSaving(true)
         setError('')
         try {
-            let stepData = getStepData(currentStep)
-
-            if (currentStep === 5) {
-                let certificatesData = []
-                if (certificateFiles && certificateFiles.length > 0) {
-                    for (const file of certificateFiles) {
-                        const encoded = await compressAndEncode(file)
-                        certificatesData.push({ name: file.name, data: encoded, type: file.type })
-                    }
-                }
-                stepData = { ...stepData, resume_url: resumeUrl || userData?.resume_url || '', certificate_urls: certificatesData }
-            }
-
+            const stepData = getStepData(currentStep)
             await saveRegistrationStep(stepData, currentStep)
-            setCurrentStep(prev => Math.min(prev + 1, totalSteps))
+            setCurrentStep(prev => Math.min(prev + 1, TOTAL_STEPS))
         } catch (err) {
             console.error('Error saving step:', err)
             setError('Failed to save progress. Please try again.')
@@ -433,7 +433,7 @@ const JobseekerRegistration = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (!validateStep(currentStep)) return
+        if (!validateStep()) return
 
         setLoading(true)
         setError('')
@@ -444,34 +444,27 @@ const JobseekerRegistration = () => {
                 data_processing_consent: formData.data_processing_consent,
                 peso_verification_consent: formData.peso_verification_consent,
                 info_accuracy_confirmation: formData.info_accuracy_confirmation,
+                dole_authorization: formData.dole_authorization,
                 jobseeker_status: 'pending',
                 rejection_reason: '',
             }
 
-            if (resumeUrl && !userData?.resume_url) {
-                finalData.resume_url = resumeUrl
-            }
-            if (certificateFiles.length > 0 && !userData?.certificate_urls?.length) {
-                const certificatesData = []
-                for (const file of certificateFiles) {
-                    const encoded = await compressAndEncode(file)
-                    certificatesData.push({ name: file.name, data: encoded, type: file.type })
-                }
-                finalData.certificate_urls = certificatesData
-            }
-
             await completeRegistration(finalData)
+
+            // Clear draft on successful submission
+            localStorage.removeItem(`peso-reg-draft-${currentUser.uid}`)
 
             try {
                 await sendJobseekerRegistrationEmail({
                     email: formData.email || userData?.email,
-                    full_name: formData.full_name || userData?.full_name
+                    full_name: formData.first_name && formData.surname
+                        ? `${formData.first_name} ${formData.surname}`
+                        : userData?.display_name || userData?.full_name
                 })
             } catch (emailErr) {
                 console.error('Failed to send registration email:', emailErr)
             }
 
-            // Redirect to email verification if not yet confirmed
             if (!currentUser?.email_confirmed_at && !currentUser?.confirmed_at) {
                 navigate('/verify-email', { state: { email: formData.email || userData?.email } })
             } else {
@@ -492,6 +485,8 @@ const JobseekerRegistration = () => {
                     <Step1AccountCredentials
                         formData={formData}
                         handleChange={handleChange}
+                        setFormData={setFormData}
+                        errors={fieldErrors}
                         showPassword={showPassword}
                         setShowPassword={setShowPassword}
                         handleBlur={handleBlur}
@@ -501,63 +496,17 @@ const JobseekerRegistration = () => {
                     />
                 )
             case 2:
-                return (
-                    <Step2PersonalInfo
-                        formData={formData}
-                        handleChange={handleChange}
-                        setFormData={setFormData}
-                    />
-                )
+                return <Step2PersonalInfo formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 3:
-                return (
-                    <Step3EmploymentPreferences
-                        formData={formData}
-                        handleChange={handleChange}
-                        setFormData={setFormData}
-                        handleJobTypeToggle={handleJobTypeToggle}
-                    />
-                )
+                return <Step3ContactEmployment formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 4:
-                return (
-                    <Step4Education
-                        formData={formData}
-                        handleChange={handleChange}
-                    />
-                )
+                return <Step4Education formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 5:
-                return (
-                    <Step5SkillsExperience
-                        formData={formData}
-                        handleChange={handleChange}
-                        skillInput={skillInput}
-                        setSkillInput={setSkillInput}
-                        addSkill={addSkill}
-                        removeSkill={removeSkill}
-                        workExpInput={workExpInput}
-                        setWorkExpInput={setWorkExpInput}
-                        addWorkExperience={addWorkExperience}
-                        removeWorkExp={removeWorkExp}
-                        certInput={certInput}
-                        setCertInput={setCertInput}
-                        addCertification={addCertification}
-                        removeCertification={removeCertification}
-                        userId={currentUser?.uid}
-                        resumeUrl={resumeUrl || userData?.resume_url || ''}
-                        onResumeUploaded={(url) => setResumeUrl(url)}
-                        onResumeRemoved={() => setResumeUrl('')}
-                        certificateFiles={certificateFiles}
-                        handleCertificateChange={handleCertificateChange}
-                        removeCertificateFile={removeCertificateFile}
-                    />
-                )
+                return <Step5SkillsExperience formData={formData} handleChange={handleChange} setFormData={setFormData} userId={currentUser?.uid} errors={fieldErrors} />
             case 6:
-                return (
-                    <Step6Consent
-                        formData={formData}
-                        handleChange={handleChange}
-                        resumeUrl={resumeUrl || userData?.resume_url || ''}
-                    />
-                )
+                return <Step6JobPreferences formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
+            case 7:
+                return <Step7Consent formData={formData} handleChange={handleChange} errors={fieldErrors} />
             default:
                 return null
         }
@@ -574,11 +523,11 @@ const JobseekerRegistration = () => {
                         className="w-20 h-20 mx-auto mb-4"
                     />
                     <h1 className="text-3xl font-bold gradient-text">Jobseeker Registration</h1>
-                    <p className="text-gray-600 mt-2">Step {currentStep} of {totalSteps}</p>
+                    <p className="text-gray-600 mt-2">Step {currentStep} of {TOTAL_STEPS}</p>
                 </div>
 
                 {/* Progress Bar */}
-                <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
+                <StepIndicator currentStep={currentStep} totalSteps={TOTAL_STEPS} />
 
                 {/* Form */}
                 <div className="card animate-slide-up">
@@ -590,10 +539,20 @@ const JobseekerRegistration = () => {
                             </div>
                         )}
 
-                        {renderStep()}
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={currentStep}
+                                initial={{ opacity: 0, x: 30 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -30 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                {renderStep()}
+                            </motion.div>
+                        </AnimatePresence>
 
                         {/* Navigation Buttons */}
-                        <div className="flex gap-3 mt-8">
+                        <div className="flex items-center gap-3 mt-8">
                             {currentStep > 1 && !(currentStep === 2 && accountCreated) && (
                                 <button
                                     type="button"
@@ -605,7 +564,21 @@ const JobseekerRegistration = () => {
                                 </button>
                             )}
 
-                            {currentStep < totalSteps ? (
+                            {currentStep > 1 && currentStep < TOTAL_STEPS && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        const stepData = getStepData(currentStep)
+                                        await saveRegistrationStep(stepData, currentStep)
+                                        navigate('/')
+                                    }}
+                                    className="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+                                >
+                                    Save & Continue Later
+                                </button>
+                            )}
+
+                            {currentStep < TOTAL_STEPS ? (
                                 <button
                                     type="button"
                                     onClick={nextStep}
@@ -633,7 +606,7 @@ const JobseekerRegistration = () => {
                                     {loading ? (
                                         <>
                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                            Creating account...
+                                            Completing registration...
                                         </>
                                     ) : (
                                         <>
