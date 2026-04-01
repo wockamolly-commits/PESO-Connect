@@ -55,6 +55,7 @@ function Step3ContactEmployment({ formData, handleChange, setFormData, errors = 
       employment_status: status,
       employment_type: '',
       self_employment_type: '',
+      self_employment_specify: '',
       unemployment_reason: '',
       months_looking_for_work: ''
     }))

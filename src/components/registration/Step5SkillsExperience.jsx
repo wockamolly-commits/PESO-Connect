@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Plus, X, Briefcase, Award, Shield, Calendar } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
@@ -20,6 +21,7 @@ const EMPTY_EXPERIENCE = { company: '', address: '', position: '', months: '', e
 const EMPTY_LICENSE = { name: '', number: '', valid_until: '' }
 
 function Step5SkillsExperience({ formData, handleChange, setFormData, userId, errors = {} }) {
+  const [skillInput, setSkillInput] = useState('')
   const predefinedSkills = formData.predefined_skills || []
 
   const togglePredefinedSkill = (skill) => {
@@ -96,9 +98,17 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       </div>
 
       <div>
-        <label className="label">Additional Skills</label>
-        <TagInput tags={formData.skills || []} setTags={(tags) => setFormData(prev => ({ ...prev, skills: tags }))}
-          placeholder="Type a skill and press Enter..." tagClassName="bg-primary-100 text-primary-700" removeClassName="hover:text-primary-900" />
+        <TagInput
+          label="Additional Skills"
+          value={skillInput}
+          onChange={setSkillInput}
+          tags={formData.skills || []}
+          onAdd={(tag) => { setFormData(prev => ({ ...prev, skills: [...(prev.skills || []), tag] })); setSkillInput('') }}
+          onRemove={(tag) => setFormData(prev => ({ ...prev, skills: (prev.skills || []).filter(s => s !== tag) }))}
+          placeholder="Type a skill and press Enter..."
+          tagClassName="bg-primary-100 text-primary-700"
+          removeClassName="hover:text-primary-900"
+        />
       </div>
       {errors.skills && <p className="text-sm text-red-500">{errors.skills}</p>}
 

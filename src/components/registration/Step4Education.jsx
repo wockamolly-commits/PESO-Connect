@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { GraduationCap, Calendar, Plus, X } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
@@ -20,7 +19,7 @@ const CERTIFICATE_LEVELS = ['NC I', 'NC II', 'NC III', 'NC IV', 'None', 'Others'
 const EMPTY_TRAINING = { course: '', institution: '', hours: '', skills_acquired: '', certificate_level: '' }
 
 function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
-  const showUndergraduateFields = formData.highest_education && !formData.year_graduated
+  const showUndergraduateFields = formData.did_not_graduate === true
 
   const getCourseOptions = () => {
     const level = formData.highest_education
@@ -92,9 +91,18 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
         <FloatingLabelInput label="Year Graduated" name="year_graduated" value={formData.year_graduated} onChange={handleChange} type="number" inputMode="numeric" icon={Calendar} min="1950" max={new Date().getFullYear()} />
       </div>
 
+      {formData.highest_education && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={formData.did_not_graduate || false}
+            onChange={(e) => setFormData(prev => ({ ...prev, did_not_graduate: e.target.checked }))}
+            className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+          <span className="text-sm text-gray-700">I did not graduate</span>
+        </label>
+      )}
+
       <AnimatedSection show={showUndergraduateFields}>
         <div className="space-y-4 mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-          <p className="text-sm text-yellow-800 font-medium">If you did not graduate, please fill in the following:</p>
+          <p className="text-sm text-yellow-800 font-medium">Please fill in the following:</p>
           <FloatingLabelInput label="Level Reached" name="education_level_reached" value={formData.education_level_reached} onChange={handleChange} />
           <FloatingLabelInput label="Year Last Attended" name="year_last_attended" value={formData.year_last_attended} onChange={handleChange} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} />
         </div>

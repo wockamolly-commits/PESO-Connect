@@ -35,12 +35,13 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
   }
 
   const displayValue = value || ''
-  const isActive = isOpen || displayValue.length > 0
+  const hasValue = displayValue.length > 0
+  const isActive = isOpen || hasValue
 
   return (
     <div ref={containerRef} className="relative">
       {Icon && (
-        <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+        <Icon className="absolute left-4 top-[14px] w-5 h-5 text-gray-400 z-10" />
       )}
       <div
         onClick={() => { setIsOpen(!isOpen); setTimeout(() => inputRef.current?.focus(), 50) }}
@@ -53,17 +54,17 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
           }
         `}
       >
-        <span className={displayValue ? 'text-gray-900' : 'text-gray-400'}>
-          {displayValue || (isOpen ? '' : placeholder)}
+        {/* Only show text when there's a value — the label serves as placeholder when empty */}
+        <span className={hasValue ? 'text-gray-900' : 'text-transparent select-none'}>
+          {hasValue ? displayValue : '\u00A0'}
         </span>
       </div>
       <label
         className={`
           absolute transition-all duration-200 pointer-events-none
-          ${Icon ? 'left-12' : 'left-4'}
           ${isActive
-            ? '-top-2.5 left-3 text-xs bg-white px-1 translate-y-0 ' + (error ? 'text-red-500' : 'text-primary-600')
-            : 'top-1/2 -translate-y-1/2 text-sm text-gray-400'
+            ? '-top-2.5 left-3 text-xs bg-white px-1 ' + (error ? 'text-red-500' : 'text-primary-600')
+            : `top-[14px] ${Icon ? 'left-12' : 'left-4'} text-sm text-gray-400`
           }
         `}
       >
@@ -73,12 +74,12 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); handleSelect('') }}
-          className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          className="absolute right-10 top-[14px] text-gray-400 hover:text-gray-600"
         >
           <X className="w-4 h-4" />
         </button>
       )}
-      <ChevronDown className={`absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`absolute right-4 top-[14px] w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
 
       {error && (
         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">

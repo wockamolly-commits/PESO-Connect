@@ -201,7 +201,7 @@ const JobseekerRegistration = () => {
                 fieldError = validators.required(formData.email, 'Email') || validators.email(formData.email)
                 break
             case 'password':
-                fieldError = validators.required(formData.password, 'Password') || validators.minLength(formData.password, 6, 'Password')
+                fieldError = validators.required(formData.password, 'Password') || validators.minLength(formData.password, 8, 'Password')
                 break
             case 'confirmPassword':
                 fieldError = validators.passwordMatch(formData.password, formData.confirmPassword)
@@ -273,7 +273,7 @@ const JobseekerRegistration = () => {
                 if (!formData.employment_status) newErrors.employment_status = 'Employment status is required'
                 if (formData.employment_status === 'Employed' && !formData.employment_type) newErrors.employment_type = 'Employment type is required'
                 if (formData.employment_status === 'Self-Employed' && !formData.self_employment_type) newErrors.self_employment_type = 'Self-employment type is required'
-                if (formData.self_employment_type === 'Others' && !formData.self_employment_specify) newErrors.self_employment_specify = 'Please specify'
+                if (formData.employment_status === 'Self-Employed' && formData.self_employment_type === 'Others' && !formData.self_employment_specify) newErrors.self_employment_specify = 'Please specify'
                 if (formData.employment_status === 'Unemployed' && !formData.unemployment_reason) newErrors.unemployment_reason = 'Unemployment reason is required'
                 break
             case 4:
@@ -568,9 +568,13 @@ const JobseekerRegistration = () => {
                                 <button
                                     type="button"
                                     onClick={async () => {
-                                        const stepData = getStepData(currentStep)
-                                        await saveRegistrationStep(stepData, currentStep)
-                                        navigate('/')
+                                        try {
+                                            const stepData = getStepData(currentStep)
+                                            await saveRegistrationStep(stepData, currentStep)
+                                            navigate('/')
+                                        } catch (err) {
+                                            setErrors({ general: 'Failed to save progress. Please try again.' })
+                                        }
                                     }}
                                     className="text-sm text-gray-500 hover:text-primary-600 transition-colors"
                                 >

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MapPin, DollarSign, Plus, X, Globe, Languages } from 'lucide-react'
+import { MapPin, Plus, X, Globe, Languages } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import { AnimatedSection } from '../forms/AnimatedSection'
