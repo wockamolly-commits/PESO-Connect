@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../config/supabase'
 import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
-    Plus, X, ChevronRight, CheckCircle, Upload, Home, GraduationCap,
-    Award, Calendar, Building, Link as LinkIcon, Save, Sparkles,
+    Plus, X, CheckCircle, GraduationCap,
+    Award, Calendar, Save, Sparkles,
     Ruler, Shield, Globe, Languages
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores } from '../services/geminiService'
@@ -16,7 +16,6 @@ import ExportResumeButton from '../components/profile/ExportResumeButton'
 import { FloatingLabelInput } from '../components/forms/FloatingLabelInput'
 import { SearchableSelect } from '../components/forms/SearchableSelect'
 import { AnimatedSection } from '../components/forms/AnimatedSection'
-import TagInput from '../components/forms/TagInput'
 import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
 
@@ -601,15 +600,25 @@ const JobseekerProfileEdit = () => {
             profileData.self_employment_type = buildOtherSelection(formData.self_employment_type, formData.self_employment_specify)
             profileData.unemployment_reason = buildOtherSelection(formData.unemployment_reason, formData.unemployment_reason_specify)
 
-            // Convert numeric fields
-            if (profileData.height_cm) profileData.height_cm = Number(profileData.height_cm)
-            if (profileData.months_looking_for_work) profileData.months_looking_for_work = Number(profileData.months_looking_for_work)
+            // Convert numeric fields (empty string → null, match registration pattern)
+            profileData.height_cm = profileData.height_cm === '' ? null : Number(profileData.height_cm)
+            if (Number.isNaN(profileData.height_cm)) profileData.height_cm = null
+            profileData.months_looking_for_work = profileData.months_looking_for_work === '' ? null : Number(profileData.months_looking_for_work)
+            if (Number.isNaN(profileData.months_looking_for_work)) profileData.months_looking_for_work = null
+
+            // Normalize optional date fields (empty string → null)
+            profileData.civil_service_date = profileData.civil_service_date?.trim() || null
+            ;(profileData.professional_licenses || []).forEach(lic => {
+                lic.valid_until = lic.valid_until?.trim() || null
+            })
 
             // Clear disability fields when not PWD
             if (!profileData.is_pwd) {
                 profileData.disability_type = []
                 profileData.disability_type_specify = ''
                 profileData.pwd_id_number = ''
+            } else if (!(profileData.disability_type || []).includes('Others')) {
+                profileData.disability_type_specify = ''
             }
 
             // Filter empty strings from array fields
@@ -1099,7 +1108,7 @@ const JobseekerProfileEdit = () => {
                                         type="text"
                                         value={newSkill}
                                         onChange={(e) => setNewSkill(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
                                         className="input-field"
                                         placeholder="e.g. Microsoft Excel"
                                     />
@@ -1201,7 +1210,7 @@ const JobseekerProfileEdit = () => {
                                         type="text"
                                         value={newCert}
                                         onChange={(e) => setNewCert(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCertification())}
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCertification())}
                                         className="input-field"
                                         placeholder="e.g. PRC License"
                                     />

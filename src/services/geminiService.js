@@ -520,7 +520,7 @@ Work Experience: ${workExpStr}
 Education: ${profile.highest_education || profile.education || 'Not specified'}${profile.course_or_field ? ` — ${profile.course_or_field}` : ''}
 Certifications: ${certStr}
 Languages: ${langStr}
-Location: ${profile.preferred_job_location || profile.city || 'Not specified'}
+Location: ${(profile.preferred_local_locations || []).filter(Boolean).join(', ') || profile.city || 'Not specified'}
 
 MATCH RESULTS (already computed — your analysis MUST be consistent with these):
 Match Score: ${det.matchScore}/100 (${det.matchLevel})

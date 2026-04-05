@@ -99,7 +99,7 @@ const JobseekerCard = ({
                             <div className="space-y-2.5 text-sm">
                                 {[
                                     ['Job Type', jobseeker.preferred_job_type?.join(', ') || '\u2014'],
-                                    ['Location', jobseeker.preferred_job_location],
+                                    ['Location', (jobseeker.preferred_local_locations || []).filter(Boolean).join(', ') || '\u2014'],
                                     ['Salary Range', jobseeker.expected_salary_min && jobseeker.expected_salary_max ? `\u20B1${jobseeker.expected_salary_min} - \u20B1${jobseeker.expected_salary_max}` : '\u2014'],
                                     ['Willing to Relocate', jobseeker.willing_to_relocate === 'yes' ? 'Yes' : 'No'],
                                 ].map(([label, val], i) => (

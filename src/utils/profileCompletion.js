@@ -4,7 +4,7 @@ const jobseekerChecks = [
     { key: 'profile_photo', label: 'Add a profile photo', weight: 5, test: (d) => !!d.profile_photo },
     { key: 'personal_info', label: 'Complete personal information', weight: 15, test: (d) => !!((d.first_name || d.full_name) && d.date_of_birth && d.city && d.province) },
     { key: 'contact_info', label: 'Add contact information', weight: 10, test: (d) => !!d.mobile_number },
-    { key: 'employment_prefs', label: 'Set employment preferences', weight: 10, test: (d) => !!(d.preferred_job_type?.length > 0 && (d.preferred_local_locations?.length > 0 || d.preferred_job_location)) },
+    { key: 'employment_prefs', label: 'Set employment preferences', weight: 10, test: (d) => !!(d.preferred_job_type?.length > 0 && d.preferred_local_locations?.length > 0) },
     { key: 'education', label: 'Add educational background', weight: 15, test: (d) => !!(d.highest_education && d.school_name) },
     { key: 'skills', label: 'Add at least 3 skills', weight: 15, test: (d) => d.skills?.length >= 3 },
     { key: 'work_experience', label: 'Add work experience', weight: 10, test: (d) => d.work_experiences?.length > 0 },

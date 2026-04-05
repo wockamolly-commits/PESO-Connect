@@ -21,7 +21,7 @@ describe('calculateCompletion', () => {
             province: 'Metro Manila',
             mobile_number: '09171234567',
             preferred_job_type: ['full-time'],
-            preferred_job_location: 'Manila',
+            preferred_local_locations: ['Manila'],
             highest_education: 'College Graduate',
             school_name: 'UP',
             skills: ['Excel', 'Word', 'PowerPoint'],
