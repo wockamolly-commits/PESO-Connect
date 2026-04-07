@@ -9,6 +9,7 @@ import {
     Ruler, Shield, Globe, Languages
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores } from '../services/geminiService'
+import { refreshProfileEmbedding } from '../services/matchingService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
 import { compressAndEncode } from '../utils/fileUtils'
@@ -20,9 +21,29 @@ import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
 
 // --- Helpers ---
+// Unwrap values that were mistakenly saved as single-element arrays
+// or stringified arrays like '["Freelancer"]' or postgres literals like '{Freelancer}'
+const unwrapArrayValue = (val) => {
+    if (Array.isArray(val)) return val[0] || ''
+    if (typeof val === 'string') {
+        const trimmed = val.trim()
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed)
+                if (Array.isArray(parsed)) return parsed[0] || ''
+            } catch {}
+        }
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            return trimmed.slice(1, -1).split(',')[0]?.replace(/^"|"$/g, '') || ''
+        }
+    }
+    return val ?? ''
+}
+
 const parseOtherSelection = (value) => {
     if (!value) return { selectedValue: '', otherValue: '' }
-    if (typeof value === 'string' && value.startsWith('Others:')) {
+    const strValue = typeof value === 'string' ? value : String(value)
+    if (strValue.startsWith('Others:')) {
         return { selectedValue: 'Others', otherValue: value.slice(8).trim() }
     }
     return { selectedValue: value, otherValue: '' }
@@ -79,7 +100,7 @@ const LEVELS_WITH_COURSE = ['Senior High School (Grades 11-12)', 'Tertiary', 'Gr
 const CERTIFICATE_LEVELS = ['NC I', 'NC II', 'NC III', 'NC IV', 'None', 'Others']
 const EMPTY_TRAINING = { course: '', institution: '', hours: '', skills_acquired: '', certificate_level: '' }
 const WORK_EXPERIENCE_STATUSES = ['Permanent', 'Contractual', 'Part-time', 'Probationary']
-const EMPTY_EXPERIENCE = { company: '', address: '', position: '', months: '', employment_status: '' }
+const EMPTY_EXPERIENCE = { company: '', address: '', position: '', year_started: '', year_ended: '', employment_status: '' }
 const EMPTY_LICENSE = { name: '', number: '', valid_until: '' }
 const PREDEFINED_SKILLS = [
     'Auto Mechanic', 'Beautician', 'Carpentry Work', 'Computer Literate',
@@ -233,7 +254,6 @@ const JobseekerProfileEdit = () => {
 
     const courseOptions = getCourseOptions(formData.highest_education)
     const showCourseField = LEVELS_WITH_COURSE.includes(formData.highest_education)
-    const currentYear = new Date().getFullYear()
     const isCurrentlyInSchool = formData.currently_in_school === true
     const showDidNotGraduate = !isCurrentlyInSchool && !!formData.highest_education
     const showUndergraduateFields = !isCurrentlyInSchool && formData.did_not_graduate === true
@@ -277,8 +297,8 @@ const JobseekerProfileEdit = () => {
 
             // Parse "Others:" prefixed fields
             const religionParsed = parseOtherSelection(userData.religion)
-            const selfEmpParsed = parseOtherSelection(userData.self_employment_type)
-            const unempParsed = parseOtherSelection(userData.unemployment_reason)
+            const selfEmpParsed = parseOtherSelection(unwrapArrayValue(userData.self_employment_type))
+            const unempParsed = parseOtherSelection(unwrapArrayValue(userData.unemployment_reason))
 
             const initial = {
                 surname: userData.surname || '',
@@ -291,7 +311,7 @@ const JobseekerProfileEdit = () => {
                 religion: religionParsed.selectedValue,
                 religion_specify: religionParsed.otherValue,
                 height_cm: userData.height_cm || '',
-                is_pwd: userData.is_pwd || false,
+                is_pwd: userData.is_pwd === true || userData.is_pwd === 'true',
                 disability_type: userData.disability_type || [],
                 disability_type_specify: userData.disability_type_specify || '',
                 pwd_id_number: userData.pwd_id_number || '',
@@ -303,21 +323,21 @@ const JobseekerProfileEdit = () => {
                 mobile_number: userData.mobile_number || '',
 
                 employment_status: userData.employment_status || '',
-                employment_type: userData.employment_type || '',
+                employment_type: unwrapArrayValue(userData.employment_type),
                 self_employment_type: selfEmpParsed.selectedValue,
                 self_employment_specify: selfEmpParsed.otherValue,
                 unemployment_reason: unempParsed.selectedValue,
                 unemployment_reason_specify: unempParsed.otherValue,
                 months_looking_for_work: userData.months_looking_for_work || '',
 
-                currently_in_school: userData.currently_in_school || false,
+                currently_in_school: userData.currently_in_school === true || userData.currently_in_school === 'true',
                 highest_education: userData.highest_education || '',
                 school_name: userData.school_name || '',
                 course_or_field: userData.course_or_field || '',
-                year_graduated: userData.year_graduated || '',
-                did_not_graduate: userData.did_not_graduate || false,
+                year_graduated: String(userData.year_graduated ?? '').trim(),
+                did_not_graduate: userData.did_not_graduate === true || userData.did_not_graduate === 'true',
                 education_level_reached: userData.education_level_reached || '',
-                year_last_attended: userData.year_last_attended || '',
+                year_last_attended: String(userData.year_last_attended ?? '').trim(),
                 vocational_training: userData.vocational_training || [],
 
                 predefined_skills: userData.predefined_skills || [],
@@ -587,6 +607,11 @@ const JobseekerProfileEdit = () => {
             if (formData.portfolio_url && !/^https?:\/\//i.test(formData.portfolio_url.trim())) {
                 throw new Error('Portfolio URL must start with https:// or http://')
             }
+            for (const exp of (formData.work_experiences || [])) {
+                if (exp.year_started && exp.year_ended && Number(exp.year_ended) < Number(exp.year_started)) {
+                    throw new Error('Work experience: Year Ended must be ≥ Year Started')
+                }
+            }
 
             // Compose display name
             const displayName = [formData.first_name, formData.middle_name, formData.surname]
@@ -595,16 +620,34 @@ const JobseekerProfileEdit = () => {
             // Build the data to save
             const profileData = { ...formData }
 
+            // Normalize scalar fields that may have been stored as stringified arrays
+            profileData.employment_type = unwrapArrayValue(formData.employment_type)
+
             // Apply "Others:" composition
             profileData.religion = buildOtherSelection(formData.religion, formData.religion_specify)
-            profileData.self_employment_type = buildOtherSelection(formData.self_employment_type, formData.self_employment_specify)
-            profileData.unemployment_reason = buildOtherSelection(formData.unemployment_reason, formData.unemployment_reason_specify)
+            profileData.self_employment_type = buildOtherSelection(
+                unwrapArrayValue(formData.self_employment_type),
+                formData.self_employment_specify
+            )
+            profileData.unemployment_reason = buildOtherSelection(
+                unwrapArrayValue(formData.unemployment_reason),
+                formData.unemployment_reason_specify
+            )
+
+            // Normalize boolean fields to strict true/false (guards against string coercion)
+            profileData.currently_in_school = profileData.currently_in_school === true
+            profileData.did_not_graduate = profileData.did_not_graduate === true
+            profileData.is_pwd = profileData.is_pwd === true
 
             // Convert numeric fields (empty string → null, match registration pattern)
             profileData.height_cm = profileData.height_cm === '' ? null : Number(profileData.height_cm)
             if (Number.isNaN(profileData.height_cm)) profileData.height_cm = null
             profileData.months_looking_for_work = profileData.months_looking_for_work === '' ? null : Number(profileData.months_looking_for_work)
             if (Number.isNaN(profileData.months_looking_for_work)) profileData.months_looking_for_work = null
+
+            // Year fields are TEXT columns — ensure they are always saved as trimmed strings
+            profileData.year_graduated = String(profileData.year_graduated ?? '').trim()
+            profileData.year_last_attended = String(profileData.year_last_attended ?? '').trim()
 
             // Normalize optional date fields (empty string → null)
             profileData.civil_service_date = profileData.civil_service_date?.trim() || null
@@ -667,14 +710,46 @@ const JobseekerProfileEdit = () => {
             // Remove base-table fields before profile upsert
             const { profile_photo, surname, first_name, middle_name, suffix, ...profileFields } = profileData
 
-            const { error: profileErr } = await supabase
+            const { data: upsertedRows, error: profileErr } = await supabase
                 .from('jobseeker_profiles')
                 .upsert({
                     id: currentUser.uid,
                     ...profileFields,
                     updated_at: now,
                 }, { onConflict: 'id' })
+                .select('id')
             if (profileErr) throw profileErr
+            if (!upsertedRows || upsertedRows.length === 0) {
+                throw new Error('Profile update did not write — please try again')
+            }
+
+            // Verify critical boolean fields were actually persisted
+            const { data: verifyRow, error: verifyErr } = await supabase
+                .from('jobseeker_profiles')
+                .select('currently_in_school, did_not_graduate, is_pwd')
+                .eq('id', currentUser.uid)
+                .maybeSingle()
+            if (verifyErr) {
+                console.error('[ProfileEdit] post-save verify failed:', verifyErr.message)
+            } else if (verifyRow) {
+                // Normalize DB value — column may return string 'true'/'false' instead of boolean
+                const dbVal = verifyRow.currently_in_school === true || verifyRow.currently_in_school === 'true'
+                if (dbVal !== profileFields.currently_in_school) {
+                    console.error('[ProfileEdit] currently_in_school mismatch — sent:', profileFields.currently_in_school, 'got:', verifyRow.currently_in_school, 'type:', typeof verifyRow.currently_in_school)
+                    throw new Error('Profile save failed: "Currently in School" did not persist. Please try again.')
+                }
+            }
+
+            // Immediately sync localStorage so refresh always shows saved data
+            // (protects against fetchUserData timeout or stale dedup)
+            try {
+                const cached = localStorage.getItem(`peso-profile-${currentUser.uid}`)
+                if (cached) {
+                    const parsed = JSON.parse(cached)
+                    Object.assign(parsed, profileFields, { updated_at: now })
+                    localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(parsed))
+                }
+            } catch {}
 
             // Expand skill aliases for deterministic match scoring (non-blocking)
             try {
@@ -695,8 +770,20 @@ const JobseekerProfileEdit = () => {
             // Clear cached match scores so they recalculate with new data
             clearSessionScores(currentUser.uid)
 
-            // Refresh AuthContext + localStorage cache with saved data
-            await fetchUserData(currentUser.uid)
+            // Refresh the backend profile embedding after the profile write settles.
+            try {
+                await refreshProfileEmbedding({ userId: currentUser.uid })
+            } catch (embeddingErr) {
+                console.warn('Profile embedding refresh failed (non-blocking):', embeddingErr.message)
+            }
+
+            // Force-refresh AuthContext + localStorage cache from DB
+            // (bypasses dedup so we always get post-save data)
+            await fetchUserData(currentUser.uid, { force: true })
+
+            // Reset dirty tracking so the beforeunload warning doesn't fire
+            initialFormDataRef.current = JSON.stringify(formData)
+            setIsDirty(false)
 
             setSuccess('Profile updated successfully!')
         } catch (err) {
@@ -735,7 +822,8 @@ const JobseekerProfileEdit = () => {
                         company: (exp.company || '').trim() || 'Unknown',
                         address: '',
                         position: (exp.title || '').trim() || 'Unknown',
-                        months: '',
+                        year_started: '',
+                        year_ended: '',
                         employment_status: ''
                     })).filter(exp => exp.company !== 'Unknown' || exp.position !== 'Unknown')
                     newData.work_experiences = [...prev.work_experiences, ...newExp]
@@ -1017,8 +1105,8 @@ const JobseekerProfileEdit = () => {
                                     <FloatingLabelInput
                                         label={isCurrentlyInSchool ? 'Expected Graduation Year' : 'Year Graduated'}
                                         name="year_graduated" value={formData.year_graduated} onChange={handleChange}
-                                        type="number" inputMode="numeric" icon={Calendar}
-                                        min="1950" max={isCurrentlyInSchool ? currentYear + 10 : currentYear} />
+                                        type="text" inputMode="numeric" pattern="[0-9]{4}" icon={Calendar}
+                                        maxLength={4} placeholder="e.g. 2024" />
                                 </div>
                             </AnimatedSection>
 
@@ -1039,7 +1127,7 @@ const JobseekerProfileEdit = () => {
                                 <div className="space-y-4 mt-1 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                                     <p className="text-sm text-blue-700 font-medium">Please provide the following details:</p>
                                     <FloatingLabelInput label="Level Reached" name="education_level_reached" value={formData.education_level_reached} onChange={handleChange} placeholder={getLevelReachedPlaceholder()} />
-                                    <FloatingLabelInput label="Year Last Attended" name="year_last_attended" value={formData.year_last_attended} onChange={handleChange} type="number" inputMode="numeric" min="1950" max={currentYear} />
+                                    <FloatingLabelInput label="Year Last Attended" name="year_last_attended" value={formData.year_last_attended} onChange={handleChange} type="text" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} placeholder="e.g. 2024" />
                                 </div>
                             </AnimatedSection>
                         </div>
@@ -1181,11 +1269,12 @@ const JobseekerProfileEdit = () => {
                                         <div className="space-y-3">
                                             <FloatingLabelInput label="Company Name" name={`exp_company_${index}`} value={exp.company} onChange={(e) => updateExperience(index, 'company', e.target.value)} icon={Briefcase} required />
                                             <FloatingLabelInput label="Address (City/Municipality)" name={`exp_address_${index}`} value={exp.address} onChange={(e) => updateExperience(index, 'address', e.target.value)} />
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <FloatingLabelInput label="Position" name={`exp_position_${index}`} value={exp.position} onChange={(e) => updateExperience(index, 'position', e.target.value)} required />
-                                                <FloatingLabelInput label="Number of Months" name={`exp_months_${index}`} value={exp.months} onChange={(e) => updateExperience(index, 'months', e.target.value)} type="number" inputMode="numeric" min="1" />
+                                            <FloatingLabelInput label="Position" name={`exp_position_${index}`} value={exp.position} onChange={(e) => updateExperience(index, 'position', e.target.value)} required />
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <FloatingLabelInput label="Year Started" name={`exp_year_started_${index}`} value={exp.year_started} onChange={(e) => updateExperience(index, 'year_started', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2020" />
+                                                <FloatingLabelInput label="Year Ended" name={`exp_year_ended_${index}`} value={exp.year_ended} onChange={(e) => updateExperience(index, 'year_ended', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2023" />
+                                                <SearchableSelect label="Employment Status" name={`exp_status_${index}`} value={exp.employment_status} onChange={(e) => updateExperience(index, 'employment_status', e.target.value)} options={WORK_EXPERIENCE_STATUSES} />
                                             </div>
-                                            <SearchableSelect label="Employment Status" name={`exp_status_${index}`} value={exp.employment_status} onChange={(e) => updateExperience(index, 'employment_status', e.target.value)} options={WORK_EXPERIENCE_STATUSES} />
                                         </div>
                                     </div>
                                 ))}

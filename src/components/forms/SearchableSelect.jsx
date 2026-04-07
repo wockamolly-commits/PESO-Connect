@@ -1,22 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X } from 'lucide-react'
 
 function SearchableSelect({ label, name, value, onChange, options, grouped = false, required, error, icon: Icon, placeholder = 'Select...' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [dropdownStyle, setDropdownStyle] = useState(null)
   const containerRef = useRef(null)
   const inputRef = useRef(null)
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-        setSearch('')
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   const filteredOptions = grouped
     ? options.map(group => ({
@@ -27,6 +20,54 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
         const label = typeof opt === 'string' ? opt : opt.label
         return label.toLowerCase().includes(search.toLowerCase())
       })
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      const clickedTrigger = containerRef.current?.contains(e.target)
+      const clickedDropdown = dropdownRef.current?.contains(e.target)
+      if (!clickedTrigger && !clickedDropdown) {
+        setIsOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDropdownStyle(null)
+      return
+    }
+
+    const updateDropdownPosition = () => {
+      const triggerRect = triggerRef.current?.getBoundingClientRect()
+      const dropdownHeight = dropdownRef.current?.offsetHeight || 260
+      if (!triggerRect) return
+
+      const spaceBelow = window.innerHeight - triggerRect.bottom
+      const spaceAbove = triggerRect.top
+      const shouldOpenUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+      const top = shouldOpenUpward
+        ? Math.max(8, triggerRect.top - dropdownHeight - 4)
+        : Math.min(window.innerHeight - dropdownHeight - 8, triggerRect.bottom + 4)
+
+      setDropdownStyle({
+        top,
+        left: triggerRect.left,
+        width: triggerRect.width
+      })
+    }
+
+    updateDropdownPosition()
+    window.addEventListener('resize', updateDropdownPosition)
+    window.addEventListener('scroll', updateDropdownPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateDropdownPosition)
+      window.removeEventListener('scroll', updateDropdownPosition, true)
+    }
+  }, [isOpen, filteredOptions?.length])
 
   const handleSelect = (val) => {
     onChange({ target: { name, value: val } })
@@ -44,6 +85,7 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
         <Icon className="absolute left-4 top-[14px] w-5 h-5 text-gray-400 z-10" />
       )}
       <div
+        ref={triggerRef}
         onClick={() => { setIsOpen(!isOpen); setTimeout(() => inputRef.current?.focus(), 50) }}
         className={`
           w-full ${Icon ? 'pl-12' : 'pl-4'} pr-10 py-3 rounded-xl border-2 bg-white/50
@@ -88,8 +130,12 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
         </p>
       )}
 
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-hidden animate-scale-in">
+      {isOpen && dropdownStyle && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[1000] bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-hidden animate-scale-in"
+          style={dropdownStyle}
+        >
           <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -142,7 +188,8 @@ function SearchableSelect({ label, name, value, onChange, options, grouped = fal
               <div className="px-4 py-3 text-sm text-gray-500 text-center">No results found</div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

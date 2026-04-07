@@ -298,20 +298,23 @@ const Dashboard = () => {
                     {isJobseeker() && (
                         <div className="card">
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Skills</h3>
-                            {userData?.skills && userData.skills.length > 0 ? (
-                                <div className="flex flex-wrap gap-2">
-                                    {userData.skills.map((skill, index) => (
-                                        <span
-                                            key={index}
-                                            className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
-                                        >
-                                            {skill}
-                                        </span>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-gray-500">No skills added yet.</p>
-                            )}
+                            {(() => {
+                                const allSkills = [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
+                                return allSkills.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {allSkills.map((skill, index) => (
+                                            <span
+                                                key={index}
+                                                className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
+                                            >
+                                                {skill}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-500">No skills added yet.</p>
+                                )
+                            })()}
                             <Link to="/profile" className="btn-secondary w-full mt-4 flex items-center justify-center gap-2">
                                 Update Skills <ArrowRight className="w-4 h-4" />
                             </Link>

@@ -19,6 +19,67 @@ import {
 } from '../components/registration'
 
 const TOTAL_STEPS = 7
+const OTHER_PREFIX = 'Others:'
+
+const getDraftStorageKey = (userId) => `peso-reg-draft-${userId}`
+
+const clampStep = (step) => Math.min(Math.max(step, 1), TOTAL_STEPS)
+
+// Unwrap values that were mistakenly saved as single-element arrays
+// or stringified arrays like '["Freelancer"]' or postgres literals like '{Freelancer}'
+const unwrapArrayValue = (val) => {
+    if (Array.isArray(val)) return val[0] || ''
+    if (typeof val === 'string') {
+        const trimmed = val.trim()
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed)
+                if (Array.isArray(parsed)) return parsed[0] || ''
+            } catch {}
+        }
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            return trimmed.slice(1, -1).split(',')[0]?.replace(/^"|"$/g, '') || ''
+        }
+    }
+    return val ?? ''
+}
+
+const parseOtherSelection = (value = '') => {
+    if (typeof value !== 'string') {
+        return { selectedValue: '', otherValue: '' }
+    }
+
+    const trimmedValue = value.trim()
+    if (!trimmedValue) {
+        return { selectedValue: '', otherValue: '' }
+    }
+
+    if (trimmedValue === 'Others') {
+        return { selectedValue: 'Others', otherValue: '' }
+    }
+
+    if (trimmedValue.startsWith(OTHER_PREFIX)) {
+        return {
+            selectedValue: 'Others',
+            otherValue: trimmedValue.slice(OTHER_PREFIX.length).trim()
+        }
+    }
+
+    return { selectedValue: trimmedValue, otherValue: '' }
+}
+
+const buildOtherSelection = (selectedValue, otherValue = '') => {
+    if (selectedValue !== 'Others') return selectedValue
+
+    const trimmedOtherValue = otherValue.trim()
+    return trimmedOtherValue ? `${OTHER_PREFIX} ${trimmedOtherValue}` : 'Others'
+}
+
+const normalizeOptionalDate = (value) => {
+    if (typeof value !== 'string') return value ?? null
+    const trimmedValue = value.trim()
+    return trimmedValue || null
+}
 
 const JobseekerRegistration = () => {
     const [currentStep, setCurrentStep] = useState(1)
@@ -38,7 +99,11 @@ const JobseekerRegistration = () => {
         civil_status: '',
         is_pwd: false,
         disability_type: [],
+        disability_type_specify: '',
         pwd_id_number: '',
+        religion: '',
+        religion_specify: '',
+        height_cm: '',
 
         // Step 3: Contact & Employment
         street_address: '',
@@ -46,12 +111,12 @@ const JobseekerRegistration = () => {
         city: '',
         province: '',
         mobile_number: '',
-        preferred_contact_method: 'email',
         employment_status: '',
         employment_type: '',
         self_employment_type: '',
         self_employment_specify: '',
         unemployment_reason: '',
+        unemployment_reason_specify: '',
         months_looking_for_work: '',
 
         // Step 4: Education & Training
@@ -60,6 +125,7 @@ const JobseekerRegistration = () => {
         school_name: '',
         course_or_field: '',
         year_graduated: '',
+        did_not_graduate: false,
         education_level_reached: '',
         year_last_attended: '',
         vocational_training: [],
@@ -102,26 +168,36 @@ const JobseekerRegistration = () => {
     const [touchedFields, setTouchedFields] = useState({})
     const restoredRef = useRef(false)
 
-    const { createAccount, saveRegistrationStep, completeRegistration, currentUser, userData } = useAuth()
+    const { createAccount, saveRegistrationStep, completeRegistration, currentUser, userData, loading: authLoading } = useAuth()
     const navigate = useNavigate()
 
     const passwordStrength = validators.passwordStrength(formData.password)
 
-    // Auto-save form state to localStorage
+    // Persist the current draft only after we've attempted restoration,
+    // so an empty initial render never overwrites the real saved draft.
     useEffect(() => {
-        if (currentUser?.uid) {
-            localStorage.setItem(`peso-reg-draft-${currentUser.uid}`, JSON.stringify(formData))
+        if (currentUser?.uid && restoredRef.current) {
+            localStorage.setItem(getDraftStorageKey(currentUser.uid), JSON.stringify({
+                formData,
+                currentStep
+            }))
         }
-    }, [formData, currentUser?.uid])
+    }, [formData, currentStep, currentUser?.uid])
 
     // Restore saved progress only once on initial load
     useEffect(() => {
-        if (restoredRef.current) return
+        if (restoredRef.current || authLoading || !currentUser?.uid) return
+
+        restoredRef.current = true
+
+        let restoredFormData = {}
+        let restoredStep = 1
+
         if (userData && userData.registration_complete === false && userData.role === 'user' && userData.subtype === 'jobseeker') {
-            restoredRef.current = true
+            const savedSelfEmployment = parseOtherSelection(unwrapArrayValue(userData.self_employment_type))
+            const savedUnemploymentReason = parseOtherSelection(unwrapArrayValue(userData.unemployment_reason))
             setAccountCreated(true)
-            setFormData(prev => ({
-                ...prev,
+            restoredFormData = {
                 email: userData.email || '',
                 surname: userData.surname || '',
                 first_name: userData.first_name || '',
@@ -132,26 +208,31 @@ const JobseekerRegistration = () => {
                 civil_status: userData.civil_status || '',
                 is_pwd: userData.is_pwd || false,
                 disability_type: userData.disability_type || [],
+                disability_type_specify: userData.disability_type_specify || '',
                 pwd_id_number: userData.pwd_id_number || '',
+                religion: userData.religion?.startsWith('Others:') ? 'Others' : (userData.religion || ''),
+                religion_specify: userData.religion?.startsWith('Others:') ? userData.religion.slice(8).trim() : '',
+                height_cm: userData.height_cm ?? '',
                 street_address: userData.street_address || '',
                 barangay: userData.barangay || '',
                 city: userData.city || '',
                 province: userData.province || '',
                 mobile_number: userData.mobile_number || '',
-                preferred_contact_method: userData.preferred_contact_method || 'email',
                 employment_status: userData.employment_status || '',
-                employment_type: userData.employment_type || '',
-                self_employment_type: userData.self_employment_type || '',
-                self_employment_specify: userData.self_employment_specify || '',
-                unemployment_reason: userData.unemployment_reason || '',
+                employment_type: unwrapArrayValue(userData.employment_type),
+                self_employment_type: savedSelfEmployment.selectedValue,
+                self_employment_specify: savedSelfEmployment.otherValue,
+                unemployment_reason: savedUnemploymentReason.selectedValue,
+                unemployment_reason_specify: savedUnemploymentReason.otherValue,
                 months_looking_for_work: userData.months_looking_for_work || '',
-                currently_in_school: userData.currently_in_school || false,
+                currently_in_school: userData.currently_in_school === true || userData.currently_in_school === 'true',
                 highest_education: userData.highest_education || '',
                 school_name: userData.school_name || '',
                 course_or_field: userData.course_or_field || '',
-                year_graduated: userData.year_graduated || '',
+                year_graduated: String(userData.year_graduated ?? '').trim(),
+                did_not_graduate: userData.did_not_graduate === true || userData.did_not_graduate === 'true',
                 education_level_reached: userData.education_level_reached || '',
-                year_last_attended: userData.year_last_attended || '',
+                year_last_attended: String(userData.year_last_attended ?? '').trim(),
                 vocational_training: userData.vocational_training || [],
                 predefined_skills: userData.predefined_skills || [],
                 skills: userData.skills || [],
@@ -175,21 +256,38 @@ const JobseekerRegistration = () => {
                 peso_verification_consent: userData.peso_verification_consent || false,
                 info_accuracy_confirmation: userData.info_accuracy_confirmation || false,
                 dole_authorization: userData.dole_authorization || false,
-            }))
-
-            // Also restore from localStorage draft if available
-            const draft = localStorage.getItem(`peso-reg-draft-${userData.id}`)
-            if (draft) {
-                try {
-                    const parsed = JSON.parse(draft)
-                    setFormData(prev => ({ ...prev, ...parsed }))
-                } catch (e) { /* ignore parse errors */ }
             }
 
             const savedStep = userData.registration_step || 1
-            setCurrentStep(Math.min(savedStep + 1, TOTAL_STEPS))
+            restoredStep = clampStep(savedStep + 1)
         }
-    }, [userData])
+
+        const draft = localStorage.getItem(getDraftStorageKey(currentUser.uid))
+        if (draft) {
+            try {
+                const parsed = JSON.parse(draft)
+                const draftFormData = parsed?.formData ?? parsed
+                const draftStep = parsed?.currentStep
+
+                if (draftFormData && typeof draftFormData === 'object') {
+                    restoredFormData = {
+                        ...restoredFormData,
+                        ...draftFormData
+                    }
+                }
+
+                if (typeof draftStep === 'number' && Number.isFinite(draftStep)) {
+                    restoredStep = clampStep(draftStep)
+                }
+            } catch (e) { /* ignore parse errors */ }
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            ...restoredFormData
+        }))
+        setCurrentStep(restoredStep)
+    }, [authLoading, currentUser?.uid, userData])
 
     const handleBlur = useCallback((e) => {
         const { name } = e.target
@@ -262,6 +360,15 @@ const JobseekerRegistration = () => {
                 if (formData.is_pwd === true && (!formData.disability_type || formData.disability_type.length === 0)) {
                     newErrors.disability_type = 'Select at least one disability type'
                 }
+                if (formData.is_pwd === true && (formData.disability_type || []).includes('Others') && !formData.disability_type_specify?.trim()) {
+                    newErrors.disability_type_specify = 'Please specify the disability'
+                }
+                if (formData.religion === 'Others' && !formData.religion_specify?.trim()) {
+                    newErrors.religion_specify = 'Please specify your religion'
+                }
+                if (formData.height_cm && (Number(formData.height_cm) < 50 || Number(formData.height_cm) > 300)) {
+                    newErrors.height_cm = 'Height must be between 50 and 300 cm'
+                }
                 break
             case 3:
                 if (!formData.street_address) newErrors.street_address = 'Street address is required'
@@ -275,6 +382,7 @@ const JobseekerRegistration = () => {
                 if (formData.employment_status === 'Self-Employed' && !formData.self_employment_type) newErrors.self_employment_type = 'Self-employment type is required'
                 if (formData.employment_status === 'Self-Employed' && formData.self_employment_type === 'Others' && !formData.self_employment_specify) newErrors.self_employment_specify = 'Please specify'
                 if (formData.employment_status === 'Unemployed' && !formData.unemployment_reason) newErrors.unemployment_reason = 'Unemployment reason is required'
+                if (formData.employment_status === 'Unemployed' && formData.unemployment_reason === 'Others' && !formData.unemployment_reason_specify) newErrors.unemployment_reason_specify = 'Please specify'
                 break
             case 4:
                 if (!formData.highest_education) newErrors.highest_education = 'Education level is required'
@@ -287,6 +395,9 @@ const JobseekerRegistration = () => {
                 ;(formData.work_experiences || []).forEach((exp, i) => {
                     if (!exp.company) newErrors[`exp_company_${i}`] = 'Company name is required'
                     if (!exp.position) newErrors[`exp_position_${i}`] = 'Position is required'
+                    if (exp.year_started && exp.year_ended && Number(exp.year_ended) < Number(exp.year_started)) {
+                        newErrors[`exp_year_ended_${i}`] = 'Year Ended must be ≥ Year Started'
+                    }
                 })
                 break
             }
@@ -317,7 +428,8 @@ const JobseekerRegistration = () => {
 
     const getStepData = (step) => {
         switch (step) {
-            case 2:
+            case 2: {
+                const heightCm = formData.height_cm === '' ? null : Number(formData.height_cm)
                 return {
                     surname: formData.surname,
                     first_name: formData.first_name,
@@ -326,24 +438,34 @@ const JobseekerRegistration = () => {
                     date_of_birth: formData.date_of_birth,
                     sex: formData.sex,
                     civil_status: formData.civil_status,
+                    religion: formData.religion === 'Others' && formData.religion_specify?.trim()
+                        ? `Others: ${formData.religion_specify.trim()}`
+                        : formData.religion,
+                    height_cm: Number.isNaN(heightCm) ? null : heightCm,
                     is_pwd: formData.is_pwd,
                     disability_type: formData.disability_type,
+                    disability_type_specify: formData.is_pwd && (formData.disability_type || []).includes('Others')
+                        ? formData.disability_type_specify?.trim() || ''
+                        : '',
                     pwd_id_number: formData.pwd_id_number
                 }
+            }
             case 3:
+                {
+                    const monthsLookingForWork = formData.months_looking_for_work === '' ? null : Number(formData.months_looking_for_work)
+
                 return {
                     street_address: formData.street_address,
                     barangay: formData.barangay,
                     city: formData.city,
                     province: formData.province,
                     mobile_number: formData.mobile_number,
-                    preferred_contact_method: formData.preferred_contact_method,
                     employment_status: formData.employment_status,
                     employment_type: formData.employment_type,
-                    self_employment_type: formData.self_employment_type,
-                    self_employment_specify: formData.self_employment_specify,
-                    unemployment_reason: formData.unemployment_reason,
-                    months_looking_for_work: formData.months_looking_for_work
+                    self_employment_type: buildOtherSelection(formData.self_employment_type, formData.self_employment_specify),
+                    unemployment_reason: buildOtherSelection(formData.unemployment_reason, formData.unemployment_reason_specify),
+                    months_looking_for_work: Number.isNaN(monthsLookingForWork) ? null : monthsLookingForWork
+                }
                 }
             case 4:
                 return {
@@ -351,18 +473,22 @@ const JobseekerRegistration = () => {
                     highest_education: formData.highest_education,
                     school_name: formData.school_name,
                     course_or_field: formData.course_or_field,
-                    year_graduated: formData.year_graduated,
+                    year_graduated: String(formData.year_graduated ?? '').trim(),
+                    did_not_graduate: formData.did_not_graduate,
                     education_level_reached: formData.education_level_reached,
-                    year_last_attended: formData.year_last_attended,
+                    year_last_attended: String(formData.year_last_attended ?? '').trim(),
                     vocational_training: formData.vocational_training
                 }
             case 5:
                 return {
                     predefined_skills: formData.predefined_skills,
                     skills: formData.skills,
-                    professional_licenses: formData.professional_licenses,
+                    professional_licenses: (formData.professional_licenses || []).map((license) => ({
+                        ...license,
+                        valid_until: normalizeOptionalDate(license.valid_until)
+                    })),
                     civil_service_eligibility: formData.civil_service_eligibility,
-                    civil_service_date: formData.civil_service_date,
+                    civil_service_date: normalizeOptionalDate(formData.civil_service_date),
                     work_experiences: formData.work_experiences,
                     portfolio_url: formData.portfolio_url,
                     resume_url: formData.resume_url,
@@ -420,7 +546,7 @@ const JobseekerRegistration = () => {
             setCurrentStep(prev => Math.min(prev + 1, TOTAL_STEPS))
         } catch (err) {
             console.error('Error saving step:', err)
-            setError('Failed to save progress. Please try again.')
+            setError(err?.message ? ('Failed to save: ' + err.message) : 'Failed to save progress. Please try again.')
         } finally {
             setSaving(false)
         }
@@ -452,7 +578,7 @@ const JobseekerRegistration = () => {
             await completeRegistration(finalData)
 
             // Clear draft on successful submission
-            localStorage.removeItem(`peso-reg-draft-${currentUser.uid}`)
+            localStorage.removeItem(getDraftStorageKey(currentUser.uid))
 
             try {
                 await sendJobseekerRegistrationEmail({
@@ -573,7 +699,7 @@ const JobseekerRegistration = () => {
                                             await saveRegistrationStep(stepData, currentStep)
                                             navigate('/')
                                         } catch (err) {
-                                            setErrors({ general: 'Failed to save progress. Please try again.' })
+                                            setError(err?.message ? ('Failed to save: ' + err.message) : 'Failed to save progress. Please try again.')
                                         }
                                     }}
                                     className="text-sm text-gray-500 hover:text-primary-600 transition-colors"

@@ -1,4 +1,4 @@
-import { User, Calendar } from 'lucide-react'
+import { User, Calendar, Ruler } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import { AnimatedSection } from '../forms/AnimatedSection'
@@ -7,6 +7,13 @@ import { Tooltip } from '../forms/Tooltip'
 const SUFFIX_OPTIONS = ['None', 'Jr.', 'Sr.', 'III', 'IV', 'V']
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Solo Parent']
 const DISABILITY_TYPES = ['Visual', 'Hearing', 'Speech', 'Physical', 'Mental', 'Others']
+const RELIGION_OPTIONS = [
+  'Roman Catholic', 'Islam', 'Iglesia ni Cristo', 'Evangelical Christianity',
+  'Philippine Independent Church (Aglipayan)', 'Seventh-day Adventist',
+  'Bible Baptist Church', 'United Church of Christ in the Philippines',
+  'Jehovah\'s Witnesses', 'Church of Christ', 'Born Again Christian',
+  'Others', 'Prefer not to say'
+]
 
 function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} }) {
   const handleDisabilityToggle = (type) => {
@@ -45,6 +52,14 @@ function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} })
 
       <SearchableSelect label="Civil Status" name="civil_status" value={formData.civil_status} onChange={handleChange} options={CIVIL_STATUS_OPTIONS} required error={errors.civil_status} />
 
+      <SearchableSelect label="Religion" name="religion" value={formData.religion} onChange={handleChange} options={RELIGION_OPTIONS} error={errors.religion} />
+
+      <AnimatedSection show={formData.religion === 'Others'}>
+        <FloatingLabelInput label="Please specify religion" name="religion_specify" value={formData.religion_specify} onChange={handleChange} required error={errors.religion_specify} />
+      </AnimatedSection>
+
+      <FloatingLabelInput label="Height (cm)" name="height_cm" value={formData.height_cm} onChange={handleChange} type="number" inputMode="numeric" min="50" max="300" icon={Ruler} error={errors.height_cm} />
+
       <div>
         <label className="label">
           Person with Disability (PWD) <span className="text-red-500">*</span>
@@ -79,6 +94,9 @@ function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} })
             </div>
             {errors.disability_type && <p className="mt-1 text-sm text-red-500">{errors.disability_type}</p>}
           </div>
+          <AnimatedSection show={(formData.disability_type || []).includes('Others')}>
+            <FloatingLabelInput label="Please specify disability" name="disability_type_specify" value={formData.disability_type_specify} onChange={handleChange} required error={errors.disability_type_specify} />
+          </AnimatedSection>
           <FloatingLabelInput label="PWD ID Number" name="pwd_id_number" value={formData.pwd_id_number} onChange={handleChange} />
         </div>
       </AnimatedSection>
@@ -86,4 +104,4 @@ function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} })
   )
 }
 
-export { Step2PersonalInfo, SUFFIX_OPTIONS, CIVIL_STATUS_OPTIONS, DISABILITY_TYPES }
+export { Step2PersonalInfo, SUFFIX_OPTIONS, CIVIL_STATUS_OPTIONS, DISABILITY_TYPES, RELIGION_OPTIONS }

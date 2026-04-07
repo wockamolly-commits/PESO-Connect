@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MapPin, Plus, X, Globe, Languages } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
@@ -19,6 +19,12 @@ function Step6JobPreferences({ formData, handleChange, setFormData, errors = {} 
   const [showOverseas, setShowOverseas] = useState(
     (formData.preferred_overseas_locations || []).some(l => l && l.trim() !== '')
   )
+
+  useEffect(() => {
+    if ((formData.preferred_overseas_locations || []).some(l => l && l.trim() !== '')) {
+      setShowOverseas(true)
+    }
+  }, [formData.preferred_overseas_locations])
 
   const handleJobTypeToggle = (typeId) => {
     const current = formData.preferred_job_type || []

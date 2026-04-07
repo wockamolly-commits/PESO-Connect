@@ -17,7 +17,7 @@ const PREDEFINED_SKILLS = [
 
 const WORK_STATUS_OPTIONS = ['Permanent', 'Contractual', 'Part-time', 'Probationary']
 
-const EMPTY_EXPERIENCE = { company: '', address: '', position: '', months: '', employment_status: '' }
+const EMPTY_EXPERIENCE = { company: '', address: '', position: '', year_started: '', year_ended: '', employment_status: '' }
 const EMPTY_LICENSE = { name: '', number: '', valid_until: '' }
 
 function Step5SkillsExperience({ formData, handleChange, setFormData, userId, errors = {} }) {
@@ -166,11 +166,12 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
             <div className="space-y-3">
               <FloatingLabelInput label="Company Name" name={`exp_company_${index}`} value={exp.company} onChange={(e) => updateExperience(index, 'company', e.target.value)} icon={Briefcase} required error={errors[`exp_company_${index}`]} />
               <FloatingLabelInput label="Address (City/Municipality)" name={`exp_address_${index}`} value={exp.address} onChange={(e) => updateExperience(index, 'address', e.target.value)} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FloatingLabelInput label="Position" name={`exp_position_${index}`} value={exp.position} onChange={(e) => updateExperience(index, 'position', e.target.value)} required error={errors[`exp_position_${index}`]} />
-                <FloatingLabelInput label="Number of Months" name={`exp_months_${index}`} value={exp.months} onChange={(e) => updateExperience(index, 'months', e.target.value)} type="number" inputMode="numeric" min="1" />
+              <FloatingLabelInput label="Position" name={`exp_position_${index}`} value={exp.position} onChange={(e) => updateExperience(index, 'position', e.target.value)} required error={errors[`exp_position_${index}`]} />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <FloatingLabelInput label="Year Started" name={`exp_year_started_${index}`} value={exp.year_started} onChange={(e) => updateExperience(index, 'year_started', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2020" error={errors[`exp_year_started_${index}`]} />
+                <FloatingLabelInput label="Year Ended" name={`exp_year_ended_${index}`} value={exp.year_ended} onChange={(e) => updateExperience(index, 'year_ended', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2023" error={errors[`exp_year_ended_${index}`]} />
+                <SearchableSelect label="Employment Status" name={`exp_status_${index}`} value={exp.employment_status} onChange={(e) => updateExperience(index, 'employment_status', e.target.value)} options={WORK_STATUS_OPTIONS} />
               </div>
-              <SearchableSelect label="Employment Status" name={`exp_status_${index}`} value={exp.employment_status} onChange={(e) => updateExperience(index, 'employment_status', e.target.value)} options={WORK_STATUS_OPTIONS} />
             </div>
           </div>
         ))}

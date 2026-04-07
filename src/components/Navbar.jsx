@@ -24,12 +24,16 @@ const Navbar = () => {
     const location = useLocation()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [unreadCount, setUnreadCount] = useState(0)
+    const shouldLoadRealtimeCounts = !!currentUser && userData?.registration_complete !== false
 
     useEffect(() => {
-        if (!currentUser) return
+        if (!shouldLoadRealtimeCounts) {
+            setUnreadCount(0)
+            return
+        }
         const unsubscribe = getTotalUnreadCount(currentUser.uid, setUnreadCount)
         return () => unsubscribe()
-    }, [currentUser])
+    }, [currentUser, shouldLoadRealtimeCounts])
 
     const handleLogout = async () => {
         try {
@@ -121,7 +125,7 @@ const Navbar = () => {
                                 </Link>
 
                                 {/* Notification Bell */}
-                                <NotificationBell />
+                                {shouldLoadRealtimeCounts && <NotificationBell />}
 
                                 {/* User Menu */}
                                 <div className="flex items-center gap-3">

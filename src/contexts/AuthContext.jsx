@@ -12,6 +12,8 @@ export const AuthProvider = ({ children }) => {
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
     const passwordResetInProgressRef = useRef(false)
+    const userDataFetchesRef = useRef(new Map())
+    const authEventSequenceRef = useRef(0)
 
     const BASE_FIELDS = new Set([
         'id', 'email', 'role', 'subtype', 'name',
@@ -20,53 +22,93 @@ export const AuthProvider = ({ children }) => {
         'profile_photo', 'created_at', 'updated_at',
     ])
 
-    const fetchUserData = async (userId) => {
-        let timedOut = false
-        const timeoutPromise = new Promise((resolve) =>
-            setTimeout(() => { timedOut = true; resolve(null) }, 8000)
-        )
-
-        const baseData = await Promise.race([
-            supabase.from('users').select('*').eq('id', userId).maybeSingle()
-                .then(({ data, error }) => {
-                    if (error) { console.error('fetchUserData error:', error.message); return null }
-                    return data
-                }),
-            timeoutPromise,
-        ])
-
-        if (timedOut) return 'timeout'
-        if (!baseData) return null
-
-        // Fetch role-specific profile
-        const profileTable = getProfileTable(baseData.role, baseData.subtype)
-        let profileData = {}
-        if (profileTable) {
-            const { data: profile } = await supabase
-                .from(profileTable).select('*').eq('id', userId).maybeSingle()
-            if (profile) profileData = profile
+    const fetchUserData = async (userId, { force = false } = {}) => {
+        if (!force) {
+            const existingRequest = userDataFetchesRef.current.get(userId)
+            if (existingRequest) return existingRequest
         }
 
-        // Merge: start with baseData, overlay non-empty profile values
-        // This ensures existing data in public.users shows as fallback
-        const merged = { ...baseData }
-        Object.entries(profileData).forEach(([key, val]) => {
-            const isEmpty = val === null || val === '' ||
-                (Array.isArray(val) && val.length === 0)
-            if (!isEmpty) merged[key] = val
-            else if (merged[key] === undefined) merged[key] = val
-        })
+        const request = (async () => {
+            let timedOut = false
+            const timeoutPromise = new Promise((resolve) =>
+                setTimeout(() => { timedOut = true; resolve(null) }, 8000)
+            )
 
-        // Compose display_name from split name fields (with full_name fallback)
-        if (merged.first_name || merged.surname) {
-            merged.display_name = [merged.first_name, merged.surname].filter(Boolean).join(' ')
-        } else if (merged.full_name) {
-            merged.display_name = merged.full_name
+            const baseData = await Promise.race([
+                supabase.from('users').select('*').eq('id', userId).maybeSingle()
+                    .then(({ data, error }) => {
+                        if (error) {
+                            if (error.name === 'AbortError') return 'timeout'
+                            console.error('fetchUserData error:', error.message)
+                            return null
+                        }
+                        return data
+                    }),
+                timeoutPromise,
+            ])
+
+            if (timedOut || baseData === 'timeout') return 'timeout'
+            if (!baseData) return null
+
+            // Fetch role-specific profile
+            const profileTable = getProfileTable(baseData.role, baseData.subtype)
+            let profileData = {}
+            if (profileTable) {
+                const { data: profile, error: profileError } = await supabase
+                    .from(profileTable).select('*').eq('id', userId).maybeSingle()
+                if (profileError) {
+                    if (profileError.name === 'AbortError') return 'timeout'
+                    console.error('fetchUserData profile error:', profileError.message)
+                } else if (profile) {
+                    profileData = profile
+                }
+            }
+
+            // Merge: start with baseData, overlay profile values.
+            // Booleans (false), numbers (0), and objects are always kept.
+            // Only null, empty string, and empty arrays are treated as "empty"
+            // and only used as fallback when baseData lacks the key.
+            const merged = { ...baseData }
+            Object.entries(profileData).forEach(([key, val]) => {
+                if (val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
+                    // Empty value — only use if base doesn't have this key at all
+                    if (merged[key] === undefined) merged[key] = val
+                } else {
+                    // Non-empty value (includes false, 0, objects) — always overlay
+                    merged[key] = val
+                }
+            })
+
+            // Normalize boolean fields that may come back as strings from DB
+            const BOOL_FIELDS = ['currently_in_school', 'did_not_graduate', 'is_pwd',
+                'terms_accepted', 'data_processing_consent', 'peso_verification_consent',
+                'info_accuracy_confirmation', 'dole_authorization', 'registration_complete',
+                'is_verified', 'profile_modified_since_verification']
+            for (const f of BOOL_FIELDS) {
+                if (f in merged) {
+                    merged[f] = merged[f] === true || merged[f] === 'true'
+                }
+            }
+
+            // Compose display_name from split name fields (with full_name fallback)
+            if (merged.first_name || merged.surname) {
+                merged.display_name = [merged.first_name, merged.surname].filter(Boolean).join(' ')
+            } else if (merged.full_name) {
+                merged.display_name = merged.full_name
+            }
+
+            setUserData(merged)
+            try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(merged)) } catch {}
+            return merged
+        })()
+
+        userDataFetchesRef.current.set(userId, request)
+
+        try {
+            return await request
+        } finally {
+            userDataFetchesRef.current.delete(userId)
         }
-
-        setUserData(merged)
-        try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(merged)) } catch {}
-        return merged
     }
 
     const createAccount = async (email, password, role, subtype = null) => {
@@ -157,6 +199,124 @@ export const AuthProvider = ({ children }) => {
         return { base, profile }
     }
 
+    const toSupabaseErrorMessage = (error) => {
+        if (!error) return ''
+        return [
+            error.message,
+            error.details,
+            error.hint,
+            error.code
+        ].filter(Boolean).join(' ')
+    }
+
+    const getArrayCompatibleValue = (value) => {
+        if (Array.isArray(value)) return value
+        if (typeof value === 'string' && value.trim()) return [value]
+        if (value === '' || value == null) return []
+        return value
+    }
+
+    // Fields that are TEXT[] in the live database and need wrapping
+    // when the client sends a bare string instead of an array.
+    const REAL_ARRAY_FIELDS = new Set([
+        'disability_type',
+        'predefined_skills',
+        'skills',
+        'certifications',
+        'preferred_job_type',
+        'preferred_occupations',
+        'preferred_local_locations',
+        'preferred_overseas_locations',
+    ])
+
+    const buildAllArraysPayload = (profile) => {
+        const converted = { ...profile }
+        for (const field of REAL_ARRAY_FIELDS) {
+            if (Object.prototype.hasOwnProperty.call(converted, field)) {
+                converted[field] = getArrayCompatibleValue(converted[field])
+            }
+        }
+        return converted
+    }
+
+    const getMissingProfileColumn = (error) => {
+        const errorMessage = toSupabaseErrorMessage(error)
+        if (!errorMessage) return null
+
+        const postgrestMatch = errorMessage.match(/Could not find the '([^']+)' column/i)
+        if (postgrestMatch?.[1]) return postgrestMatch[1]
+
+        const postgresMatch = errorMessage.match(/column "([^"]+)" of relation/i)
+        if (postgresMatch?.[1]) return postgresMatch[1]
+
+        return null
+    }
+
+    const getCheckConstraintField = (error) => {
+        const errorMessage = toSupabaseErrorMessage(error)
+        if (!errorMessage) return null
+
+        // e.g.  new row for relation "jobseeker_profiles" violates check constraint "..."
+        const match = errorMessage.match(/violates check constraint/i)
+        return match ? errorMessage : null
+    }
+
+    const upsertProfileWithCompatibility = async (profileTable, profileData) => {
+        const attemptUpsert = async (payload) => {
+            const { error } = await supabase
+                .from(profileTable)
+                .upsert(payload, { onConflict: 'id' })
+            return error
+        }
+
+        // Pre-convert known array fields so the first attempt succeeds
+        let payload = buildAllArraysPayload({ ...profileData })
+        let triedArrayConversion = false
+        let lastError = null
+
+        for (let attempt = 0; attempt < 15; attempt += 1) {
+            const profileError = await attemptUpsert(payload)
+            if (!profileError) return
+
+            lastError = profileError
+            const profileErrorMessage = toSupabaseErrorMessage(profileError).toLowerCase()
+
+            console.error(
+                `[upsertProfile] attempt ${attempt + 1} failed on ${profileTable}:`,
+                profileErrorMessage,
+                '| payload keys:', Object.keys(payload)
+            )
+
+            const isArrayError =
+                profileErrorMessage.includes('malformed array literal') ||
+                profileErrorMessage.includes('array value must start with "{"')
+
+            if (isArrayError && !triedArrayConversion) {
+                triedArrayConversion = true
+                payload = buildAllArraysPayload(payload)
+                continue
+            }
+
+            const missingColumn = getMissingProfileColumn(profileError)
+            if (missingColumn && Object.prototype.hasOwnProperty.call(payload, missingColumn)) {
+                console.warn(`[upsertProfile] dropping missing column: ${missingColumn}`)
+                const { [missingColumn]: _ignored, ...nextPayload } = payload
+                payload = nextPayload
+                continue
+            }
+
+            // Check constraint violations are not recoverable by dropping fields
+            if (getCheckConstraintField(profileError)) {
+                console.error('[upsertProfile] check constraint violation — payload:', JSON.stringify(payload, null, 2))
+                throw profileError
+            }
+
+            throw profileError
+        }
+
+        if (lastError) throw lastError
+    }
+
     // Save registration step data to Supabase
     const saveRegistrationStep = async (stepData, stepNumber) => {
         if (!currentUser) throw new Error('No authenticated user')
@@ -174,15 +334,12 @@ export const AuthProvider = ({ children }) => {
         const profileTable = getProfileTable(role, subtype)
         if (profileTable) {
             // Write profile-specific fields + mirror registration_step in a single upsert
-            const { error: profileError } = await supabase
-                .from(profileTable)
-                .upsert({
-                    id: currentUser.uid,
-                    ...profile,
-                    registration_step: stepNumber,
-                    updated_at: now,
-                }, { onConflict: 'id' })
-            if (profileError) throw profileError
+            await upsertProfileWithCompatibility(profileTable, {
+                id: currentUser.uid,
+                ...profile,
+                registration_step: stepNumber,
+                updated_at: now,
+            })
         }
 
         setUserData(prev => {
@@ -226,10 +383,7 @@ export const AuthProvider = ({ children }) => {
             if (subtype === SUBTYPES.HOMEOWNER) {
                 profileUpsert.is_verified = true
             }
-            const { error: profileError } = await supabase
-                .from(profileTable)
-                .upsert(profileUpsert, { onConflict: 'id' })
-            if (profileError) throw profileError
+            await upsertProfileWithCompatibility(profileTable, profileUpsert)
         }
 
         setUserData(prev => {
@@ -316,48 +470,62 @@ export const AuthProvider = ({ children }) => {
     // over the navigator lock, breaking every auth-dependent request.
     const authInitRef = useRef(false)
 
+    const handleAuthSession = async (session, sequenceNumber) => {
+        try {
+            // Password reset creates a temporary session for updateUser -
+            // don't treat it as a real login.
+            if (passwordResetInProgressRef.current) {
+                setLoading(false)
+                return
+            }
+
+            if (session?.user) {
+                const user = session.user
+                setCurrentUser({ ...user, uid: user.id })
+                // Restore cached profile instantly so Navbar never shows "User"
+                try {
+                    const cached = localStorage.getItem(`peso-profile-${user.id}`)
+                    if (cached) setUserData(JSON.parse(cached))
+                } catch {}
+                // Fetch fresh data outside the auth callback to avoid
+                // competing for Supabase's navigator lock.
+                const result = await fetchUserData(user.id)
+                if (authEventSequenceRef.current !== sequenceNumber) return
+
+                if (result === 'timeout') {
+                    // DB hung (e.g. Supabase project paused) - keep cached data, stay logged in
+                } else if (!result) {
+                    // Null = no DB row -> stale session, sign out locally
+                    await supabase.auth.signOut({ scope: 'local' })
+                    localStorage.clear()
+                    window.location.href = '/login'
+                    return
+                }
+            } else {
+                setCurrentUser(null)
+                setUserData(null)
+            }
+        } catch (err) {
+            if (err?.name !== 'AbortError') {
+                console.error('Auth state change error:', err)
+            }
+        } finally {
+            if (authEventSequenceRef.current === sequenceNumber) {
+                setLoading(false)
+            }
+        }
+    }
+
     useEffect(() => {
         // Only subscribe once — skip on Strict Mode's second mount
         if (authInitRef.current) return
         authInitRef.current = true
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            try {
-                // Password reset creates a temporary session for updateUser —
-                // don't treat it as a real login.
-                if (passwordResetInProgressRef.current) {
-                    setLoading(false)
-                    return
-                }
-
-                if (session?.user) {
-                    const user = session.user
-                    setCurrentUser({ ...user, uid: user.id })
-                    // Restore cached profile instantly so Navbar never shows "User"
-                    try {
-                        const cached = localStorage.getItem(`peso-profile-${user.id}`)
-                        if (cached) setUserData(JSON.parse(cached))
-                    } catch {}
-                    // Fetch fresh data — DB may be slow/paused on free tier
-                    const result = await fetchUserData(user.id)
-                    if (result === 'timeout') {
-                        // DB hung (e.g. Supabase project paused) — keep cached data, stay logged in
-                    } else if (!result) {
-                        // Null = no DB row → stale session, sign out
-                        await supabase.auth.signOut()
-                        localStorage.clear()
-                        window.location.href = '/login'
-                        return
-                    }
-                } else {
-                    setCurrentUser(null)
-                    setUserData(null)
-                }
-            } catch (err) {
-                console.error('Auth state change error:', err)
-            } finally {
-                setLoading(false)
-            }
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            const sequenceNumber = ++authEventSequenceRef.current
+            window.setTimeout(() => {
+                handleAuthSession(session, sequenceNumber)
+            }, 0)
         })
 
         // Intentionally no cleanup — AuthProvider is the app root and never

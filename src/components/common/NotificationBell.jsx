@@ -31,17 +31,22 @@ function timeAgo(dateString) {
 }
 
 export default function NotificationBell() {
-    const { currentUser } = useAuth()
+    const { currentUser, userData } = useAuth()
     const navigate = useNavigate()
     const [open, setOpen] = useState(false)
     const [notifications, setNotifications] = useState([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [loading, setLoading] = useState(false)
     const dropdownRef = useRef(null)
+    const shouldLoadNotifications = !!currentUser && userData?.registration_complete !== false
 
     // Subscribe to real-time notifications
     useEffect(() => {
-        if (!currentUser) return
+        if (!shouldLoadNotifications) {
+            setNotifications([])
+            setUnreadCount(0)
+            return
+        }
 
         const unsubscribe = subscribeToNotifications(
             currentUser.uid,
@@ -54,18 +59,18 @@ export default function NotificationBell() {
         )
 
         return () => unsubscribe()
-    }, [currentUser])
+    }, [currentUser, shouldLoadNotifications])
 
     // Fetch notifications when dropdown opens
     useEffect(() => {
-        if (open && currentUser) {
+        if (open && shouldLoadNotifications) {
             setLoading(true)
             getNotifications(currentUser.uid, 10).then(data => {
                 setNotifications(data)
                 setLoading(false)
             })
         }
-    }, [open, currentUser])
+    }, [open, currentUser, shouldLoadNotifications])
 
     // Close dropdown on outside click
     useEffect(() => {

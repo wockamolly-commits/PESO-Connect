@@ -20,7 +20,9 @@ export default function ResumeUpload({
     userId,
     storagePath,
     currentUrl,
+    existingUrl,
     onUploaded,
+    onUploadComplete,
     onRemoved,
     label = 'Resume',
     optional = true,
@@ -29,6 +31,8 @@ export default function ResumeUpload({
     const [error, setError] = useState('')
     const [fileName, setFileName] = useState('')
     const fileRef = useRef(null)
+    const uploadCallback = onUploaded || onUploadComplete
+    const displayUrl = currentUrl || existingUrl
 
     const validate = (file) => {
         if (!file) return 'No file selected'
@@ -72,7 +76,10 @@ export default function ResumeUpload({
 
             // Append timestamp to bust cache
             const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
-            onUploaded(publicUrl)
+            if (typeof uploadCallback !== 'function') {
+                throw new Error('No upload callback was provided.')
+            }
+            uploadCallback(publicUrl)
         } catch (err) {
             setError(`Upload failed: ${err.message}`)
             setFileName('')
@@ -95,7 +102,6 @@ export default function ResumeUpload({
         }
     }
 
-    const displayUrl = currentUrl
     const displayName = fileName || (displayUrl ? 'resume.pdf' : '')
 
     return (

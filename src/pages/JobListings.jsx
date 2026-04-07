@@ -14,6 +14,7 @@ import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
 import { calculateDeterministicScore } from '../services/geminiService'
+import { getJobMatchesForUser } from '../services/matchingService'
 import { calculateCompletion } from '../utils/profileCompletion'
 
 const JobListings = () => {
@@ -32,6 +33,7 @@ const JobListings = () => {
     const [salaryMin, setSalaryMin] = useState('')
     const [salaryMax, setSalaryMax] = useState('')
     const [savedJobIds, setSavedJobIds] = useState(new Set())
+    const [loadingMatchScores, setLoadingMatchScores] = useState(false)
     const PAGE_SIZE = 20
 
     // Calculate profile completeness for jobseekers (shared utility)
@@ -124,16 +126,64 @@ const JobListings = () => {
         fetchJobs(true)
     }
 
-    // Calculate deterministic scores instantly when jobs load
+    // Use backend hybrid matching when available, with deterministic fallback.
     useEffect(() => {
-        if (!jobs.length || !currentUser || !isJobseeker() || !userData?.skills?.length) return
-
-        const scores = {}
-        for (const job of jobs) {
-            scores[job.id] = calculateDeterministicScore(job, userData)
+        if (!jobs.length || !currentUser || !isJobseeker() || ![...(userData?.predefined_skills || []), ...(userData?.skills || [])].length) {
+            return
         }
-        setMatchScores(scores)
-    }, [jobs, currentUser, userData])
+
+        let isCancelled = false
+
+        const fallbackScores = {}
+        for (const job of jobs) {
+            fallbackScores[job.id] = calculateDeterministicScore(job, userData)
+        }
+        setLoadingMatchScores(true)
+
+        const loadHybridScores = async () => {
+            try {
+                const { results } = await getJobMatchesForUser({
+                    userId: currentUser.uid,
+                    filters: {
+                        category: categoryFilter || undefined,
+                        location: locationFilter || undefined,
+                        type: typeFilter || undefined,
+                        salaryMin: salaryMin || undefined,
+                        salaryMax: salaryMax || undefined,
+                    },
+                    limit: Math.max(jobs.length, 20),
+                })
+
+                if (isCancelled) return
+
+                const hybridById = {}
+                for (const result of results) {
+                    if (!result?.jobId) continue
+                    hybridById[result.jobId] = result.normalized || result
+                }
+
+                const mergedScores = {}
+                for (const job of jobs) {
+                    mergedScores[job.id] = hybridById[job.id] || fallbackScores[job.id]
+                }
+
+                setMatchScores(mergedScores)
+                setLoadingMatchScores(false)
+            } catch (hybridError) {
+                console.warn('Hybrid job match fetch failed, using deterministic fallback:', hybridError.message)
+                if (!isCancelled) {
+                    setMatchScores(fallbackScores)
+                    setLoadingMatchScores(false)
+                }
+            }
+        }
+
+        loadHybridScores()
+
+        return () => {
+            isCancelled = true
+        }
+    }, [jobs, currentUser, userData, categoryFilter, typeFilter, locationFilter, salaryMin, salaryMax, isJobseeker])
 
     const locations = [...new Set(jobs.map(j => j.location).filter(Boolean))].sort()
 
@@ -258,7 +308,7 @@ const JobListings = () => {
                     <p className="text-gray-600">
                         Showing <span className="font-semibold text-gray-900">{filteredJobs.length}</span>{hasMore ? '+' : ''} jobs
                     </p>
-                    {currentUser && isJobseeker() && userData?.skills?.length > 0 && Object.keys(matchScores).length > 0 && (
+                    {currentUser && isJobseeker() && [...(userData?.predefined_skills || []), ...(userData?.skills || [])].length > 0 && !loadingMatchScores && Object.keys(matchScores).length > 0 && (
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setSortByMatch(!sortByMatch)}
@@ -302,7 +352,7 @@ const JobListings = () => {
                 )}
 
                 {/* Recommended Jobs */}
-                {currentUser && isJobseeker() && Object.keys(matchScores).length > 0 && !searchTerm && !categoryFilter && !typeFilter && !locationFilter && !salaryMin && !salaryMax && (() => {
+                {currentUser && isJobseeker() && !loadingMatchScores && Object.keys(matchScores).length > 0 && !searchTerm && !categoryFilter && !typeFilter && !locationFilter && !salaryMin && !salaryMax && (() => {
                     const recommended = jobs
                         .filter(j => matchScores[j.id]?.matchScore >= 30 && !appliedJobIds.has(j.id))
                         .sort((a, b) => (matchScores[b.id]?.matchScore || 0) - (matchScores[a.id]?.matchScore || 0))

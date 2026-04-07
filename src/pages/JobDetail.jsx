@@ -24,10 +24,17 @@ import {
     Bookmark
 } from 'lucide-react'
 import geminiService, { calculateDeterministicScore } from '../services/geminiService'
+import { generateMatchExplanation, getSingleJobMatch } from '../services/matchingService'
 import ResumeUpload from '../components/common/ResumeUpload'
 import { insertNotification } from '../services/notificationService'
 import { sendApplicationReceivedEmail, sendNewApplicantEmail } from '../services/emailService'
 import { XCircle } from 'lucide-react'
+
+const getAllSkills = (userData) => [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
+const isStubExplanationResponse = (response) =>
+    response?.status === 'stub' ||
+    response?.source === 'stub' ||
+    response?.explanation === 'This is a placeholder explanation response. Replace this function with a backend Cohere prompt that uses finalized scores only.'
 
 const JobDetail = () => {
     const { id } = useParams()
@@ -47,6 +54,7 @@ const JobDetail = () => {
     const [success, setSuccess] = useState(false)
     const [matchData, setMatchData] = useState(null)
     const [calculatingMatch, setCalculatingMatch] = useState(false)
+    const [loadingMatchScore, setLoadingMatchScore] = useState(false)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [isSaved, setIsSaved] = useState(false)
 
@@ -58,20 +66,76 @@ const JobDetail = () => {
         }
     }, [id, currentUser])
 
-    // Calculate deterministic score instantly
+    // Show deterministic score immediately, then overlay hybrid score when available.
     useEffect(() => {
-        if (!job || !currentUser || !isJobseeker() || !userData?.skills?.length) return
-        const score = calculateDeterministicScore(job, userData)
-        setMatchData(prev => prev ? { ...prev, ...score } : score)
-    }, [job, currentUser, userData])
+        if (!job || !currentUser || !isJobseeker() || !getAllSkills(userData).length) return
+
+        let isCancelled = false
+        const deterministicScore = calculateDeterministicScore(job, userData)
+        setLoadingMatchScore(true)
+
+        const loadHybridMatch = async () => {
+            try {
+                const hybridScore = await getSingleJobMatch({
+                    userId: currentUser.uid,
+                    jobId: job.id,
+                })
+
+                if (!hybridScore || isCancelled) return
+
+                setMatchData(prev => ({
+                    ...(prev || deterministicScore),
+                    ...hybridScore,
+                    explanation: prev?.explanation || hybridScore.explanation || '',
+                    skillBreakdown: prev?.skillBreakdown || [],
+                    actionItems: prev?.actionItems || [],
+                    improvementTips: prev?.improvementTips || [],
+                }))
+                setLoadingMatchScore(false)
+            } catch (hybridError) {
+                console.warn('Hybrid job match fetch failed, using deterministic fallback:', hybridError.message)
+                if (!isCancelled) {
+                    setMatchData(prev => prev ? { ...prev, ...deterministicScore } : deterministicScore)
+                    setLoadingMatchScore(false)
+                }
+            }
+        }
+
+        loadHybridMatch()
+
+        return () => {
+            isCancelled = true
+        }
+    }, [job, currentUser, userData, isJobseeker])
 
     const calculateMatch = async () => {
-        if (!job || !userData) return
+        if (!job || !userData || !currentUser) return
         setCalculatingMatch(true)
         try {
-            const detScores = calculateDeterministicScore(job, userData)
-            const aiDetail = await geminiService.calculateJobMatch(job, userData, detScores)
-            // Keep deterministic score, overlay AI qualitative data only
+            const scoreContext = matchData || calculateDeterministicScore(job, userData)
+            let aiDetail = null
+
+            try {
+                const backendDetail = await generateMatchExplanation({
+                    userId: currentUser.uid,
+                    jobId: job.id,
+                    scores: scoreContext,
+                    matchingSkills: scoreContext.matchingSkills || [],
+                    missingSkills: scoreContext.missingSkills || [],
+                })
+
+                if (backendDetail?.explanation && !isStubExplanationResponse(backendDetail)) {
+                    aiDetail = backendDetail
+                }
+            } catch (backendError) {
+                console.warn('Backend match explanation failed, falling back to frontend AI:', backendError.message)
+            }
+
+            if (!aiDetail) {
+                aiDetail = await geminiService.calculateJobMatch(job, userData, scoreContext)
+            }
+
+            // Keep the visible score, overlay AI qualitative data only.
             setMatchData(prev => ({
                 ...prev,
                 explanation: aiDetail.explanation,
@@ -80,7 +144,7 @@ const JobDetail = () => {
                 improvementTips: aiDetail.improvementTips,
             }))
         } catch {
-            // Score is still shown from deterministic calc, just no detail text
+            // Score is still shown, just no detail text.
             setMatchData(prev => ({ ...prev, detailError: true }))
         } finally {
             setCalculatingMatch(false)
@@ -145,8 +209,8 @@ const JobDetail = () => {
     }
 
     const checkSkillMatch = () => {
-        if (!job?.requirements || !userData?.skills) return false
-        const userSkills = userData.skills.map(s => (typeof s === 'string' ? s : s.name).toLowerCase())
+        if (!job?.requirements) return false
+        const userSkills = getAllSkills(userData).map(s => (typeof s === 'string' ? s : s.name).toLowerCase())
         return job.requirements.some(req =>
             userSkills.some(skill => skill.includes(req.toLowerCase()) || req.toLowerCase().includes(skill))
         )
@@ -218,7 +282,7 @@ const JobDetail = () => {
                     user_id: currentUser.uid,
                     applicant_name: userData?.display_name || userData?.full_name || userData?.name || 'Unknown',
                     applicant_email: userData?.email || '',
-                    applicant_skills: userData?.skills || [],
+                    applicant_skills: getAllSkills(userData),
                     justification_text: justification || null,
                     cover_letter: coverLetter.trim() || null,
                     resume_url: useProfileResume
@@ -433,11 +497,10 @@ const JobDetail = () => {
                                 {currentUser && isJobseeker() && (
                                     <button
                                         onClick={toggleSaveJob}
-                                        className={`p-2 rounded-lg transition-colors ${
-                                            isSaved
-                                                ? 'text-primary-600 bg-primary-50'
-                                                : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'
-                                        }`}
+                                        className={`p-2 rounded-lg transition-colors ${isSaved
+                                            ? 'text-primary-600 bg-primary-50'
+                                            : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'
+                                            }`}
                                         title={isSaved ? 'Remove from saved' : 'Save job'}
                                     >
                                         <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
@@ -478,7 +541,7 @@ const JobDetail = () => {
                                     </span>
                                 ))}
                             </div>
-                            {currentUser && userData?.skills && (
+                            {currentUser && getAllSkills(userData).length > 0 && (
                                 <p className="text-sm text-gray-500 mt-4">
                                     <span className="inline-block w-3 h-3 bg-green-100 rounded-full mr-2"></span>
                                     Skills highlighted in green match your profile
@@ -506,11 +569,11 @@ const JobDetail = () => {
                                 </div>
 
                                 <div className="px-5 pb-5">
-                                    {!matchData ? (
+                                    {!matchData && !loadingMatchScore ? (
                                         <div className="text-center py-4">
                                             <p className="text-xs text-gray-500">Log in as a jobseeker with skills to see your match score</p>
                                         </div>
-                                    ) : calculatingMatch ? (
+                                    ) : (loadingMatchScore || calculatingMatch) ? (
 
                                         <div className="space-y-4 animate-pulse py-2">
                                             <div className="flex justify-center">
@@ -538,9 +601,9 @@ const JobDetail = () => {
                                                             strokeDasharray={`${matchData.matchScore * 2.64} 264`}
                                                             className={
                                                                 matchData.matchScore >= 80 ? 'stroke-green-500' :
-                                                                matchData.matchScore >= 60 ? 'stroke-blue-500' :
-                                                                matchData.matchScore >= 40 ? 'stroke-yellow-500' :
-                                                                'stroke-gray-400'
+                                                                    matchData.matchScore >= 60 ? 'stroke-blue-500' :
+                                                                        matchData.matchScore >= 40 ? 'stroke-yellow-500' :
+                                                                            'stroke-gray-400'
                                                             }
                                                         />
                                                     </svg>
@@ -549,12 +612,11 @@ const JobDetail = () => {
                                                         <span className="text-xs text-gray-400 font-medium -mt-0.5">/ 100</span>
                                                     </div>
                                                 </div>
-                                                <span className={`mt-2 text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full ${
-                                                    matchData.matchScore >= 80 ? 'bg-green-100 text-green-700' :
+                                                <span className={`mt-2 text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full ${matchData.matchScore >= 80 ? 'bg-green-100 text-green-700' :
                                                     matchData.matchScore >= 60 ? 'bg-blue-100 text-blue-700' :
-                                                    matchData.matchScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
-                                                    'bg-gray-100 text-gray-600'
-                                                }`}>
+                                                        matchData.matchScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-gray-100 text-gray-600'
+                                                    }`}>
                                                     {matchData.matchLevel} Match
                                                 </span>
                                             </div>
@@ -564,6 +626,40 @@ const JobDetail = () => {
                                                 <p className="text-xs text-gray-600 leading-relaxed text-center">
                                                     {matchData.explanation}
                                                 </p>
+                                            )}
+
+                                            {matchData.overqualificationSignal && (
+                                                <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-100">
+                                                    <div className="flex items-start gap-2">
+                                                        <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                                        <div>
+                                                            <p className="text-xs font-semibold text-blue-800">
+                                                                {matchData.overqualificationSignal.title}
+                                                            </p>
+                                                            <p className="text-xs text-blue-700 leading-relaxed mt-0.5">
+                                                                {matchData.overqualificationSignal.detail}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {matchData.inferredSoftSkills?.length > 0 && (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Why It Matches</p>
+                                                    <div className="space-y-2">
+                                                        {matchData.inferredSoftSkills.map((item, i) => (
+                                                            <div key={i} className="p-2 rounded-lg bg-indigo-50 border border-indigo-100">
+                                                                <p className="text-xs font-semibold text-indigo-800">
+                                                                    {item.requirement}
+                                                                </p>
+                                                                <p className="text-xs text-indigo-700 mt-0.5 leading-relaxed">
+                                                                    Credited from {item.inferredSkill}: {item.recruiterReason}
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             )}
 
                                             {/* Detailed Breakdown Button (no AI detail yet) */}
@@ -580,6 +676,7 @@ const JobDetail = () => {
                                                 </div>
                                             )}
 
+
                                             {/* Skill Breakdown Progress Bars */}
                                             {matchData.skillBreakdown?.length > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
@@ -587,8 +684,8 @@ const JobDetail = () => {
                                                     <div className="space-y-2.5">
                                                         {matchData.skillBreakdown.map((sb, i) => {
                                                             const Icon = sb.category.toLowerCase().includes('technical') ? Target :
-                                                                         sb.category.toLowerCase().includes('experience') ? Briefcase :
-                                                                         sb.category.toLowerCase().includes('education') ? BookOpen : TrendingUp
+                                                                sb.category.toLowerCase().includes('experience') ? Briefcase :
+                                                                    sb.category.toLowerCase().includes('education') ? BookOpen : TrendingUp
                                                             return (
                                                                 <div key={i}>
                                                                     <div className="flex items-center justify-between mb-1">
@@ -596,19 +693,17 @@ const JobDetail = () => {
                                                                             <Icon className="w-3 h-3 text-indigo-500" />
                                                                             <span className="text-xs font-semibold text-gray-700">{sb.category}</span>
                                                                         </div>
-                                                                        <span className={`text-xs font-bold ${
-                                                                            sb.score >= 70 ? 'text-green-600' :
+                                                                        <span className={`text-xs font-bold ${sb.score >= 70 ? 'text-green-600' :
                                                                             sb.score >= 40 ? 'text-yellow-600' :
-                                                                            'text-red-500'
-                                                                        }`}>{sb.score}%</span>
+                                                                                'text-red-500'
+                                                                            }`}>{sb.score}%</span>
                                                                     </div>
                                                                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                                                         <div
-                                                                            className={`h-full rounded-full transition-all duration-700 ${
-                                                                                sb.score >= 70 ? 'bg-gradient-to-r from-green-400 to-green-500' :
+                                                                            className={`h-full rounded-full transition-all duration-700 ${sb.score >= 70 ? 'bg-gradient-to-r from-green-400 to-green-500' :
                                                                                 sb.score >= 40 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                                                                'bg-gradient-to-r from-red-400 to-red-500'
-                                                                            }`}
+                                                                                    'bg-gradient-to-r from-red-400 to-red-500'
+                                                                                }`}
                                                                             style={{ width: `${sb.score}%` }}
                                                                         />
                                                                     </div>
@@ -658,17 +753,15 @@ const JobDetail = () => {
                                                     <div className="space-y-2">
                                                         {matchData.actionItems.map((item, i) => {
                                                             const typeIcon = item.type === 'course' ? BookOpen :
-                                                                             item.type === 'certification' ? Award :
-                                                                             item.type === 'portfolio' ? ArrowUpRight : Briefcase
+                                                                item.type === 'certification' ? Award :
+                                                                    item.type === 'portfolio' ? ArrowUpRight : Briefcase
                                                             const TypeIcon = typeIcon
                                                             return (
-                                                                <div key={i} className={`flex items-start gap-2 p-2 rounded-lg ${
-                                                                    item.priority === 'high' ? 'bg-orange-50 border border-orange-100' :
+                                                                <div key={i} className={`flex items-start gap-2 p-2 rounded-lg ${item.priority === 'high' ? 'bg-orange-50 border border-orange-100' :
                                                                     'bg-gray-50 border border-gray-100'
-                                                                }`}>
-                                                                    <TypeIcon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
-                                                                        item.priority === 'high' ? 'text-orange-500' : 'text-indigo-400'
-                                                                    }`} />
+                                                                    }`}>
+                                                                    <TypeIcon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${item.priority === 'high' ? 'text-orange-500' : 'text-indigo-400'
+                                                                        }`} />
                                                                     <div className="flex-1 min-w-0">
                                                                         <p className="text-xs text-gray-700 leading-relaxed">{item.action}</p>
                                                                         <div className="flex items-center gap-2 mt-1">
@@ -681,6 +774,19 @@ const JobDetail = () => {
                                                                 </div>
                                                             )
                                                         })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {matchData.rebrandingSuggestions?.length > 0 && (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Positioning Advice</p>
+                                                    <div className="space-y-1.5">
+                                                        {matchData.rebrandingSuggestions.map((tip, i) => (
+                                                            <p key={i} className="text-xs text-gray-600 leading-relaxed">
+                                                                {tip}
+                                                            </p>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )}
@@ -727,6 +833,15 @@ const JobDetail = () => {
                                     <p className="text-xs text-gray-400 mt-3">
                                         {matched.length} of {matched.length + missing.length} requirements matched
                                     </p>
+                                    {matchData.inferredSoftSkills?.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                                            {matchData.inferredSoftSkills.map((item, i) => (
+                                                <div key={`inf-${i}`} className="text-xs text-gray-500 leading-relaxed">
+                                                    <span className="font-semibold text-gray-700">{item.requirement}:</span> matched through {item.inferredSkill.toLowerCase()} evidence.
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })()}
@@ -932,11 +1047,11 @@ const JobDetail = () => {
                         )}
 
                         {/* Your Skills */}
-                        {currentUser && userData?.skills && userData.skills.length > 0 && (
+                        {currentUser && getAllSkills(userData).length > 0 && (
                             <div className="card">
                                 <h3 className="font-semibold text-gray-900 mb-3">Your Skills</h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {userData.skills.map((skill, i) => (
+                                    {getAllSkills(userData).map((skill, i) => (
                                         <span key={i} className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-sm">
                                             {skill}
                                         </span>
@@ -976,11 +1091,11 @@ const JobDetail = () => {
                                     </p>
                                 </div>
 
-                                {userData?.skills?.length > 0 && (
+                                {getAllSkills(userData).length > 0 && (
                                     <div className="p-3 bg-gray-50 rounded-lg">
                                         <p className="text-xs text-gray-500 mb-1">Skills being shared</p>
                                         <div className="flex flex-wrap gap-1">
-                                            {userData.skills.map((skill, i) => (
+                                            {getAllSkills(userData).map((skill, i) => (
                                                 <span key={i} className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-xs">
                                                     {skill}
                                                 </span>

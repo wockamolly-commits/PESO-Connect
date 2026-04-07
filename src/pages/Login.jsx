@@ -11,7 +11,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false)
     const [emailNotVerified, setEmailNotVerified] = useState(false)
 
-    const { login, fetchUserData } = useAuth()
+    const { login } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
     const successMessage = location.state?.message
@@ -23,12 +23,9 @@ const Login = () => {
 
         try {
             const user = await login(email, password)
-            const profile = await fetchUserData(user.uid)
-            if (profile?.registration_complete === false) {
-                navigate('/register/continue')
-            } else {
-                navigate('/dashboard')
-            }
+            // Let AuthContext own profile loading after login to avoid
+            // duplicate fetches racing the auth state listener.
+            navigate('/dashboard')
         } catch (err) {
             console.error('Login error:', err)
             const msg = err.message?.toLowerCase() || ''
