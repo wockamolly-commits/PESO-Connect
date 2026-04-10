@@ -14,7 +14,7 @@ const jobseekerChecks = [
 ]
 
 const employerChecks = [
-    { key: 'company_info', label: 'Complete company information', weight: 20, test: (d) => !!(d.company_name && d.employer_type && d.business_address && d.nature_of_business) },
+    { key: 'company_info', label: 'Complete company information', weight: 20, test: (d) => !!(d.company_name && (d.employer_sector || d.employer_type) && (d.province || d.business_address) && d.nature_of_business) },
     { key: 'representative', label: 'Add representative details', weight: 15, test: (d) => !!(d.representative_name && d.representative_position) },
     { key: 'documents', label: 'Upload business documents', weight: 20, test: (d) => !!(d.business_permit_url && d.gov_id_url) },
     { key: 'contact', label: 'Add contact details', weight: 15, test: (d) => !!(d.contact_email && d.contact_number) },
