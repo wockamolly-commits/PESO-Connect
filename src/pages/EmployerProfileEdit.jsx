@@ -68,7 +68,7 @@ function findMunicipalityByName(province, municipalityName) {
 }
 
 const EmployerProfileEdit = () => {
-    const { userData, currentUser } = useAuth()
+    const { userData, currentUser, fetchUserData } = useAuth()
     const navigate = useNavigate()
 
     const [formData, setFormData] = useState({
@@ -208,6 +208,7 @@ const EmployerProfileEdit = () => {
             if (profileErr) throw profileErr
 
             setSuccess('Profile updated successfully!')
+            await fetchUserData(currentUser.uid)
             setTimeout(() => navigate('/dashboard'), 2000)
         } catch (err) {
             setError(err.message || 'Failed to update profile')
