@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       normalizedEmail,
       {
-        data: { role: 'admin' },
+        data: { role: 'admin', needs_password_setup: true },
         redirectTo: `${Deno.env.get('APP_URL') ?? ''}/admin`,
       }
     )

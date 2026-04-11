@@ -26,9 +26,113 @@ import {
     EMPTY_FILTERS
 } from '../../components/admin'
 
+const SetupPasswordModal = ({ onClose }) => {
+    const [password, setPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async (e) => {
+        e.preventDefault()
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters')
+            return
+        }
+        if (password !== confirmPassword) {
+            setError('Passwords do not match')
+            return
+        }
+
+        setLoading(true)
+        setError('')
+
+        try {
+            const { error: updateError } = await supabase.auth.updateUser({ 
+                password,
+                data: { needs_password_setup: false }
+            })
+            if (updateError) throw updateError
+            onClose()
+        } catch (err) {
+            console.error('Password setup error:', err)
+            setError(err.message || 'Failed to set password. Try again.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+            <div className="relative w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl p-8 border border-slate-800 animate-fade-in">
+                <div className="text-center mb-6">
+                    <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-500/20 rounded-2xl mb-4">
+                        <Lock className="w-7 h-7 text-indigo-400" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">Welcome, Admin!</h3>
+                    <p className="text-slate-400 mt-2 text-sm leading-relaxed">
+                        Please set a secure password for your new sub-admin account so you can log in later.
+                    </p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                            {error}
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Min. 6 characters"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Confirm Password</label>
+                        <input
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Confirm your password"
+                            required
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-4"
+                    >
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Password & Continue'}
+                    </button>
+                    
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={loading}
+                        className="w-full mt-3 text-slate-500 hover:text-slate-300 text-sm font-medium transition-colors"
+                    >
+                        I'll do this later
+                    </button>
+                </form>
+            </div>
+        </div>
+    )
+}
+
 const AdminDashboard = () => {
-    const { userData, adminAccess, logout } = useAuth()
+    const { currentUser, userData, adminAccess, logout } = useAuth()
     const navigate = useNavigate()
+    
+    // Setup Password logic based on JWT claims (secure)
+    const [dismissSetup, setDismissSetup] = useState(false)
+    const showSetupPassword = currentUser?.user_metadata?.needs_password_setup && !dismissSetup
 
     // Data
     const [employers, setEmployers] = useState([])
@@ -451,6 +555,10 @@ const AdminDashboard = () => {
                 onClose={() => { setShowRejectModal(null); setRejectReason('') }}
                 actionLoading={actionLoading}
             />
+
+            {showSetupPassword && (
+                <SetupPasswordModal onClose={() => setDismissSetup(true)} />
+            )}
         </div>
     )
 }
