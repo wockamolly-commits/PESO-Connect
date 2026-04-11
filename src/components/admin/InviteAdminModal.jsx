@@ -48,13 +48,14 @@ const InviteAdminModal = ({ onClose, onSuccess }) => {
         setLoading(true)
         try {
             const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.access_token) throw new Error('Your session has expired. Please log in again.')
+
             const res = await supabase.functions.invoke('invite-admin', {
                 body: {
                     email: email.trim().toLowerCase(),
                     templateId: selectedTemplate,
                     permissions: template.permissions,
                 },
-                headers: { Authorization: `Bearer ${session.access_token}` },
             })
 
             // supabase.functions.invoke puts non-2xx responses in res.error
