@@ -8,10 +8,15 @@ import {
     sendEmployerApprovedEmail,
     sendEmployerRejectedEmail
 } from '../../services/emailService'
-import { Shield, Loader2 } from 'lucide-react'
+import { Shield, Loader2, Lock } from 'lucide-react'
+import {
+    hasAdminPermission,
+    getVisibleAdminSections,
+} from '../../utils/adminPermissions'
 
 import {
     AdminSidebar,
+    AdminManagementSection,
     OverviewSection,
     EmployerVerificationSection,
     JobseekerVerificationSection,
@@ -22,7 +27,7 @@ import {
 } from '../../components/admin'
 
 const AdminDashboard = () => {
-    const { userData, logout } = useAuth()
+    const { userData, adminAccess, logout } = useAuth()
     const navigate = useNavigate()
 
     // Data
@@ -47,7 +52,22 @@ const AdminDashboard = () => {
     const [documentViewer, setDocumentViewer] = useState(null)
     const [sidebarOpen, setSidebarOpen] = useState(true)
 
+    // Derived permissions
+    const canApproveEmployers = hasAdminPermission(adminAccess, 'approve_employers')
+    const canRejectEmployers = hasAdminPermission(adminAccess, 'reject_employers')
+    const canApproveJobseekers = hasAdminPermission(adminAccess, 'approve_jobseekers')
+    const canRejectJobseekers = hasAdminPermission(adminAccess, 'reject_jobseekers')
+    const visibleSections = getVisibleAdminSections(adminAccess)
+
     useEffect(() => { fetchData() }, [])
+
+    // Redirect to the first accessible section when adminAccess loads or changes.
+    useEffect(() => {
+        if (!adminAccess) return
+        if (visibleSections.length > 0 && !visibleSections.includes(activeSection)) {
+            setActiveSection(visibleSections[0])
+        }
+    }, [adminAccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         setLoading(true)
@@ -90,6 +110,16 @@ const AdminDashboard = () => {
     const PROFILE_TABLE = { employer: 'employer_profiles', jobseeker: 'jobseeker_profiles' }
 
     const handleApprove = async (userId, userRole) => {
+        // Permission guard — checked client-side before any DB write.
+        if (userRole === 'employer' && !canApproveEmployers) {
+            console.warn('[RBAC] approve_employers permission denied')
+            return
+        }
+        if (userRole === 'jobseeker' && !canApproveJobseekers) {
+            console.warn('[RBAC] approve_jobseekers permission denied')
+            return
+        }
+
         setActionLoading(userId)
         try {
             const now = new Date().toISOString()
@@ -144,6 +174,16 @@ const AdminDashboard = () => {
     }
 
     const handleReject = async (userId, userRole) => {
+        // Permission guard — checked client-side before any DB write.
+        if (userRole === 'employer' && !canRejectEmployers) {
+            console.warn('[RBAC] reject_employers permission denied')
+            return
+        }
+        if (userRole === 'jobseeker' && !canRejectJobseekers) {
+            console.warn('[RBAC] reject_jobseekers permission denied')
+            return
+        }
+
         setActionLoading(userId)
         try {
             const now = new Date().toISOString()
@@ -290,14 +330,27 @@ const AdminDashboard = () => {
 
     const filteredEmployers = getFilteredEmployers()
 
+    // Render a locked-section message for sections the current admin cannot access.
+    const renderUnauthorized = (sectionLabel) => (
+        <div className="animate-fade-in flex flex-col items-center justify-center py-32 text-center">
+            <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                <Lock className="w-8 h-8 text-slate-600" />
+            </div>
+            <p className="text-slate-400 font-semibold text-lg mb-1">Access Restricted</p>
+            <p className="text-slate-600 text-sm max-w-xs">
+                You do not have permission to access {sectionLabel}. Contact a super-admin to request access.
+            </p>
+        </div>
+    )
+
     return (
         <div className="min-h-screen bg-slate-950 flex">
             <AdminSidebar
                 activeSection={activeSection}
-                setActiveSection={setActiveSection}
                 sidebarOpen={sidebarOpen}
                 setSidebarOpen={setSidebarOpen}
                 userData={userData}
+                adminAccess={adminAccess}
                 onLogout={handleLogout}
                 onSectionChange={handleSectionChange}
             />
@@ -305,64 +358,82 @@ const AdminDashboard = () => {
             <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
                 <div className="p-6 lg:p-8 max-w-7xl">
                     {activeSection === 'overview' && (
-                        <OverviewSection
-                            allUsers={allUsers}
-                            employers={employers}
-                            employerCounts={employerCounts}
-                            jobseekerCounts={jobseekerCounts}
-                            setActiveSection={setActiveSection}
-                            setActiveTab={setActiveTab}
-                        />
+                        hasAdminPermission(adminAccess, 'view_overview')
+                            ? <OverviewSection
+                                allUsers={allUsers}
+                                employers={employers}
+                                employerCounts={employerCounts}
+                                jobseekerCounts={jobseekerCounts}
+                                setActiveSection={setActiveSection}
+                                setActiveTab={setActiveTab}
+                            />
+                            : renderUnauthorized('Overview')
                     )}
 
                     {activeSection === 'employers' && (
-                        <EmployerVerificationSection
-                            filteredEmployers={filteredEmployers}
-                            employerCounts={employerCounts}
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                            showFilters={showFilters}
-                            setShowFilters={setShowFilters}
-                            filters={filters}
-                            setFilters={setFilters}
-                            expandedId={expandedId}
-                            setExpandedId={setExpandedId}
-                            actionLoading={actionLoading}
-                            onApprove={handleApprove}
-                            onReject={setShowRejectModal}
-                            onViewDocument={handleViewDocument}
-                        />
+                        hasAdminPermission(adminAccess, 'view_employers')
+                            ? <EmployerVerificationSection
+                                filteredEmployers={filteredEmployers}
+                                employerCounts={employerCounts}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                searchQuery={searchQuery}
+                                setSearchQuery={setSearchQuery}
+                                showFilters={showFilters}
+                                setShowFilters={setShowFilters}
+                                filters={filters}
+                                setFilters={setFilters}
+                                expandedId={expandedId}
+                                setExpandedId={setExpandedId}
+                                actionLoading={actionLoading}
+                                onApprove={handleApprove}
+                                onReject={setShowRejectModal}
+                                onViewDocument={handleViewDocument}
+                                canApprove={canApproveEmployers}
+                                canReject={canRejectEmployers}
+                            />
+                            : renderUnauthorized('Employer Verification')
                     )}
 
                     {activeSection === 'jobseekers' && (
-                        <JobseekerVerificationSection
-                            jobseekers={jobseekers}
-                            jobseekerCounts={jobseekerCounts}
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                            showFilters={showFilters}
-                            setShowFilters={setShowFilters}
-                            filters={filters}
-                            setFilters={setFilters}
-                            expandedId={expandedId}
-                            setExpandedId={setExpandedId}
-                            actionLoading={actionLoading}
-                            onApprove={handleApprove}
-                            onReject={setShowRejectModal}
-                            onViewDocument={handleViewDocument}
-                        />
+                        hasAdminPermission(adminAccess, 'view_jobseekers')
+                            ? <JobseekerVerificationSection
+                                jobseekers={jobseekers}
+                                jobseekerCounts={jobseekerCounts}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                searchQuery={searchQuery}
+                                setSearchQuery={setSearchQuery}
+                                showFilters={showFilters}
+                                setShowFilters={setShowFilters}
+                                filters={filters}
+                                setFilters={setFilters}
+                                expandedId={expandedId}
+                                setExpandedId={setExpandedId}
+                                actionLoading={actionLoading}
+                                onApprove={handleApprove}
+                                onReject={setShowRejectModal}
+                                onViewDocument={handleViewDocument}
+                                canApprove={canApproveJobseekers}
+                                canReject={canRejectJobseekers}
+                            />
+                            : renderUnauthorized('Jobseeker Verification')
                     )}
 
                     {activeSection === 'users' && (
-                        <UserManagementSection
-                            allUsers={allUsers}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                        />
+                        hasAdminPermission(adminAccess, 'view_users')
+                            ? <UserManagementSection
+                                allUsers={allUsers}
+                                searchQuery={searchQuery}
+                                setSearchQuery={setSearchQuery}
+                            />
+                            : renderUnauthorized('User Management')
+                    )}
+
+                    {activeSection === 'admin_management' && (
+                        hasAdminPermission(adminAccess, 'manage_admins')
+                            ? <AdminManagementSection adminAccess={adminAccess} />
+                            : renderUnauthorized('Admin Management')
                     )}
                 </div>
             </main>

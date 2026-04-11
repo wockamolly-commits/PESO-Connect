@@ -1,16 +1,22 @@
 import {
     Shield, User, LogOut, ChevronRight,
-    LayoutDashboard, ClipboardList, Building2, Users
+    LayoutDashboard, ClipboardList, Building2, Users, UserCog
 } from 'lucide-react'
+import { getVisibleAdminSections, isSuperAdmin } from '../../utils/adminPermissions'
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'employers', label: 'Employer Verification', icon: Building2 },
     { id: 'jobseekers', label: 'Jobseeker Verification', icon: Users },
     { id: 'users', label: 'All Users', icon: ClipboardList },
+    { id: 'admin_management', label: 'Admin Management', icon: UserCog },
 ]
 
-const AdminSidebar = ({ activeSection, setActiveSection, sidebarOpen, setSidebarOpen, userData, onLogout, onSectionChange }) => {
+const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, adminAccess, onLogout, onSectionChange }) => {
+    const visibleSectionIds = getVisibleAdminSections(adminAccess)
+    const navItems = ALL_NAV_ITEMS.filter(item => visibleSectionIds.includes(item.id))
+    const isSuper = isSuperAdmin(adminAccess)
+
     return (
         <aside className={`${sidebarOpen ? 'w-72' : 'w-20'} bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 fixed inset-y-0 left-0 z-40`}>
             {/* Brand */}
@@ -32,7 +38,7 @@ const AdminSidebar = ({ activeSection, setActiveSection, sidebarOpen, setSidebar
 
             {/* Navigation */}
             <nav className="flex-1 p-3 space-y-1">
-                {NAV_ITEMS.map(item => (
+                {navItems.map(item => (
                     <button
                         key={item.id}
                         onClick={() => onSectionChange(item.id)}
@@ -51,6 +57,10 @@ const AdminSidebar = ({ activeSection, setActiveSection, sidebarOpen, setSidebar
                         )}
                     </button>
                 ))}
+
+                {navItems.length === 0 && sidebarOpen && (
+                    <p className="px-3 py-4 text-xs text-slate-600 text-center">No sections accessible</p>
+                )}
             </nav>
 
             {/* Sidebar toggle */}
@@ -72,7 +82,9 @@ const AdminSidebar = ({ activeSection, setActiveSection, sidebarOpen, setSidebar
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-200 truncate">{userData?.name || 'Admin'}</p>
-                            <p className="text-xs text-slate-500 truncate">{userData?.email}</p>
+                            <p className="text-xs text-slate-500 truncate">
+                                {isSuper ? 'Super Admin' : (adminAccess ? 'Sub Admin' : 'Admin')}
+                            </p>
                         </div>
                         <button onClick={onLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-slate-800 transition-colors" title="Logout">
                             <LogOut className="w-4 h-4" />

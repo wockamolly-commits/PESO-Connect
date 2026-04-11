@@ -19,7 +19,9 @@ const EmployerVerificationSection = ({
     actionLoading,
     onApprove,
     onReject,
-    onViewDocument
+    onViewDocument,
+    canApprove = true,
+    canReject = true,
 }) => {
     const tabs = [
         { id: 'pending', label: 'Pending', count: employerCounts.pending, icon: Clock, activeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
@@ -66,6 +68,8 @@ const EmployerVerificationSection = ({
                             onApprove={onApprove}
                             onReject={onReject}
                             onViewDocument={onViewDocument}
+                            canApprove={canApprove}
+                            canReject={canReject}
                         />
                     ))
                 )}

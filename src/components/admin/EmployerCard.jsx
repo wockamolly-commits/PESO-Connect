@@ -10,7 +10,9 @@ const EmployerCard = ({
     actionLoading,
     onApprove,
     onReject,
-    onViewDocument
+    onViewDocument,
+    canApprove = true,
+    canReject = true,
 }) => {
     const isExpanded = expandedId === employer.id
     const status = employer.employer_status || 'pending'
@@ -213,7 +215,7 @@ const EmployerCard = ({
 
                     {/* Actions */}
                     <div className="mt-5 pt-4 border-t border-slate-800 flex items-center gap-3">
-                        {status !== 'approved' && (
+                        {status !== 'approved' && canApprove && (
                             <button
                                 onClick={() => onApprove(employer.id, 'employer')}
                                 disabled={actionLoading === employer.id}
@@ -227,7 +229,7 @@ const EmployerCard = ({
                                 Approve
                             </button>
                         )}
-                        {status !== 'rejected' && (
+                        {status !== 'rejected' && canReject && (
                             <button
                                 onClick={() => onReject({ id: employer.id, role: 'employer' })}
                                 disabled={actionLoading === employer.id}
@@ -241,6 +243,9 @@ const EmployerCard = ({
                             <span className="text-emerald-400 font-medium flex items-center gap-1.5 text-sm">
                                 <CheckCircle className="w-4 h-4" /> Employer is active
                             </span>
+                        )}
+                        {!canApprove && !canReject && status !== 'approved' && (
+                            <span className="text-slate-500 text-xs">View only</span>
                         )}
                     </div>
                 </div>

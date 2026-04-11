@@ -1,17 +1,31 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../config/supabase'
 import { Shield, Mail, Lock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 
 const AdminLogin = () => {
     const navigate = useNavigate()
-    const { login } = useAuth()
+    const { login, currentUser, userData, loading: authLoading } = useAuth()
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+
+    // Redirect already-authenticated users away from this page.
+    // Wait for AuthContext to finish loading before deciding.
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        )
+    }
+    if (currentUser && userData) {
+        return <Navigate to={userData.role === 'admin' ? '/admin' : '/dashboard'} replace />
+    }
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -24,7 +38,18 @@ const AdminLogin = () => {
         setLoading(true)
 
         try {
-            await login(formData.email, formData.password)
+            const user = await login(formData.email, formData.password)
+            // Verify the account is actually an admin before allowing entry.
+            const { data: roleData } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .maybeSingle()
+            if (roleData?.role !== 'admin') {
+                await supabase.auth.signOut({ scope: 'local' })
+                setError('Access denied. This portal is for PESO administrators only.')
+                return
+            }
             navigate('/admin')
         } catch (err) {
             console.error('Login error:', err)

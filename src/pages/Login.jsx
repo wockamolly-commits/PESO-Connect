@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../config/supabase'
 import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle, Info, CheckCircle } from 'lucide-react'
 
 const Login = () => {
@@ -23,9 +24,14 @@ const Login = () => {
 
         try {
             const user = await login(email, password)
-            // Let AuthContext own profile loading after login to avoid
-            // duplicate fetches racing the auth state listener.
-            navigate('/dashboard')
+            // Check DB role to decide where to send the user.
+            // AuthContext profile fetch is async so we can't rely on userData yet.
+            const { data: roleData } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .maybeSingle()
+            navigate(roleData?.role === 'admin' ? '/admin' : '/dashboard')
         } catch (err) {
             console.error('Login error:', err)
             const msg = err.message?.toLowerCase() || ''

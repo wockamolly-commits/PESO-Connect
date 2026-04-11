@@ -146,16 +146,30 @@ const normalizeRequirements = (job: Record<string, unknown>) => {
 
 export const buildJobText = (job: Record<string, unknown>) => {
   const requirements = normalizeRequirements(job)
+  const str = (key: string, fallback = 'Not specified') => {
+    const v = job[key]
+    return typeof v === 'string' && v.trim() ? v.trim() : fallback
+  }
 
   return [
-    `Job title: ${typeof job.title === 'string' ? job.title.trim() : ''}`,
-    `Category: ${typeof job.category === 'string' ? job.category.trim() : 'Not specified'}`,
-    `Description: ${typeof job.description === 'string' ? job.description.trim() : 'Not provided'}`,
+    `Job title: ${str('title', '')}`,
+    `Category: ${str('category')}`,
+    `Job summary: ${str('job_summary', str('description', 'Not provided'))}`,
+    `Key responsibilities: ${str('key_responsibilities', 'Not specified')}`,
     `Requirements: ${requirements.length > 0 ? requirements.join(', ') : 'None specified'}`,
-    `Experience level: ${typeof job.experience_level === 'string' ? job.experience_level.trim() : 'Any'}`,
-    `Education level: ${typeof job.education_level === 'string' ? job.education_level.trim() : 'None'}`,
-    `Employment type: ${typeof job.type === 'string' ? job.type.trim() : 'Not specified'}`,
-    `Location: ${typeof job.location === 'string' ? job.location.trim() : 'Not specified'}`,
+    `Preferred skills: ${stringifyList(job.preferred_skills, 'None')}`,
+    `Required languages: ${stringifyList(job.required_languages, 'Not specified')}`,
+    `Licenses & certifications: ${str('licenses_certifications', 'None')}`,
+    `Benefits: ${stringifyList(job.benefits, 'Not specified')}`,
+    `Experience level: ${str('experience_level', 'Any')}`,
+    `Education level: ${str('education_level', 'None')}`,
+    `Course/strand: ${str('course_strand', 'Not specified')}`,
+    `Employment type: ${str('type')}`,
+    `Work arrangement: ${str('work_arrangement')}`,
+    `Location: ${str('location')}`,
+    `Accepts PWD: ${job.accepts_pwd ? `Yes (${stringifyList(job.pwd_disabilities, 'unspecified')})` : 'No'}`,
+    `Accepts returning OFWs: ${job.accepts_ofw ? 'Yes' : 'No'}`,
+    `Other qualifications: ${str('other_qualifications', 'None')}`,
   ].join('\n')
 }
 

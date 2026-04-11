@@ -1,4 +1,6 @@
 export { AdminSidebar } from './AdminSidebar'
+export { InviteAdminModal } from './InviteAdminModal'
+export { AdminManagementSection } from './AdminManagementSection'
 export { OverviewSection } from './OverviewSection'
 export { StatusTabs } from './StatusTabs'
 export { SearchAndFilters, EMPTY_FILTERS } from './SearchAndFilters'

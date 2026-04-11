@@ -11,7 +11,9 @@ const JobseekerCard = ({
     actionLoading,
     onApprove,
     onReject,
-    onViewDocument
+    onViewDocument,
+    canApprove = true,
+    canReject = true,
 }) => {
     const isExpanded = expandedId === jobseeker.id
     const status = jobseeker.jobseeker_status || 'pending'
@@ -272,7 +274,7 @@ const JobseekerCard = ({
 
                     {/* Actions */}
                     <div className="mt-5 pt-4 border-t border-slate-800 flex items-center gap-3">
-                        {status !== 'verified' && (
+                        {status !== 'verified' && canApprove && (
                             <button
                                 onClick={() => onApprove(jobseeker.id, 'jobseeker')}
                                 disabled={actionLoading === jobseeker.id}
@@ -286,7 +288,7 @@ const JobseekerCard = ({
                                 Verify
                             </button>
                         )}
-                        {status !== 'rejected' && (
+                        {status !== 'rejected' && canReject && (
                             <button
                                 onClick={() => onReject({ id: jobseeker.id, role: 'jobseeker' })}
                                 disabled={actionLoading === jobseeker.id}
@@ -300,6 +302,9 @@ const JobseekerCard = ({
                             <span className="text-emerald-400 font-medium flex items-center gap-1.5 text-sm">
                                 <CheckCircle className="w-4 h-4" /> Jobseeker is verified
                             </span>
+                        )}
+                        {!canApprove && !canReject && status !== 'verified' && (
+                            <span className="text-slate-500 text-xs">View only</span>
                         )}
                     </div>
                 </div>

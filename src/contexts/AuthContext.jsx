@@ -10,6 +10,7 @@ export const useAuth = () => useContext(AuthContext)
 export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null)
     const [userData, setUserData] = useState(null)
+    const [adminAccess, setAdminAccess] = useState(null)
     const [loading, setLoading] = useState(true)
     const passwordResetInProgressRef = useRef(false)
     const userDataFetchesRef = useRef(new Map())
@@ -95,6 +96,18 @@ export const AuthProvider = ({ children }) => {
                 merged.display_name = [merged.first_name, merged.surname].filter(Boolean).join(' ')
             } else if (merged.full_name) {
                 merged.display_name = merged.full_name
+            }
+
+            // Fetch admin_access for admin users so permission helpers work immediately.
+            if (baseData.role === 'admin') {
+                const { data: accessRow } = await supabase
+                    .from('admin_access')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .maybeSingle()
+                const access = accessRow || null
+                setAdminAccess(access)
+                try { localStorage.setItem(`peso-admin-access-${userId}`, JSON.stringify(access)) } catch {}
             }
 
             setUserData(merged)
@@ -487,6 +500,11 @@ export const AuthProvider = ({ children }) => {
                     const cached = localStorage.getItem(`peso-profile-${user.id}`)
                     if (cached) setUserData(JSON.parse(cached))
                 } catch {}
+                // Restore cached adminAccess so permission helpers work on reload
+                try {
+                    const cachedAccess = localStorage.getItem(`peso-admin-access-${user.id}`)
+                    if (cachedAccess) setAdminAccess(JSON.parse(cachedAccess))
+                } catch {}
                 // Fetch fresh data outside the auth callback to avoid
                 // competing for Supabase's navigator lock.
                 const result = await fetchUserData(user.id)
@@ -504,6 +522,7 @@ export const AuthProvider = ({ children }) => {
             } else {
                 setCurrentUser(null)
                 setUserData(null)
+                setAdminAccess(null)
             }
         } catch (err) {
             if (err?.name !== 'AbortError') {
@@ -537,6 +556,7 @@ export const AuthProvider = ({ children }) => {
     const value = {
         currentUser,
         userData,
+        adminAccess,
         loading,
         register,
         createAccount,

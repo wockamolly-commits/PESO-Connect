@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminProtectedRoute from './components/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // Public Pages
@@ -43,7 +44,6 @@ import JobApplicants from './pages/employer/JobApplicants'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard'
-import AdminLogin from './pages/admin/Login'
 
 function AppContent() {
     const location = useLocation()
@@ -69,7 +69,7 @@ function AppContent() {
                         <Route path="/jobs" element={<ErrorBoundary><JobListings /></ErrorBoundary>} />
                         <Route path="/jobs/:id" element={<ErrorBoundary><JobDetail /></ErrorBoundary>} />
                         <Route path="/diagnostic" element={<ErrorBoundary><Diagnostic /></ErrorBoundary>} />
-                        <Route path="/admin/login" element={<ErrorBoundary><AdminLogin /></ErrorBoundary>} />
+                        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
                         <Route path="/verify-email" element={<ErrorBoundary><EmailVerificationPending /></ErrorBoundary>} />
                         <Route path="/auth/callback" element={<ErrorBoundary><AuthCallback /></ErrorBoundary>} />
                         <Route path="/unauthorized" element={<Unauthorized />} />
@@ -208,9 +208,9 @@ function AppContent() {
                         <Route
                             path="/admin"
                             element={
-                                <ProtectedRoute allowedRoles={['admin']}>
+                                <AdminProtectedRoute>
                                     <ErrorBoundary><AdminDashboard /></ErrorBoundary>
-                                </ProtectedRoute>
+                                </AdminProtectedRoute>
                             }
                         />
 
