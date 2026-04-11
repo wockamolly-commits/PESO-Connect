@@ -47,8 +47,11 @@ const InviteAdminModal = ({ onClose, onSuccess }) => {
         if (!selectedTemplate) { setError('Please select a role template.'); return }
         setLoading(true)
         try {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session?.access_token) throw new Error('Your session has expired. Please log in again.')
+            // Force-refresh to guarantee a non-expired JWT for the edge function gateway
+            const { data: { session }, error: sessionError } = await supabase.auth.refreshSession()
+            if (sessionError || !session?.access_token) {
+                throw new Error('Your session has expired. Please log in again.')
+            }
 
             const res = await supabase.functions.invoke('invite-admin', {
                 body: {
@@ -56,6 +59,7 @@ const InviteAdminModal = ({ onClose, onSuccess }) => {
                     templateId: selectedTemplate,
                     permissions: template.permissions,
                 },
+                headers: { Authorization: `Bearer ${session.access_token}` },
             })
 
             // supabase.functions.invoke puts non-2xx responses in res.error
