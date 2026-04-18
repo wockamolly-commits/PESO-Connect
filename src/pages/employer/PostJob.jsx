@@ -29,6 +29,7 @@ import {
 import Select from '../../components/common/Select'
 import psgcData from '../../data/psgc.json'
 import { SearchableSelect } from '../../components/forms/SearchableSelect'
+import { SKILL_VOCAB, getSuggestedSkillsFromTitle, getSuggestedSkillsFromDescription } from '../../utils/jobSkillRecommender'
 
 // --- PSGC helpers ---
 const CITY_OR_MUNICIPALITY_SUFFIX = /\b(city|municipality)\b/gi
@@ -59,32 +60,14 @@ function findMunicipalityByName(province, municipalityName) {
     ) || null
 }
 
-// Standardized skills by category
+// Standardized skills by category — skills sourced from SKILL_VOCAB for consistency with the recommender
 const SKILL_CATEGORIES = {
-    agriculture: {
-        name: 'Agriculture',
-        skills: ['Farming', 'Livestock Care', 'Crop Management', 'Irrigation', 'Harvesting', 'Organic Farming', 'Pest Control', 'Farm Equipment Operation']
-    },
-    energy: {
-        name: 'Energy & Utilities',
-        skills: ['Electrical Installation', 'Solar Panel Installation', 'Power Line Maintenance', 'Generator Operation', 'Meter Reading', 'Energy Auditing']
-    },
-    retail: {
-        name: 'Retail & Service',
-        skills: ['Customer Service', 'Sales', 'Inventory Management', 'Cashiering', 'Visual Merchandising', 'Stock Management', 'POS Operation']
-    },
-    it: {
-        name: 'Information Technology',
-        skills: ['Computer Repair', 'Network Setup', 'Web Development', 'Data Entry', 'MS Office', 'Technical Support', 'Database Management']
-    },
-    trades: {
-        name: 'Skilled Trades',
-        skills: ['Plumbing', 'Electrical Work', 'Carpentry', 'Welding', 'Masonry', 'Painting', 'HVAC', 'Auto Repair', 'Motorcycle Repair']
-    },
-    hospitality: {
-        name: 'Hospitality',
-        skills: ['Cooking', 'Baking', 'Food Preparation', 'Bartending', 'Housekeeping', 'Front Desk', 'Event Planning']
-    }
+    agriculture: { name: 'Agriculture', skills: SKILL_VOCAB.agriculture },
+    energy:      { name: 'Energy & Utilities', skills: SKILL_VOCAB.energy },
+    retail:      { name: 'Retail & Service', skills: SKILL_VOCAB.retail },
+    it:          { name: 'Information Technology', skills: SKILL_VOCAB.it },
+    trades:      { name: 'Skilled Trades', skills: SKILL_VOCAB.trades },
+    hospitality: { name: 'Hospitality', skills: SKILL_VOCAB.hospitality },
 }
 
 const ALL_SKILLS = Object.values(SKILL_CATEGORIES).flatMap(cat => cat.skills)
@@ -186,6 +169,12 @@ const PostJobWizard = () => {
     const [showSuggestions, setShowSuggestions] = useState(false)
     const skillInputRef = useRef(null)
     const suggestionsRef = useRef(null)
+
+    // AI skill suggestions panel state
+    const [aiSkillSuggestions, setAiSkillSuggestions] = useState([])
+    const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false)
+    const [aiSuggestionsShown, setAiSuggestionsShown] = useState(false)
+    const [aiSuggestionsSource, setAiSuggestionsSource] = useState('deterministic')
 
     // Preferred skills input (plain tag input)
     const [preferredSkillInput, setPreferredSkillInput] = useState('')
@@ -305,6 +294,24 @@ const PostJobWizard = () => {
         fetchJob()
     }, [isEditMode, editId, currentUser])
 
+    // Deterministic AI suggestions when entering step 3
+    useEffect(() => {
+        if (currentStep !== 3) return
+        if (aiSuggestionsShown) return
+
+        const fromTitle = getSuggestedSkillsFromTitle(jobData.title, jobData.category)
+        const descriptionText = [jobData.jobSummary, jobData.keyResponsibilities].join(' ')
+        const fromDesc = getSuggestedSkillsFromDescription(descriptionText)
+
+        const combined = [...new Set([...fromTitle, ...fromDesc])]
+            .filter(s => !jobData.requiredSkills.includes(s))
+            .slice(0, 12)
+
+        setAiSkillSuggestions(combined)
+        setAiSuggestionsShown(true)
+        setAiSuggestionsSource('deterministic')
+    }, [currentStep])
+
     const updateJobData = (field, value) => {
         setJobData(prev => ({ ...prev, [field]: value }))
         if (stepErrors[field]) {
@@ -334,6 +341,34 @@ const PostJobWizard = () => {
             } else if (skillInput.trim()) {
                 addSkill(skillInput.trim())
             }
+        }
+    }
+
+    const handleAnalyzeDescription = async () => {
+        setAiSuggestionsLoading(true)
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const res = await supabase.functions.invoke('suggest-job-skills', {
+                body: {
+                    title: jobData.title,
+                    category: jobData.category,
+                    jobSummary: jobData.jobSummary,
+                    keyResponsibilities: jobData.keyResponsibilities,
+                    existingSkills: jobData.requiredSkills,
+                },
+                headers: session?.access_token
+                    ? { Authorization: `Bearer ${session.access_token}` }
+                    : undefined,
+            })
+            if (res.error) throw res.error
+            const incoming = (res.data?.suggestions || []).map(s => s.skill)
+            const fresh = incoming.filter(s => !jobData.requiredSkills.includes(s))
+            setAiSkillSuggestions(fresh)
+            setAiSuggestionsSource('edge')
+        } catch {
+            // Fall back silently — panel retains existing deterministic suggestions
+        } finally {
+            setAiSuggestionsLoading(false)
         }
     }
 
@@ -1094,27 +1129,71 @@ const PostJobWizard = () => {
                                     </div>
                                 )}
 
-                                {jobData.category && (
-                                    <div className="mt-4 p-4 bg-gray-50 rounded-xl">
-                                        <p className="text-sm text-gray-600 mb-2">Quick add from {SKILL_CATEGORIES[jobData.category]?.name}:</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {SKILL_CATEGORIES[jobData.category]?.skills
-                                                .filter(s => !jobData.requiredSkills.includes(s))
-                                                .slice(0, 5)
-                                                .map(skill => (
-                                                    <button
-                                                        key={skill}
-                                                        type="button"
-                                                        onClick={() => addSkill(skill)}
-                                                        className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-primary-400 hover:text-primary-600 transition-colors"
-                                                    >
-                                                        + {skill}
-                                                    </button>
-                                                ))
-                                            }
+                                {/* ✨ AI-Suggested Skills panel */}
+                                <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-sm font-medium text-indigo-700 flex items-center gap-1.5">
+                                            <Sparkles className="w-4 h-4" />
+                                            {aiSuggestionsSource === 'edge'
+                                                ? 'Skills from your description'
+                                                : 'AI-Suggested Skills'}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            {aiSuggestionsLoading && (
+                                                <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                                            )}
+                                            {!aiSuggestionsLoading && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAnalyzeDescription}
+                                                    className="text-xs text-indigo-600 hover:text-indigo-800 underline underline-offset-2 transition-colors"
+                                                >
+                                                    {aiSuggestionsSource === 'edge' ? 'Re-analyze description' : '✨ Suggest from description'}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-                                )}
+
+                                    {aiSkillSuggestions.length > 0 ? (
+                                        <>
+                                            <div className="flex flex-wrap gap-2">
+                                                {aiSkillSuggestions
+                                                    .filter(s => !jobData.requiredSkills.includes(s))
+                                                    .map(skill => (
+                                                        <button
+                                                            key={skill}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                addSkill(skill)
+                                                                setAiSkillSuggestions(prev => prev.filter(s => s !== skill))
+                                                            }}
+                                                            className="px-3 py-1 bg-white border border-indigo-200 rounded-full text-sm text-indigo-700 hover:bg-indigo-100 hover:border-indigo-400 transition-colors"
+                                                        >
+                                                            + {skill}
+                                                        </button>
+                                                    ))
+                                                }
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const toAdd = aiSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s))
+                                                    updateJobData('requiredSkills', [...jobData.requiredSkills, ...toAdd])
+                                                    setAiSkillSuggestions([])
+                                                }}
+                                                className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                                            >
+                                                + Add all suggestions
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs text-indigo-400 italic">
+                                            {aiSuggestionsLoading
+                                                ? 'Analyzing your description…'
+                                                : 'All suggestions have been added, or none were found for this title.'}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Preferred Skills */}
