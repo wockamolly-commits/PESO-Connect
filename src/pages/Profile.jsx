@@ -14,6 +14,7 @@ import {
     CheckCircle,
     Camera
 } from 'lucide-react'
+import PendingReverificationBadge from '../components/common/PendingReverificationBadge'
 
 const Profile = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
@@ -112,12 +113,17 @@ const Profile = () => {
                         </div>
                         <h2 className="text-xl font-semibold text-gray-900">{formData.full_name || 'User'}</h2>
                         <p className="text-gray-500">{currentUser?.email}</p>
-                        <span className={`mt-2 px-3 py-1 rounded-full text-sm font-medium ${userData?.is_verified
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                            {userData?.is_verified ? 'Verified' : 'Pending Verification'}
-                        </span>
+                        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${userData?.is_verified
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                {userData?.is_verified ? 'Verified' : 'Pending Verification'}
+                            </span>
+                            {userData?.is_verified && userData?.profile_modified_since_verification && (
+                                <PendingReverificationBadge />
+                            )}
+                        </div>
                     </div>
 
                     {/* Form */}

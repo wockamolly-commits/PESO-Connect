@@ -2,6 +2,8 @@
 -- Returns the full verification payload needed by the admin cards so newly
 -- registered jobseekers and employers show all submitted registration data.
 
+drop function if exists public.admin_search_users(text, text, text, text, integer, integer);
+
 create or replace function public.admin_search_users(
   p_role text default null,
   p_verification_status text default null,
@@ -42,6 +44,7 @@ returns table (
   verification_status text,
   is_verified boolean,
   profile_modified_since_verification boolean,
+  verified_snapshot jsonb,
   created_at timestamptz,
   updated_at timestamptz,
   date_of_birth text,
@@ -176,6 +179,7 @@ begin
       end as verification_status,
       coalesce(u.is_verified, false) as is_verified,
       coalesce(js.profile_modified_since_verification, false) as profile_modified_since_verification,
+      coalesce(js.verified_snapshot, ep.verified_snapshot, '{}'::jsonb) as verified_snapshot,
       u.created_at,
       coalesce(js.updated_at, ep.updated_at, u.updated_at) as updated_at,
       js.date_of_birth,
@@ -308,6 +312,7 @@ begin
     filtered.verification_status,
     filtered.is_verified,
     filtered.profile_modified_since_verification,
+    filtered.verified_snapshot,
     filtered.created_at,
     filtered.updated_at,
     filtered.date_of_birth,

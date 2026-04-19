@@ -13,6 +13,7 @@ import {
     hasAdminPermission,
     getVisibleAdminSections,
 } from '../../utils/adminPermissions'
+import { buildVerifiedSnapshot } from '../../utils/reverification'
 
 import {
     AdminSidebar,
@@ -20,6 +21,7 @@ import {
     OverviewSection,
     EmployerVerificationSection,
     JobseekerVerificationSection,
+    ReverificationQueue,
     UserManagementSection,
     DocumentViewer,
     RejectModal,
@@ -126,7 +128,7 @@ const SetupPasswordModal = ({ onClose }) => {
     )
 }
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ initialSection = 'overview' }) => {
     const { currentUser, userData, adminAccess, logout } = useAuth()
     const navigate = useNavigate()
     
@@ -141,7 +143,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true)
 
     // UI state
-    const [activeSection, setActiveSection] = useState('overview')
+    const [activeSection, setActiveSection] = useState(initialSection)
     const [activeTab, setActiveTab] = useState('pending')
     const [expandedId, setExpandedId] = useState(null)
     const [actionLoading, setActionLoading] = useState('')
@@ -155,12 +157,14 @@ const AdminDashboard = () => {
 
     const [documentViewer, setDocumentViewer] = useState(null)
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [reverificationQueue, setReverificationQueue] = useState([])
 
     // Derived permissions
     const canApproveEmployers = hasAdminPermission(adminAccess, 'approve_employers')
     const canRejectEmployers = hasAdminPermission(adminAccess, 'reject_employers')
     const canApproveJobseekers = hasAdminPermission(adminAccess, 'approve_jobseekers')
     const canRejectJobseekers = hasAdminPermission(adminAccess, 'reject_jobseekers')
+    const canReverifyProfiles = hasAdminPermission(adminAccess, 'reverify_profiles')
     const visibleSections = getVisibleAdminSections(adminAccess)
 
     useEffect(() => { fetchData() }, [])
@@ -172,6 +176,10 @@ const AdminDashboard = () => {
             setActiveSection(visibleSections[0])
         }
     }, [adminAccess]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        setActiveSection(initialSection)
+    }, [initialSection])
 
     const fetchData = async () => {
         setLoading(true)
@@ -202,6 +210,30 @@ const AdminDashboard = () => {
             setAllUsers(merged)
             setEmployers(merged.filter(u => u.role === 'employer'))
             setJobseekers(merged.filter(u => u.role === 'user' && u.subtype === 'jobseeker'))
+
+            if (currentUser) {
+                try {
+                    const { data: queueData, error: queueError } = await supabase.rpc('admin_get_reverification_queue')
+                    if (queueError) throw queueError
+
+                    const normalizedQueue = (queueData || []).map((item) => ({
+                        id: item.id,
+                        roleLabel: item.role_label,
+                        email: item.email,
+                        display_name: item.display_name,
+                        company_name: item.company_name,
+                        updated_at: item.updated_at,
+                        is_verified: item.is_verified,
+                        profile_modified_since_verification: item.profile_modified_since_verification,
+                        verified_snapshot: item.verified_snapshot || {},
+                        ...(item.profile_data || {}),
+                    }))
+                    setReverificationQueue(normalizedQueue)
+                } catch (queueFetchError) {
+                    console.error('Error fetching re-verification queue:', queueFetchError)
+                    setReverificationQueue([])
+                }
+            }
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
@@ -238,7 +270,14 @@ const AdminDashboard = () => {
             // Update role-specific profile
             const profileTable = PROFILE_TABLE[userRole]
             if (profileTable) {
-                const profileUpdate = { rejection_reason: '', updated_at: now, is_verified: true }
+                const existingUser = allUsers.find(u => u.id === userId) || {}
+                const profileUpdate = {
+                    rejection_reason: '',
+                    updated_at: now,
+                    is_verified: true,
+                    profile_modified_since_verification: false,
+                    verified_snapshot: buildVerifiedSnapshot(userRole, existingUser),
+                }
                 if (userRole === 'employer') profileUpdate.employer_status = 'approved'
                 else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'verified'
 
@@ -365,6 +404,35 @@ const AdminDashboard = () => {
         setDocumentViewer({ src, title })
     }
 
+    const handleReverificationAction = async (item, action) => {
+        if (!canReverifyProfiles) {
+            console.warn('[RBAC] reverify_profiles permission denied')
+            return
+        }
+
+        let reason = null
+        if (action === 'reject') {
+            reason = window.prompt('Why are you rejecting this profile update?')
+            if (!reason || !reason.trim()) return
+        }
+
+        setActionLoading(item.id)
+        try {
+            const { error } = await supabase.rpc('admin_process_reverification', {
+                p_user_id: item.id,
+                p_role_label: item.roleLabel,
+                p_action: action,
+                p_reason: reason,
+            })
+            if (error) throw error
+            await fetchData()
+        } catch (rpcError) {
+            console.error(`Error handling ${action} reverification:`, rpcError)
+        } finally {
+            setActionLoading('')
+        }
+    }
+
     const getFilteredEmployers = () => {
         let filtered = employers
         if (activeTab === 'pending') filtered = employers.filter(e => (e.employer_status || 'pending') === 'pending')
@@ -417,6 +485,9 @@ const AdminDashboard = () => {
         rejected: jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
         total: jobseekers.length,
     }
+    const sectionBadges = {
+        reverification: reverificationQueue.length,
+    }
 
     if (loading) {
         return (
@@ -457,6 +528,7 @@ const AdminDashboard = () => {
                 adminAccess={adminAccess}
                 onLogout={handleLogout}
                 onSectionChange={handleSectionChange}
+                sectionBadges={sectionBadges}
             />
 
             <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
@@ -532,6 +604,18 @@ const AdminDashboard = () => {
                                 setSearchQuery={setSearchQuery}
                             />
                             : renderUnauthorized('User Management')
+                    )}
+
+                    {activeSection === 'reverification' && (
+                        hasAdminPermission(adminAccess, 'reverify_profiles')
+                            ? <ReverificationQueue
+                                queueItems={reverificationQueue}
+                                actionLoading={actionLoading}
+                                onApprove={(item) => handleReverificationAction(item, 'approve')}
+                                onReject={(item) => handleReverificationAction(item, 'reject')}
+                                onRevoke={(item) => handleReverificationAction(item, 'revoke')}
+                            />
+                            : renderUnauthorized('Re-verification Queue')
                     )}
 
                     {activeSection === 'admin_management' && (

@@ -108,3 +108,15 @@ export const buildCertificateStoragePath = (userId, file, index = 0) => {
 
     return `${userId}/${uniqueId}-${safeName}.${extension}`
 }
+
+export const buildCertificateFingerprint = (fileOrRecord) => {
+    if (!fileOrRecord) return ''
+
+    const name = (fileOrRecord.name || fileOrRecord.file_name || '').trim().toLowerCase()
+    const size = typeof fileOrRecord.size === 'number'
+        ? fileOrRecord.size
+        : Number(fileOrRecord.size || 0)
+
+    if (!name || !size) return ''
+    return `${name}:${size}`
+}

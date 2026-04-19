@@ -17,6 +17,7 @@ import {
     Step6JobPreferences,
     Step7Consent
 } from '../components/registration'
+import { countTrainingCertificates } from '../utils/reverification'
 
 const TOTAL_STEPS = 7
 const OTHER_PREFIX = 'Others:'
@@ -387,6 +388,9 @@ const JobseekerRegistration = () => {
             case 4:
                 if (!formData.highest_education) newErrors.highest_education = 'Education level is required'
                 if (!formData.school_name) newErrors.school_name = 'School name is required'
+                if ((formData.vocational_training || []).length !== countTrainingCertificates(formData.vocational_training || [])) {
+                    newErrors.vocational_training_certificates = 'Each training entry requires a certificate upload before you can continue.'
+                }
                 break
             case 5: {
                 const skillsError = validators.atLeastOneSkill(formData.predefined_skills, formData.skills)
@@ -626,7 +630,7 @@ const JobseekerRegistration = () => {
             case 3:
                 return <Step3ContactEmployment formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 4:
-                return <Step4Education formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
+                return <Step4Education formData={{ ...formData, userId: currentUser?.uid }} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 5:
                 return <Step5SkillsExperience formData={formData} handleChange={handleChange} setFormData={setFormData} userId={currentUser?.uid} errors={fieldErrors} />
             case 6:
@@ -694,6 +698,7 @@ const JobseekerRegistration = () => {
                                 <button
                                     type="button"
                                     onClick={async () => {
+                                        if (!validateStep()) return
                                         try {
                                             const stepData = getStepData(currentStep)
                                             await saveRegistrationStep(stepData, currentStep)

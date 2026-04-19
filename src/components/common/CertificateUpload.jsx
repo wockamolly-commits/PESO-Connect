@@ -9,6 +9,7 @@ import {
     getCertificateSource,
     normalizeCertificateRecords,
     validateCertificateFile,
+    buildCertificateFingerprint,
 } from '../../utils/certificateUtils'
 
 const toUploadMessage = (error) => {
@@ -31,6 +32,12 @@ export default function CertificateUpload({
     value,
     onChange,
     inputId = 'certificate-upload',
+    maxFiles = null,
+    removeFromStorage = true,
+    uploadLabel = 'Click to upload certificates',
+    helperText = 'PDF, JPG, PNG - max 5MB each',
+    disallowedFingerprints = [],
+    duplicateErrorMessage = 'This certificate is already attached to another training entry.',
 }) {
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState('')
@@ -67,7 +74,8 @@ export default function CertificateUpload({
     }, [certificates.map((c) => c.path).join('|')])
 
     const handleUpload = async (event) => {
-        const files = Array.from(event.target.files || [])
+        const selectedFiles = Array.from(event.target.files || [])
+        const files = maxFiles === 1 ? selectedFiles.slice(0, 1) : selectedFiles
         if (!files.length || !userId) return
 
         setError('')
@@ -75,6 +83,14 @@ export default function CertificateUpload({
         const validationError = files.map(validateCertificateFile).find(Boolean)
         if (validationError) {
             setError(validationError)
+            if (inputRef.current) inputRef.current.value = ''
+            return
+        }
+
+        const blockedFingerprints = new Set((disallowedFingerprints || []).filter(Boolean))
+        const duplicateSelected = files.find((file) => blockedFingerprints.has(buildCertificateFingerprint(file)))
+        if (duplicateSelected) {
+            setError(duplicateErrorMessage)
             if (inputRef.current) inputRef.current.value = ''
             return
         }
@@ -117,7 +133,8 @@ export default function CertificateUpload({
                 }
             }
 
-            onChange?.([...(certificates || []), ...uploadedCertificates])
+            const nextCertificates = [...(certificates || []), ...uploadedCertificates]
+            onChange?.(maxFiles ? nextCertificates.slice(0, maxFiles) : nextCertificates)
         } catch (uploadError) {
             setError(toUploadMessage(uploadError))
         } finally {
@@ -134,7 +151,7 @@ export default function CertificateUpload({
         setUploading(true)
 
         try {
-            if (target.path) {
+            if (removeFromStorage && target.path) {
                 const { error: removeError } = await supabase.storage
                     .from(CERTIFICATE_BUCKET)
                     .remove([target.path])
@@ -164,7 +181,7 @@ export default function CertificateUpload({
                     ref={inputRef}
                     type="file"
                     accept={CERTIFICATE_ACCEPT}
-                    multiple
+                    multiple={maxFiles !== 1}
                     onChange={handleUpload}
                     className="hidden"
                     id={inputId}
@@ -177,9 +194,9 @@ export default function CertificateUpload({
                         <Award className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                     )}
                     <p className="text-sm text-gray-500">
-                        {uploading ? 'Uploading certificates...' : 'Click to upload certificates'}
+                        {uploading ? 'Uploading certificates...' : uploadLabel}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG - max 5MB each</p>
+                    <p className="text-xs text-gray-400 mt-1">{helperText}</p>
                 </label>
             </div>
 

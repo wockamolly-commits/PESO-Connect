@@ -14,6 +14,7 @@ const PERMISSION_LABELS = {
     reject_jobseekers: 'Reject Jobseekers',
     view_users: 'View All Users',
     export_jobseekers: 'Export Jobseekers',
+    reverify_profiles: 'Review Re-verification Queue',
     manage_admins: 'Manage Admins (super-admin only)',
     manage_system_settings: 'System Settings (super-admin only)',
     delete_users: 'Delete Users (super-admin only)',

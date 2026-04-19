@@ -17,6 +17,7 @@ export const ALL_PERMISSIONS = [
     'reject_jobseekers',
     'view_users',
     'export_jobseekers',
+    'reverify_profiles',
     'manage_admins',
     'manage_system_settings',
     'delete_users',
@@ -35,6 +36,7 @@ export const SECTION_PERMISSIONS = {
     employers: 'view_employers',
     jobseekers: 'view_jobseekers',
     users: 'view_users',
+    reverification: 'reverify_profiles',
     admin_management: 'manage_admins',
 }
 

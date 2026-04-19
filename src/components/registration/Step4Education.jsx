@@ -1,9 +1,12 @@
-import { GraduationCap, Calendar, Plus, X, CheckCircle } from 'lucide-react'
+import { GraduationCap, Calendar, Plus, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import { AnimatedSection } from '../forms/AnimatedSection'
 import { Tooltip } from '../forms/Tooltip'
+import CertificateUpload from '../common/CertificateUpload'
 import coursesData from '../../data/courses.json'
+import { countTrainingCertificates, getTrainingCertificateRecord } from '../../utils/reverification'
+import { buildCertificateFingerprint } from '../../utils/certificateUtils'
 
 const EDUCATION_LEVELS = [
   'Elementary (Grades 1-6)',
@@ -16,7 +19,14 @@ const EDUCATION_LEVELS = [
 
 const CERTIFICATE_LEVELS = ['NC I', 'NC II', 'NC III', 'NC IV', 'None', 'Others']
 
-const EMPTY_TRAINING = { course: '', institution: '', hours: '', skills_acquired: '', certificate_level: '' }
+const EMPTY_TRAINING = {
+  course: '',
+  institution: '',
+  hours: '',
+  skills_acquired: '',
+  certificate_level: '',
+  certificate_path: ''
+}
 
 const EDUCATION_CARDS = [
   { value: 'Elementary (Grades 1-6)', description: 'Primary education' },
@@ -79,8 +89,8 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
     return ''
   }
 
-  // Vocational training logic (unchanged)
   const trainings = formData.vocational_training || []
+  const certificateCount = countTrainingCertificates(trainings)
 
   const addTraining = () => {
     if (trainings.length >= 3) return
@@ -95,6 +105,12 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
     })
   }
 
+  const getOtherTrainingFingerprints = (currentIndex) =>
+    trainings
+      .flatMap((training, index) => index === currentIndex ? [] : getTrainingCertificateRecord(training, index))
+      .map(buildCertificateFingerprint)
+      .filter(Boolean)
+
   const removeTraining = (index) => {
     setFormData(prev => ({
       ...prev,
@@ -104,7 +120,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
 
   return (
     <div className="space-y-6">
-      {/* -- FORMAL EDUCATION -- */}
       <div className="border border-gray-200 rounded-2xl p-5 space-y-5">
         <div className="flex items-center gap-2">
           <GraduationCap className="w-5 h-5 text-primary-600" />
@@ -115,7 +130,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
         </div>
         <p className="text-sm text-gray-500 -mt-3">Tell us about your highest educational attainment</p>
 
-        {/* Currently in School toggle */}
         <div>
           <label className="label">Currently in School <span className="text-red-500">*</span></label>
           <div className="grid grid-cols-2 gap-3">
@@ -131,7 +145,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
           )}
         </div>
 
-        {/* Education Level cards — text-only, 2-col grid */}
         <div>
           <label className="label">Highest Education Level <span className="text-red-500">*</span></label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -151,10 +164,8 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
           )}
         </div>
 
-        {/* School / Institution name */}
         <FloatingLabelInput label="School or Institution" name="school_name" value={formData.school_name} onChange={handleChange} placeholder="e.g., University of the Philippines" required error={errors.school_name} />
 
-        {/* Course / Field of Study (conditional) */}
         <AnimatedSection show={showCourseField}>
           <div className="mt-1">
             <SearchableSelect label="Course / Field of Study" name="course_or_field" value={formData.course_or_field} onChange={handleChange}
@@ -163,7 +174,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
           </div>
         </AnimatedSection>
 
-        {/* Year Graduated / Expected Graduation Year (conditional) */}
         <AnimatedSection show={showYearGraduated}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
             <FloatingLabelInput
@@ -175,7 +185,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
           </div>
         </AnimatedSection>
 
-        {/* "I did not graduate" checkbox (hidden when currently in school) */}
         <AnimatedSection show={showDidNotGraduate}>
           <label className="flex items-center gap-2 cursor-pointer mt-1">
             <input type="checkbox" checked={formData.did_not_graduate || false}
@@ -189,7 +198,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
           </label>
         </AnimatedSection>
 
-        {/* Level Reached + Year Last Attended (when did not graduate) */}
         <AnimatedSection show={showUndergraduateFields}>
           <div className="space-y-4 mt-1 p-4 bg-blue-50 border border-blue-200 rounded-xl">
             <p className="text-sm text-blue-700 font-medium">Please provide the following details:</p>
@@ -199,13 +207,23 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
         </AnimatedSection>
       </div>
 
-      {/* -- TECHNICAL/VOCATIONAL TRAINING -- */}
       <div className="pt-4 border-t border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 mb-2">
           Technical/Vocational Training
           <Tooltip text="Include TESDA courses or any vocational/technical training you have completed." />
         </h3>
-        <p className="text-sm text-gray-500 mb-4">Optional — add up to 3 training entries.</p>
+        <p className="text-sm text-gray-500 mb-4">Optional - add up to 3 training entries.</p>
+        {errors.vocational_training_certificates && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{errors.vocational_training_certificates}</span>
+          </div>
+        )}
+        {trainings.length > 0 && (
+          <p className="text-xs text-gray-500 mb-4">
+            {certificateCount} of {trainings.length} training entr{trainings.length === 1 ? 'y has' : 'ies have'} proof of completion uploaded.
+          </p>
+        )}
 
         {trainings.map((training, index) => (
           <div key={index} className="relative p-4 bg-gray-50 rounded-xl mb-4 animate-scale-in">
@@ -221,6 +239,31 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
                 <SearchableSelect label="Certificate Received" name={`training_cert_${index}`} value={training.certificate_level} onChange={(e) => updateTraining(index, 'certificate_level', e.target.value)} options={CERTIFICATE_LEVELS} />
               </div>
               <FloatingLabelInput label="Skills Acquired" name={`training_skills_${index}`} value={training.skills_acquired} onChange={(e) => updateTraining(index, 'skills_acquired', e.target.value)} />
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                {!training.certificate_path?.trim() && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>Proof of Completion Required</span>
+                  </div>
+                )}
+                <CertificateUpload
+                  userId={formData.userId}
+                  value={getTrainingCertificateRecord(training, index)}
+                  onChange={(files) => {
+                    const selectedFile = files?.[0]
+                    updateTraining(index, 'certificate_path', selectedFile?.path || '')
+                    updateTraining(index, 'certificate_file_name', selectedFile?.name || '')
+                    updateTraining(index, 'certificate_size', selectedFile?.size || null)
+                  }}
+                  inputId={`training-certificate-${index}`}
+                  maxFiles={1}
+                  removeFromStorage={false}
+                  uploadLabel="Upload Certificate"
+                  helperText="PDF / JPG / PNG, 5MB"
+                  disallowedFingerprints={getOtherTrainingFingerprints(index)}
+                  duplicateErrorMessage="This certificate is already attached to another Technical/Vocational Training entry."
+                />
+              </div>
             </div>
           </div>
         ))}

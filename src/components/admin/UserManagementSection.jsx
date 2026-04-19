@@ -1,4 +1,5 @@
 import { Shield, Building2, User, Search } from 'lucide-react'
+import PendingReverificationBadge from '../common/PendingReverificationBadge'
 
 const UserManagementSection = ({ allUsers, searchQuery, setSearchQuery }) => {
     const filteredUsers = allUsers.filter(u => {
@@ -67,12 +68,17 @@ const UserManagementSection = ({ allUsers, searchQuery, setSearchQuery }) => {
                                         </span>
                                     </td>
                                     <td className="px-5 py-4">
-                                        <span className={`flex items-center gap-1.5 text-xs font-medium ${user.is_verified ? 'text-emerald-400' : 'text-amber-400'
-                                            }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${user.is_verified ? 'bg-emerald-400' : 'bg-amber-400'
-                                                }`} />
-                                            {user.is_verified ? 'Verified' : 'Pending'}
-                                        </span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className={`flex items-center gap-1.5 text-xs font-medium ${user.is_verified ? 'text-emerald-400' : 'text-amber-400'
+                                                }`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${user.is_verified ? 'bg-emerald-400' : 'bg-amber-400'
+                                                    }`} />
+                                                {user.is_verified ? 'Verified' : 'Pending'}
+                                            </span>
+                                            {user.is_verified && user.profile_modified_since_verification && (
+                                                <PendingReverificationBadge />
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-5 py-4 text-xs text-slate-500">
                                         {user.created_at ? new Date(user.created_at).toLocaleDateString() : '\u2014'}

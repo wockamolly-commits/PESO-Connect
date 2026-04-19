@@ -3,6 +3,7 @@ import {
     ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2,
     Briefcase, GraduationCap, Award, ChevronRight
 } from 'lucide-react'
+import PendingReverificationBadge from '../common/PendingReverificationBadge'
 
 const JobseekerCard = ({
     jobseeker,
@@ -40,10 +41,7 @@ const JobseekerCard = ({
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                     {jobseeker.profile_modified_since_verification && status === 'verified' && (
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500/15 text-yellow-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-                            Profile Modified
-                        </span>
+                        <PendingReverificationBadge />
                     )}
                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${
                         status === 'pending'

@@ -7,6 +7,7 @@ import {
     MapPin, Briefcase, GraduationCap, Award, Globe, Calendar, Users,
     ExternalLink, MessageSquare, ArrowLeft, Loader2, Building
 } from 'lucide-react'
+import PendingReverificationBadge from '../components/common/PendingReverificationBadge'
 
 const PublicProfile = () => {
     const { userId } = useParams()
@@ -129,9 +130,19 @@ const PublicProfile = () => {
                                     : [profile.city, profile.province].filter(Boolean).join(', ')}
                             </p>
                         )}
-                        <span className="mt-2 px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-700 capitalize">
-                            {profile.role}
-                        </span>
+                        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-700 capitalize">
+                                {profile.role}
+                            </span>
+                            {profile.is_verified && (
+                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                    Verified
+                                </span>
+                            )}
+                            {profile.is_verified && profile.profile_modified_since_verification && (
+                                <PendingReverificationBadge />
+                            )}
+                        </div>
                     </div>
                 </div>
 
