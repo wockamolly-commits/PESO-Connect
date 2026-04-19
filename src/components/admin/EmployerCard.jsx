@@ -2,6 +2,7 @@ import {
     Building2, User, FileText, Shield, Maximize2,
     ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2
 } from 'lucide-react'
+import PendingReverificationBadge from '../common/PendingReverificationBadge'
 
 const formatLabel = (value = '') => value ? value.replace(/_/g, ' ') : ''
 
@@ -60,6 +61,9 @@ const EmployerCard = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
+                    {employer.profile_modified_since_verification && employer.is_verified && (
+                        <PendingReverificationBadge />
+                    )}
                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold ${
                         status === 'pending'
                             ? 'bg-amber-500/15 text-amber-400'

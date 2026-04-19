@@ -28,7 +28,7 @@ const TABS = [
 ]
 
 const formatScalar = (value) => {
-    if (value == null || value === '') return '-'
+    if (value == null || value === '') return '—'
     if (typeof value === 'boolean') return value ? 'Yes' : 'No'
     return String(value)
 }
@@ -46,7 +46,7 @@ const renderStructuredValue = (field, value, signedUrls) => {
                     return (
                         <div key={`${training?.course || 'training'}-${index}`} className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3">
                             <p className="text-sm font-medium text-slate-100">
-                                {training?.course || 'Untitled training'} {training?.institution ? `- ${training.institution}` : ''}
+                                {training?.course || 'Untitled training'} {training?.institution ? `— ${training.institution}` : ''}
                             </p>
                             {training?.certificate_level && (
                                 <p className="mt-1 text-xs text-slate-400">Certificate: {training.certificate_level}</p>
@@ -97,30 +97,14 @@ const ReverificationQueue = ({
     onApprove,
     onReject,
     onRevoke,
-    allowedRoleLabels = ['jobseeker', 'employer'],
 }) => {
-    const normalizedAllowedRoleLabels = useMemo(
-        () => (Array.isArray(allowedRoleLabels) && allowedRoleLabels.length ? allowedRoleLabels : ['jobseeker', 'employer']),
-        [allowedRoleLabels]
-    )
-    const [activeTab, setActiveTab] = useState(normalizedAllowedRoleLabels[0])
+    const [activeTab, setActiveTab] = useState('jobseeker')
     const [expandedId, setExpandedId] = useState(null)
     const [signedUrls, setSignedUrls] = useState({})
 
-    const visibleTabs = useMemo(
-        () => TABS.filter((tab) => normalizedAllowedRoleLabels.includes(tab.id)),
-        [normalizedAllowedRoleLabels]
-    )
-
-    useEffect(() => {
-        if (!normalizedAllowedRoleLabels.includes(activeTab)) {
-            setActiveTab(normalizedAllowedRoleLabels[0])
-        }
-    }, [activeTab, normalizedAllowedRoleLabels])
-
     const filteredItems = useMemo(
-        () => queueItems.filter((item) => item.roleLabel === activeTab && normalizedAllowedRoleLabels.includes(item.roleLabel)),
-        [activeTab, normalizedAllowedRoleLabels, queueItems]
+        () => queueItems.filter((item) => item.roleLabel === activeTab),
+        [activeTab, queueItems]
     )
 
     useEffect(() => {
@@ -165,7 +149,7 @@ const ReverificationQueue = ({
             </div>
 
             <div className="mb-6 flex flex-wrap gap-3">
-                {visibleTabs.map((tab) => {
+                {TABS.map((tab) => {
                     const count = queueItems.filter((item) => item.roleLabel === tab.id).length
                     const isActive = activeTab === tab.id
                     return (

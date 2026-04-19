@@ -1,17 +1,11 @@
-import { GraduationCap, Calendar, Plus, X, CheckCircle, AlertCircle, Award, Shield } from 'lucide-react'
+import { GraduationCap, Calendar, Plus, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import { AnimatedSection } from '../forms/AnimatedSection'
 import { Tooltip } from '../forms/Tooltip'
 import CertificateUpload from '../common/CertificateUpload'
 import coursesData from '../../data/courses.json'
-import {
-  countLicenseCertificates,
-  countTrainingCertificates,
-  getCivilServiceCertificateRecord,
-  getLicenseCertificateRecord,
-  getTrainingCertificateRecord,
-} from '../../utils/reverification'
+import { countTrainingCertificates, getTrainingCertificateRecord } from '../../utils/reverification'
 import { buildCertificateFingerprint } from '../../utils/certificateUtils'
 
 const EDUCATION_LEVELS = [
@@ -32,13 +26,6 @@ const EMPTY_TRAINING = {
   skills_acquired: '',
   certificate_level: '',
   certificate_path: ''
-}
-
-const EMPTY_LICENSE = {
-  name: '',
-  number: '',
-  valid_until: '',
-  license_copy_path: ''
 }
 
 const EDUCATION_CARDS = [
@@ -103,9 +90,7 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
   }
 
   const trainings = formData.vocational_training || []
-  const licenses = formData.professional_licenses || []
-  const trainingCertificateCount = countTrainingCertificates(trainings)
-  const licenseCertificateCount = countLicenseCertificates(licenses)
+  const certificateCount = countTrainingCertificates(trainings)
 
   const addTraining = () => {
     if (trainings.length >= 3) return
@@ -132,32 +117,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
       vocational_training: (prev.vocational_training || []).filter((_, i) => i !== index)
     }))
   }
-
-  const addLicense = () => {
-    if (licenses.length >= 2) return
-    setFormData(prev => ({ ...prev, professional_licenses: [...(prev.professional_licenses || []), { ...EMPTY_LICENSE }] }))
-  }
-
-  const updateLicense = (index, field, value) => {
-    setFormData(prev => {
-      const updated = [...(prev.professional_licenses || [])]
-      updated[index] = { ...updated[index], [field]: value }
-      return { ...prev, professional_licenses: updated }
-    })
-  }
-
-  const removeLicense = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      professional_licenses: (prev.professional_licenses || []).filter((_, i) => i !== index)
-    }))
-  }
-
-  const getOtherLicenseFingerprints = (currentIndex) =>
-    licenses
-      .flatMap((license, index) => index === currentIndex ? [] : getLicenseCertificateRecord(license, index))
-      .map(buildCertificateFingerprint)
-      .filter(Boolean)
 
   return (
     <div className="space-y-6">
@@ -249,104 +208,6 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
       </div>
 
       <div className="pt-4 border-t border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Professional Licenses</h3>
-        <p className="text-sm text-gray-500 mb-4">Optional - add up to 2 licenses. Every license entry must include its proof.</p>
-        {errors.professional_licenses_certificates && (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{errors.professional_licenses_certificates}</span>
-          </div>
-        )}
-        {licenses.length > 0 && (
-          <p className="text-xs text-gray-500 mb-4">
-            {licenseCertificateCount} of {licenses.length} license entr{licenses.length === 1 ? 'y has' : 'ies have'} proof uploaded.
-          </p>
-        )}
-
-        {licenses.map((license, index) => (
-          <div key={index} className="relative p-4 bg-gray-50 rounded-xl mb-4 animate-scale-in">
-            <button type="button" onClick={() => removeLicense(index)} className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-            <p className="text-sm font-medium text-gray-600 mb-3">License {index + 1}</p>
-            <div className="space-y-3">
-              <FloatingLabelInput label="License Name (PRC)" name={`license_name_${index}`} value={license.name} onChange={(e) => updateLicense(index, 'name', e.target.value)} icon={Award} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FloatingLabelInput label="License Number" name={`license_number_${index}`} value={license.number} onChange={(e) => updateLicense(index, 'number', e.target.value)} />
-                <FloatingLabelInput label="Valid Until" name={`license_valid_until_${index}`} value={license.valid_until} onChange={(e) => updateLicense(index, 'valid_until', e.target.value)} type="date" icon={Calendar} />
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                {!license.license_copy_path?.trim() && (
-                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                    <span>License Proof Required</span>
-                  </div>
-                )}
-                <CertificateUpload
-                  userId={formData.userId}
-                  value={getLicenseCertificateRecord(license, index)}
-                  onChange={(files) => {
-                    const selectedFile = files?.[0]
-                    updateLicense(index, 'license_copy_path', selectedFile?.path || '')
-                    updateLicense(index, 'license_file_name', selectedFile?.name || '')
-                    updateLicense(index, 'license_file_size', selectedFile?.size || null)
-                  }}
-                  inputId={`license-certificate-${index}`}
-                  maxFiles={1}
-                  removeFromStorage={false}
-                  uploadLabel="Upload License Proof"
-                  helperText="PDF / JPG / PNG, 5MB"
-                  disallowedFingerprints={getOtherLicenseFingerprints(index)}
-                  duplicateErrorMessage="This certificate is already attached to another Professional License entry."
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {licenses.length < 2 && (
-          <button type="button" onClick={addLicense} className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors">
-            <Plus className="w-4 h-4" /> Add License
-          </button>
-        )}
-      </div>
-
-      <div className="pt-4 border-t border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Civil Service Eligibility</h3>
-        <p className="text-sm text-gray-500 mb-4">Only upload proof if you list a civil service eligibility.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FloatingLabelInput label="Eligibility" name="civil_service_eligibility" value={formData.civil_service_eligibility} onChange={handleChange} icon={Shield} />
-          <FloatingLabelInput label="Date Taken" name="civil_service_date" value={formData.civil_service_date} onChange={handleChange} type="date" icon={Calendar} />
-        </div>
-        {formData.civil_service_eligibility?.trim() && (
-          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-            {!formData.civil_service_cert_path?.trim() && (
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>Civil Service Proof Required</span>
-              </div>
-            )}
-            <CertificateUpload
-              userId={formData.userId}
-              value={getCivilServiceCertificateRecord(formData)}
-              onChange={(files) => {
-                const selectedFile = files?.[0]
-                handleChange({ target: { name: 'civil_service_cert_path', value: selectedFile?.path || '' } })
-              }}
-              inputId="civil-service-certificate"
-              maxFiles={1}
-              removeFromStorage={false}
-              uploadLabel="Upload Civil Service Proof"
-              helperText="PDF / JPG / PNG, 5MB"
-            />
-            {errors.civil_service_cert_path && (
-              <p className="mt-2 text-sm text-red-500">{errors.civil_service_cert_path}</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="pt-4 border-t border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 mb-2">
           Technical/Vocational Training
           <Tooltip text="Include TESDA courses or any vocational/technical training you have completed." />
@@ -360,7 +221,7 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
         )}
         {trainings.length > 0 && (
           <p className="text-xs text-gray-500 mb-4">
-            {trainingCertificateCount} of {trainings.length} training entr{trainings.length === 1 ? 'y has' : 'ies have'} proof of completion uploaded.
+            {certificateCount} of {trainings.length} training entr{trainings.length === 1 ? 'y has' : 'ies have'} proof of completion uploaded.
           </p>
         )}
 
@@ -417,4 +278,4 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
   )
 }
 
-export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS, LEVELS_WITH_COURSE }
+export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS }

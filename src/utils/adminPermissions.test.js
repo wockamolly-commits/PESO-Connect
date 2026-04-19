@@ -66,6 +66,11 @@ describe('hasAdminPermission', () => {
         expect(hasAdminPermission(subAdminApproveEmployers, 'view_employers')).toBe(true)
     })
 
+    it('supports the reverify_profiles permission', () => {
+        const row = { admin_level: 'sub-admin', permissions: ['reverify_profiles'] }
+        expect(hasAdminPermission(row, 'reverify_profiles')).toBe(true)
+    })
+
     it('sub-admin fails for permissions not in their list', () => {
         expect(hasAdminPermission(subAdminApproveEmployers, 'approve_jobseekers')).toBe(false)
         expect(hasAdminPermission(subAdminApproveEmployers, 'manage_admins')).toBe(false)
@@ -189,5 +194,13 @@ describe('formatPermissionList', () => {
     it('returns an empty string for empty or invalid input', () => {
         expect(formatPermissionList([])).toBe('')
         expect(formatPermissionList(null)).toBe('')
+    })
+
+    it('reverification section requires reverify_profiles permission', () => {
+        const noReverify = { admin_level: 'sub-admin', permissions: ['view_overview'] }
+        expect(getVisibleAdminSections(noReverify)).not.toContain('reverification')
+
+        const withReverify = { admin_level: 'sub-admin', permissions: ['reverify_profiles'] }
+        expect(getVisibleAdminSections(withReverify)).toContain('reverification')
     })
 })

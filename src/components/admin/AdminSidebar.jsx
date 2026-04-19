@@ -1,6 +1,6 @@
 import {
     Shield, User, LogOut, ChevronRight,
-    LayoutDashboard, ClipboardList, Building2, Users, UserCog, Settings, Download, RefreshCw
+    LayoutDashboard, ClipboardList, Building2, Users, UserCog, RefreshCw
 } from 'lucide-react'
 import { getVisibleAdminSections, isSuperAdmin } from '../../utils/adminPermissions'
 
@@ -10,7 +10,6 @@ const ALL_NAV_ITEMS = [
     { id: 'jobseekers', label: 'Jobseeker Verification', icon: Users },
     { id: 'reverification', label: 'Re-verification', icon: RefreshCw },
     { id: 'users', label: 'All Users', icon: ClipboardList },
-    { id: 'jobseeker_export', label: 'Jobseeker Export', icon: Download },
     { id: 'admin_management', label: 'Admin Management', icon: UserCog },
 ]
 
@@ -68,26 +67,6 @@ const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, ad
                 {navItems.length === 0 && sidebarOpen && (
                     <p className="px-3 py-4 text-xs text-slate-600 text-center">No sections accessible</p>
                 )}
-
-                {/* Account Settings — always visible, bypasses RBAC */}
-                <div className="mt-auto pt-2 border-t border-slate-800">
-                    <button
-                        onClick={() => onSectionChange('account_settings')}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${activeSection === 'account_settings'
-                                ? 'bg-indigo-500/15 text-indigo-400 shadow-lg shadow-indigo-500/5'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                            }`}
-                    >
-                        <Settings className={`w-5 h-5 flex-shrink-0 ${activeSection === 'account_settings' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'
-                            }`} />
-                        {sidebarOpen && (
-                            <span className="text-sm font-medium">Account Settings</span>
-                        )}
-                        {sidebarOpen && activeSection === 'account_settings' && (
-                            <ChevronRight className="w-4 h-4 ml-auto text-indigo-500" />
-                        )}
-                    </button>
-                </div>
             </nav>
 
             {/* Sidebar toggle */}

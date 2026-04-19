@@ -17,6 +17,7 @@ import {
 import { useState, useEffect } from 'react'
 import { getTotalUnreadCount } from '../services/messagingService'
 import NotificationBell from './common/NotificationBell'
+import PendingReverificationBadge from './common/PendingReverificationBadge'
 
 const Navbar = () => {
     const { currentUser, userData, logout, isAdmin, isEmployer, isJobseeker, isHomeowner } = useAuth()
@@ -131,12 +132,15 @@ const Navbar = () => {
                                 <div className="flex items-center gap-3">
                                     <div className="hidden sm:block text-right">
                                         <p className="text-sm font-medium text-gray-900">{userData?.display_name || userData?.full_name || userData?.name || 'User'}</p>
-                                        <p className="text-xs text-gray-500 capitalize flex items-center gap-1">
+                                        <div className="text-xs text-gray-500 capitalize flex items-center justify-end gap-1 flex-wrap">
                                             {userData?.subtype || userData?.role}
                                             {userData?.is_verified && (
                                                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full" title="Verified"></span>
                                             )}
-                                        </p>
+                                            {userData?.is_verified && userData?.profile_modified_since_verification && (
+                                                <PendingReverificationBadge className="scale-90 origin-right" />
+                                            )}
+                                        </div>
                                     </div>
                                     <Link
                                         to="/dashboard"

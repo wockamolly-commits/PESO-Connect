@@ -1,46 +1,50 @@
 import { describe, expect, it } from 'vitest'
 import {
-    countLicenseCertificates,
+    buildVerifiedSnapshot,
     countTrainingCertificates,
-    getCivilServiceCertificateRecord,
-    getLicenseCertificateRecord,
-    hasCivilServiceCertificate,
+    getChangedProfileFields,
+    normalizeComparableValue,
 } from './reverification'
 
 describe('reverification helpers', () => {
-    it('counts only licenses with uploaded proof', () => {
-        expect(countLicenseCertificates([
-            { name: 'PRC Nurse', license_copy_path: 'user/license-1.pdf' },
-            { name: 'PRC Teacher', license_copy_path: '   ' },
-            { name: 'PRC Engineer' },
-        ])).toBe(1)
+    it('normalizes strings case-insensitively and trims whitespace', () => {
+        expect(normalizeComparableValue('  Google  ')).toBe('google')
     })
 
-    it('builds a single-file record for a stored license certificate', () => {
-        expect(getLicenseCertificateRecord({
-            license_copy_path: 'user/license-proof.pdf',
-            license_file_name: 'license-proof.pdf',
-            license_file_size: 1024,
-        }, 0)).toEqual([
-            { path: 'user/license-proof.pdf', name: 'license-proof.pdf', size: 1024 }
-        ])
-    })
-
-    it('detects civil service proof only when a path is present', () => {
-        expect(hasCivilServiceCertificate({ civil_service_cert_path: 'user/cse.pdf' })).toBe(true)
-        expect(hasCivilServiceCertificate({ civil_service_cert_path: '   ' })).toBe(false)
-    })
-
-    it('builds a record for civil service proof uploads', () => {
-        expect(getCivilServiceCertificateRecord({ civil_service_cert_path: 'user/cse-proof.pdf' })).toEqual([
-            { path: 'user/cse-proof.pdf', name: 'cse-proof.pdf', size: null }
-        ])
-    })
-
-    it('keeps the existing training proof count behavior intact', () => {
+    it('counts only non-empty training certificate paths', () => {
         expect(countTrainingCertificates([
-            { course: 'TESDA', certificate_path: 'user/training.pdf' },
-            { course: 'Safety', certificate_path: '' },
+            { certificate_path: 'user/cert-1.pdf' },
+            { certificate_path: '   ' },
+            {},
         ])).toBe(1)
+    })
+
+    it('builds snapshots using watched fields only', () => {
+        const snapshot = buildVerifiedSnapshot('employer', {
+            company_name: 'Acme',
+            tin: '123',
+            business_reg_number: 'SEC-1',
+            owner_name: 'Owner',
+            representative_name: 'Rep',
+            ignored: 'value',
+        })
+
+        expect(snapshot).toEqual({
+            company_name: 'Acme',
+            tin: '123',
+            business_reg_number: 'SEC-1',
+            owner_name: 'Owner',
+            representative_name: 'Rep',
+        })
+    })
+
+    it('detects only changed watched fields', () => {
+        const changes = getChangedProfileFields(
+            'jobseeker',
+            { first_name: 'Juan', surname: 'Dela Cruz', work_experiences: [] },
+            { first_name: 'juan', surname: 'Santos', work_experiences: [{ company: 'ABC' }] }
+        )
+
+        expect(changes.map((change) => change.field)).toEqual(['surname', 'work_experiences'])
     })
 })

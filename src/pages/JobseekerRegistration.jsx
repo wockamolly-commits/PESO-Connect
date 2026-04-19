@@ -3,9 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { sendJobseekerRegistrationEmail } from '../services/emailService'
-import { expandProfileAliases } from '../services/geminiService'
-import { refreshProfileEmbedding } from '../services/matchingService'
-import { supabase } from '../config/supabase'
 import { validators } from '../utils/validation'
 import {
     Loader2, AlertCircle, ChevronRight, ChevronLeft, CheckCircle
@@ -16,13 +13,11 @@ import {
     Step2PersonalInfo,
     Step3ContactEmployment,
     Step4Education,
-    LEVELS_WITH_COURSE,
     Step5SkillsExperience,
     Step6JobPreferences,
     Step7Consent
 } from '../components/registration'
-import { normalizeCertificateRecords, stripCertificatePayloads } from '../utils/certificateUtils'
-import { countLicenseCertificates, countTrainingCertificates, hasCivilServiceCertificate } from '../utils/reverification'
+import { countTrainingCertificates } from '../utils/reverification'
 
 const TOTAL_STEPS = 7
 const OTHER_PREFIX = 'Others:'
@@ -87,24 +82,6 @@ const normalizeOptionalDate = (value) => {
     return trimmedValue || null
 }
 
-const SUFFIX_PLACEHOLDERS = new Set(['none', 'n/a', 'na', '-'])
-const normalizeSuffix = (value) => {
-    if (typeof value !== 'string') return value ?? ''
-    const trimmedValue = value.trim()
-    return SUFFIX_PLACEHOLDERS.has(trimmedValue.toLowerCase()) ? '' : trimmedValue
-}
-
-const buildJobseekerDisplayName = ({ first_name, middle_name, surname, suffix }) =>
-    [first_name, middle_name, surname, normalizeSuffix(suffix)]
-        .map((value) => typeof value === 'string' ? value.trim() : '')
-        .filter(Boolean)
-        .join(' ')
-
-const sanitizeDraftFormData = (data) => ({
-    ...data,
-    certificate_urls: stripCertificatePayloads(data?.certificate_urls),
-})
-
 const JobseekerRegistration = () => {
     const [currentStep, setCurrentStep] = useState(1)
     const [formData, setFormData] = useState({
@@ -160,7 +137,6 @@ const JobseekerRegistration = () => {
         professional_licenses: [],
         civil_service_eligibility: '',
         civil_service_date: '',
-        civil_service_cert_path: '',
         work_experiences: [],
         portfolio_url: '',
         resume_url: '',
@@ -191,10 +167,6 @@ const JobseekerRegistration = () => {
     const [accountCreated, setAccountCreated] = useState(false)
     const [saving, setSaving] = useState(false)
     const [touchedFields, setTouchedFields] = useState({})
-    // Surfaces localStorage quota failures so users know the multi-step
-    // draft isn't being saved (otherwise they'd lose hours of progress
-    // silently on refresh). null = no issue; string = banner copy.
-    const [draftSaveWarning, setDraftSaveWarning] = useState(null)
     const restoredRef = useRef(false)
 
     const { createAccount, saveRegistrationStep, completeRegistration, currentUser, userData, loading: authLoading } = useAuth()
@@ -206,25 +178,10 @@ const JobseekerRegistration = () => {
     // so an empty initial render never overwrites the real saved draft.
     useEffect(() => {
         if (currentUser?.uid && restoredRef.current) {
-            try {
-                localStorage.setItem(getDraftStorageKey(currentUser.uid), JSON.stringify({
-                    formData: sanitizeDraftFormData(formData),
-                    currentStep
-                }))
-                // Clear any previous banner once a save succeeds.
-                setDraftSaveWarning((prev) => (prev ? null : prev))
-            } catch (storageError) {
-                console.warn('Failed to persist jobseeker registration draft:', storageError)
-                // DOMException.name is 'QuotaExceededError' (or
-                // 'NS_ERROR_DOM_QUOTA_REACHED' on Firefox) when storage
-                // is full. Show a banner either way — any persistence
-                // failure means the user would lose their draft on refresh.
-                const msg = storageError?.name === 'QuotaExceededError'
-                    || storageError?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
-                    ? 'Your browser storage is full — we can\u2019t save your progress. Please finish this registration in one sitting or free up space.'
-                    : 'We couldn\u2019t save your draft to this browser. Please finish this registration in one sitting.'
-                setDraftSaveWarning(msg)
-            }
+            localStorage.setItem(getDraftStorageKey(currentUser.uid), JSON.stringify({
+                formData,
+                currentStep
+            }))
         }
     }, [formData, currentStep, currentUser?.uid])
 
@@ -283,11 +240,10 @@ const JobseekerRegistration = () => {
                 professional_licenses: userData.professional_licenses || [],
                 civil_service_eligibility: userData.civil_service_eligibility || '',
                 civil_service_date: userData.civil_service_date || '',
-                civil_service_cert_path: userData.civil_service_cert_path || '',
                 work_experiences: userData.work_experiences || [],
                 portfolio_url: userData.portfolio_url || '',
                 resume_url: userData.resume_url || '',
-                certificate_urls: normalizeCertificateRecords(userData.certificate_urls),
+                certificate_urls: userData.certificate_urls || [],
                 preferred_job_type: userData.preferred_job_type || [],
                 preferred_occupations: userData.preferred_occupations || ['', '', ''],
                 preferred_local_locations: userData.preferred_local_locations || ['', '', ''],
@@ -319,7 +275,6 @@ const JobseekerRegistration = () => {
                         ...restoredFormData,
                         ...draftFormData
                     }
-                    restoredFormData.certificate_urls = normalizeCertificateRecords(restoredFormData.certificate_urls)
                 }
 
                 if (typeof draftStep === 'number' && Number.isFinite(draftStep)) {
@@ -433,20 +388,8 @@ const JobseekerRegistration = () => {
             case 4:
                 if (!formData.highest_education) newErrors.highest_education = 'Education level is required'
                 if (!formData.school_name) newErrors.school_name = 'School name is required'
-                if (LEVELS_WITH_COURSE.includes(formData.highest_education) && !formData.course_or_field)
-                    newErrors.course_or_field = 'Course / Field of Study is required'
-                if (!formData.currently_in_school && !formData.did_not_graduate && !formData.year_graduated)
-                    newErrors.year_graduated = 'Year Graduated is required'
-                if (formData.did_not_graduate && !formData.education_level_reached)
-                    newErrors.education_level_reached = 'Level reached is required'
                 if ((formData.vocational_training || []).length !== countTrainingCertificates(formData.vocational_training || [])) {
                     newErrors.vocational_training_certificates = 'Each training entry requires a certificate upload before you can continue.'
-                }
-                if ((formData.professional_licenses || []).length !== countLicenseCertificates(formData.professional_licenses || [])) {
-                    newErrors.professional_licenses_certificates = 'Each professional license entry requires a proof upload before you can continue.'
-                }
-                if (formData.civil_service_eligibility?.trim() && !hasCivilServiceCertificate(formData)) {
-                    newErrors.civil_service_cert_path = 'Upload the proof for the civil service eligibility you entered.'
                 }
                 break
             case 5: {
@@ -492,11 +435,10 @@ const JobseekerRegistration = () => {
             case 2: {
                 const heightCm = formData.height_cm === '' ? null : Number(formData.height_cm)
                 return {
-                    name: buildJobseekerDisplayName(formData),
                     surname: formData.surname,
                     first_name: formData.first_name,
                     middle_name: formData.middle_name,
-                    suffix: normalizeSuffix(formData.suffix),
+                    suffix: formData.suffix,
                     date_of_birth: formData.date_of_birth,
                     sex: formData.sex,
                     civil_status: formData.civil_status,
@@ -539,23 +481,22 @@ const JobseekerRegistration = () => {
                     did_not_graduate: formData.did_not_graduate,
                     education_level_reached: formData.education_level_reached,
                     year_last_attended: String(formData.year_last_attended ?? '').trim(),
-                    vocational_training: formData.vocational_training,
+                    vocational_training: formData.vocational_training
+                }
+            case 5:
+                return {
+                    predefined_skills: formData.predefined_skills,
+                    skills: formData.skills,
                     professional_licenses: (formData.professional_licenses || []).map((license) => ({
                         ...license,
                         valid_until: normalizeOptionalDate(license.valid_until)
                     })),
                     civil_service_eligibility: formData.civil_service_eligibility,
                     civil_service_date: normalizeOptionalDate(formData.civil_service_date),
-                    civil_service_cert_path: formData.civil_service_cert_path || ''
-                }
-            case 5:
-                return {
-                    predefined_skills: formData.predefined_skills,
-                    skills: formData.skills,
                     work_experiences: formData.work_experiences,
                     portfolio_url: formData.portfolio_url,
                     resume_url: formData.resume_url,
-                    certificate_urls: stripCertificatePayloads(formData.certificate_urls)
+                    certificate_urls: formData.certificate_urls
                 }
             case 6:
                 return {
@@ -643,34 +584,6 @@ const JobseekerRegistration = () => {
             // Clear draft on successful submission
             localStorage.removeItem(getDraftStorageKey(currentUser.uid))
 
-            // Non-blocking: enrich skill_aliases + refresh embedding so match-jobs
-            // has rich scoring data from day one. Failures do not block registration.
-            const allSkills = [...(formData.predefined_skills || []), ...(formData.skills || [])]
-            if (allSkills.length > 0 && currentUser?.uid) {
-                const uid = currentUser.uid
-                ;(async () => {
-                    try {
-                        const aliasData = await expandProfileAliases(allSkills, formData.work_experiences)
-                        if (aliasData.skillAliases && Object.keys(aliasData.skillAliases).length > 0) {
-                            await supabase
-                                .from('jobseeker_profiles')
-                                .update({
-                                    skill_aliases: aliasData.skillAliases,
-                                    experience_categories: aliasData.experienceCategories,
-                                })
-                                .eq('id', uid)
-                        }
-                    } catch (aliasErr) {
-                        console.warn('Post-registration alias enrichment failed (non-blocking):', aliasErr?.message)
-                    }
-                    try {
-                        await refreshProfileEmbedding({ userId: uid })
-                    } catch (embeddingErr) {
-                        console.warn('Post-registration embedding refresh failed (non-blocking):', embeddingErr?.message)
-                    }
-                })()
-            }
-
             try {
                 await sendJobseekerRegistrationEmail({
                     email: formData.email || userData?.email,
@@ -719,7 +632,7 @@ const JobseekerRegistration = () => {
             case 4:
                 return <Step4Education formData={{ ...formData, userId: currentUser?.uid }} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 5:
-                return <Step5SkillsExperience formData={formData} handleChange={handleChange} setFormData={setFormData} userId={currentUser?.uid} errors={fieldErrors} setErrors={setFieldErrors} />
+                return <Step5SkillsExperience formData={formData} handleChange={handleChange} setFormData={setFormData} userId={currentUser?.uid} errors={fieldErrors} />
             case 6:
                 return <Step6JobPreferences formData={formData} handleChange={handleChange} setFormData={setFormData} errors={fieldErrors} />
             case 7:
@@ -756,13 +669,6 @@ const JobseekerRegistration = () => {
                             </div>
                         )}
 
-                        {draftSaveWarning && (
-                            <div className="mb-6 flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
-                                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                <p className="text-sm">{draftSaveWarning}</p>
-                            </div>
-                        )}
-
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={currentStep}
@@ -792,6 +698,7 @@ const JobseekerRegistration = () => {
                                 <button
                                     type="button"
                                     onClick={async () => {
+                                        if (!validateStep()) return
                                         try {
                                             const stepData = getStepData(currentStep)
                                             await saveRegistrationStep(stepData, currentStep)

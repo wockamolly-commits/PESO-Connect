@@ -20,6 +20,7 @@ import {
     RefreshCw,
     Mail
 } from 'lucide-react'
+import PendingReverificationBadge from '../components/common/PendingReverificationBadge'
 
 const Dashboard = () => {
     const { userData, currentUser, fetchUserData, isVerified, isEmailVerified, isEmployer, isJobseeker, isAdmin, isHomeowner } = useAuth()
@@ -252,9 +253,14 @@ const Dashboard = () => {
                                 <CheckCircle className="w-6 h-6 text-green-600" />
                             </div>
                             <div className="flex-1">
-                                <h3 className="font-semibold text-green-800 mb-1">Account Verified</h3>
+                                <div className="mb-1 flex flex-wrap items-center gap-2">
+                                    <h3 className="font-semibold text-green-800">Account Verified</h3>
+                                    {userData?.profile_modified_since_verification && <PendingReverificationBadge />}
+                                </div>
                                 <p className="text-green-700 text-sm">
-                                    Your account has been verified by PESO. You have full access to all platform features.
+                                    {userData?.profile_modified_since_verification
+                                        ? 'Your account remains verified while PESO reviews your latest profile changes.'
+                                        : 'Your account has been verified by PESO. You have full access to all platform features.'}
                                 </p>
                                 {(isJobseeker() || isEmployer()) && userData?.verified_for_year && (
                                     <p className="text-green-600 text-xs mt-1.5 font-medium">
@@ -321,7 +327,14 @@ const Dashboard = () => {
                                 {(() => {
                                     const sf = getStatusField(userData?.role, userData?.subtype)
                                     const status = sf ? userData?.[sf] : null;
-                                    if (isVerified()) return <span className="badge badge-success">Verified</span>;
+                                    if (isVerified()) {
+                                        return (
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                <span className="badge badge-success">Verified</span>
+                                                {userData?.profile_modified_since_verification && <PendingReverificationBadge />}
+                                            </div>
+                                        )
+                                    }
                                     if (status === 'rejected') return <span className="badge badge-error">Rejected</span>;
                                     return <span className="badge badge-warning">Pending</span>;
                                 })()}

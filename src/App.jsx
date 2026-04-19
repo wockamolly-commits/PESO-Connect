@@ -213,6 +213,14 @@ function AppContent() {
                                 </AdminProtectedRoute>
                             }
                         />
+                        <Route
+                            path="/admin/reverification"
+                            element={
+                                <AdminProtectedRoute>
+                                    <ErrorBoundary><AdminDashboard initialSection="reverification" /></ErrorBoundary>
+                                </AdminProtectedRoute>
+                            }
+                        />
 
                         {/* Public Profile */}
                         <Route

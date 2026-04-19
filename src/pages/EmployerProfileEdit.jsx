@@ -36,6 +36,7 @@ const WORKFORCE_SIZES = [
     { value: 'medium', label: 'Medium (100-199)' },
     { value: 'large', label: 'Large (200 and up)' },
 ]
+const REVERIFICATION_WATCHED_FIELDS = new Set(['company_name', 'tin', 'business_reg_number', 'owner_name', 'representative_name'])
 
 // --- PSGC helpers (mirrors EmployerRegistration.jsx) ---
 const CITY_OR_MUNICIPALITY_SUFFIX = /\b(city|municipality)\b/gi
@@ -110,7 +111,9 @@ const EmployerProfileEdit = () => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+    const [showHeadsUpToast, setShowHeadsUpToast] = useState(false)
     const restoredRef = useRef(false)
+    const hasShownHeadsUpRef = useRef(false)
 
     useEffect(() => {
         if (restoredRef.current) return
@@ -159,6 +162,21 @@ const EmployerProfileEdit = () => {
             if (name === 'owner_name' && prev.same_as_owner) next.representative_name = value
             return next
         })
+    }
+
+    useEffect(() => {
+        if (!showHeadsUpToast) return undefined
+        const timeoutId = window.setTimeout(() => setShowHeadsUpToast(false), 8000)
+        return () => window.clearTimeout(timeoutId)
+    }, [showHeadsUpToast])
+
+    const handleWatchedFieldFocus = (fieldName) => {
+        if (!userData?.is_verified || hasShownHeadsUpRef.current || !REVERIFICATION_WATCHED_FIELDS.has(fieldName)) {
+            return
+        }
+
+        hasShownHeadsUpRef.current = true
+        setShowHeadsUpToast(true)
     }
 
     const resolvedProvince = useMemo(() => findProvinceByName(formData.province), [formData.province])
@@ -265,6 +283,14 @@ const EmployerProfileEdit = () => {
                         <p className="text-green-700 text-sm">{success}</p>
                     </div>
                 )}
+                {showHeadsUpToast && (
+                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-amber-800 text-sm">
+                            <strong>Heads up:</strong> Saving changes to your company details will temporarily add a "Pending Re-verification" badge to your profile while PESO staff reviews the update. Your profile remains visible throughout.
+                        </p>
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="space-y-8">
 
@@ -281,7 +307,7 @@ const EmployerProfileEdit = () => {
                                 <div className="relative">
                                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input type="text" name="company_name" value={formData.company_name}
-                                        onChange={handleChange} className="input-field pl-12" required />
+                                        onChange={handleChange} onFocus={() => handleWatchedFieldFocus('company_name')} className="input-field pl-12" required />
                                 </div>
                             </div>
 
@@ -396,7 +422,7 @@ const EmployerProfileEdit = () => {
                                 <div className="relative">
                                     <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input type="text" name="tin" value={formData.tin}
-                                        onChange={handleChange} className="input-field pl-12"
+                                        onChange={handleChange} onFocus={() => handleWatchedFieldFocus('tin')} className="input-field pl-12"
                                         placeholder="e.g. 123-456-789-000" />
                                 </div>
                             </div>
@@ -406,7 +432,7 @@ const EmployerProfileEdit = () => {
                                 <div className="relative">
                                     <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input type="text" name="business_reg_number" value={formData.business_reg_number}
-                                        onChange={handleChange} className="input-field pl-12"
+                                        onChange={handleChange} onFocus={() => handleWatchedFieldFocus('business_reg_number')} className="input-field pl-12"
                                         placeholder="If applicable" />
                                 </div>
                             </div>
@@ -468,7 +494,7 @@ const EmployerProfileEdit = () => {
                                 <div className="relative">
                                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input type="text" name="owner_name" value={formData.owner_name}
-                                        onChange={handleChange} className="input-field pl-12"
+                                        onChange={handleChange} onFocus={() => handleWatchedFieldFocus('owner_name')} className="input-field pl-12"
                                         placeholder="Full name of owner or president" />
                                 </div>
                             </div>
@@ -488,6 +514,7 @@ const EmployerProfileEdit = () => {
                                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input type="text" name="representative_name" value={formData.representative_name}
                                         onChange={handleChange}
+                                        onFocus={() => handleWatchedFieldFocus('representative_name')}
                                         disabled={formData.same_as_owner}
                                         className="input-field pl-12 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                         placeholder="Authorized representative's full name" />

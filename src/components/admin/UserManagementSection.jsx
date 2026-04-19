@@ -1,33 +1,12 @@
-import { Shield, Building2, User, Loader2 } from 'lucide-react'
-import { SearchAndFilters } from './SearchAndFilters'
+import { Shield, Building2, User, Search } from 'lucide-react'
+import PendingReverificationBadge from '../common/PendingReverificationBadge'
 
-const UserManagementSection = ({
-    allUsers,
-    totalCount,
-    hasMore,
-    isFetching,
-    isLoadingMore,
-    onLoadMore,
-    searchQuery,
-    setSearchQuery,
-    showFilters,
-    setShowFilters,
-    filters,
-    setFilters,
-    sortOrder,
-    setSortOrder,
-}) => {
-    const getDisplayName = (user) => user.company_name || user.representative_name || user.full_name || user.name
-    const getRoleLabel = (user) => user.role_label || user.subtype || user.role
-    const getStatusLabel = (user) => {
-        if (user.verification_status === 'approved') {
-            return getRoleLabel(user) === 'jobseeker' ? 'Verified' : 'Approved'
-        }
-
-        if (user.verification_status === 'rejected') return 'Rejected'
-        if (user.verification_status === 'expired') return 'Expired'
-        return 'Pending'
-    }
+const UserManagementSection = ({ allUsers, searchQuery, setSearchQuery }) => {
+    const filteredUsers = allUsers.filter(u => {
+        if (!searchQuery.trim()) return true
+        const q = searchQuery.toLowerCase()
+        return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)
+    })
 
     return (
         <div className="animate-fade-in">
@@ -36,23 +15,16 @@ const UserManagementSection = ({
                 <p className="text-slate-400 text-sm">All registered users on the platform</p>
             </div>
 
-            <SearchAndFilters
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                searchPlaceholder="Search by name, email, or company..."
-                showFilters={showFilters}
-                setShowFilters={setShowFilters}
-                filters={filters}
-                setFilters={setFilters}
-                filterType="users"
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                showRoleFilter
-            />
-
-            <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
-                <p>Showing {allUsers.length} of {totalCount} users</p>
-                <p>Sorted by Created Date {sortOrder === 'desc' ? '(latest first)' : '(oldest first)'}</p>
+            {/* User search */}
+            <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-slate-900/80 border border-slate-800 rounded-xl text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm"
+                />
             </div>
 
             {/* Users table */}
@@ -68,15 +40,7 @@ const UserManagementSection = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
-                            {!isLoadingMore && isFetching && allUsers.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="px-5 py-10 text-center text-sm text-slate-500">Loading users...</td>
-                                </tr>
-                            ) : allUsers.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="px-5 py-10 text-center text-sm text-slate-500">No users found.</td>
-                                </tr>
-                            ) : allUsers.map(user => (
+                            {filteredUsers.map(user => (
                                 <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-3">
@@ -90,7 +54,7 @@ const UserManagementSection = ({
                                                 }
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium text-slate-200">{getDisplayName(user) || '\u2014'}</p>
+                                                <p className="text-sm font-medium text-slate-200">{user.name || '\u2014'}</p>
                                                 <p className="text-xs text-slate-500">{user.email}</p>
                                             </div>
                                         </div>
@@ -100,16 +64,21 @@ const UserManagementSection = ({
                                                 : user.role === 'employer' ? 'bg-violet-500/15 text-violet-400'
                                                     : 'bg-blue-500/15 text-blue-400'
                                             }`}>
-                                            {getRoleLabel(user)}
+                                            {user.subtype || user.role}
                                         </span>
                                     </td>
                                     <td className="px-5 py-4">
-                                        <span className={`flex items-center gap-1.5 text-xs font-medium ${user.verification_status === 'approved' ? 'text-emerald-400' : user.verification_status === 'rejected' ? 'text-red-400' : user.verification_status === 'expired' ? 'text-orange-400' : 'text-amber-400'
-                                            }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${user.verification_status === 'approved' ? 'bg-emerald-400' : user.verification_status === 'rejected' ? 'bg-red-400' : user.verification_status === 'expired' ? 'bg-orange-400' : 'bg-amber-400'
-                                                }`} />
-                                            {getStatusLabel(user)}
-                                        </span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className={`flex items-center gap-1.5 text-xs font-medium ${user.is_verified ? 'text-emerald-400' : 'text-amber-400'
+                                                }`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${user.is_verified ? 'bg-emerald-400' : 'bg-amber-400'
+                                                    }`} />
+                                                {user.is_verified ? 'Verified' : 'Pending'}
+                                            </span>
+                                            {user.is_verified && user.profile_modified_since_verification && (
+                                                <PendingReverificationBadge />
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-5 py-4 text-xs text-slate-500">
                                         {user.created_at ? new Date(user.created_at).toLocaleDateString() : '\u2014'}
@@ -120,19 +89,6 @@ const UserManagementSection = ({
                     </table>
                 </div>
             </div>
-
-            {hasMore && (
-                <div className="mt-6 flex justify-center">
-                    <button
-                        onClick={onLoadMore}
-                        disabled={isLoadingMore}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 text-sm font-medium hover:bg-slate-800/60 disabled:opacity-60 transition-colors"
-                    >
-                        {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                        {isLoadingMore ? 'Loading more...' : 'Load more users'}
-                    </button>
-                </div>
-            )}
         </div>
     )
 }

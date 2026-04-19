@@ -66,36 +66,5 @@ export const getTrainingCertificateRecord = (training, index = 0) => {
 
     const name = training?.certificate_file_name || path.split('/').pop() || `training-certificate-${index + 1}`
     const size = typeof training?.certificate_size === 'number' ? training.certificate_size : null
-
     return [{ path, name, size }]
-}
-
-export const hasLicenseCertificate = (license) =>
-    typeof license?.license_copy_path === 'string' && license.license_copy_path.trim() !== ''
-
-export const countLicenseCertificates = (licenses = []) =>
-    (Array.isArray(licenses) ? licenses : []).filter(hasLicenseCertificate).length
-
-export const getLicenseCertificateRecord = (license, index = 0) => {
-    const path = license?.license_copy_path?.trim()
-    if (!path) return []
-
-    const name = license?.license_file_name || path.split('/').pop() || `license-certificate-${index + 1}`
-    const size = typeof license?.license_file_size === 'number' ? license.license_file_size : null
-
-    return [{ path, name, size }]
-}
-
-export const hasCivilServiceCertificate = (profile = {}) =>
-    typeof profile?.civil_service_cert_path === 'string' && profile.civil_service_cert_path.trim() !== ''
-
-export const getCivilServiceCertificateRecord = (profile = {}) => {
-    const path = profile?.civil_service_cert_path?.trim()
-    if (!path) return []
-
-    return [{
-        path,
-        name: path.split('/').pop() || 'civil-service-certificate',
-        size: null,
-    }]
 }

@@ -13,21 +13,15 @@ import { refreshProfileEmbedding } from '../services/matchingService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
 import CertificateUpload from '../components/common/CertificateUpload'
-import { buildCertificateFingerprint, normalizeCertificateRecords, stripCertificatePayloads } from '../utils/certificateUtils'
+import { compressAndEncode } from '../utils/fileUtils'
 import ExportResumeButton from '../components/profile/ExportResumeButton'
 import { FloatingLabelInput } from '../components/forms/FloatingLabelInput'
 import { SearchableSelect } from '../components/forms/SearchableSelect'
 import { AnimatedSection } from '../components/forms/AnimatedSection'
 import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
-import {
-    countLicenseCertificates,
-    countTrainingCertificates,
-    getCivilServiceCertificateRecord,
-    getLicenseCertificateRecord,
-    getTrainingCertificateRecord,
-    hasCivilServiceCertificate,
-} from '../utils/reverification'
+import { countTrainingCertificates, getTrainingCertificateRecord } from '../utils/reverification'
+import { buildCertificateFingerprint } from '../utils/certificateUtils'
 
 // --- Helpers ---
 // Unwrap values that were mistakenly saved as single-element arrays
@@ -107,17 +101,10 @@ const EDUCATION_CARDS = [
 ]
 const LEVELS_WITH_COURSE = ['Senior High School (Grades 11-12)', 'Tertiary', 'Graduate Studies / Post-graduate']
 const CERTIFICATE_LEVELS = ['NC I', 'NC II', 'NC III', 'NC IV', 'None', 'Others']
-const EMPTY_TRAINING = {
-    course: '',
-    institution: '',
-    hours: '',
-    skills_acquired: '',
-    certificate_level: '',
-    certificate_path: ''
-}
+const EMPTY_TRAINING = { course: '', institution: '', hours: '', skills_acquired: '', certificate_level: '', certificate_path: '' }
 const WORK_EXPERIENCE_STATUSES = ['Permanent', 'Contractual', 'Part-time', 'Probationary']
 const EMPTY_EXPERIENCE = { company: '', address: '', position: '', year_started: '', year_ended: '', employment_status: '' }
-const EMPTY_LICENSE = { name: '', number: '', valid_until: '', license_copy_path: '' }
+const EMPTY_LICENSE = { name: '', number: '', valid_until: '' }
 const PREDEFINED_SKILLS = [
     'Auto Mechanic', 'Beautician', 'Carpentry Work', 'Computer Literate',
     'Domestic Chores', 'Driver', 'Electrician', 'Embroidery', 'Gardening',
@@ -203,7 +190,6 @@ const JobseekerProfileEdit = () => {
         professional_licenses: [],
         civil_service_eligibility: '',
         civil_service_date: '',
-        civil_service_cert_path: '',
         work_experiences: [],
         portfolio_url: '',
         certifications: [],
@@ -229,12 +215,12 @@ const JobseekerProfileEdit = () => {
     const [newCert, setNewCert] = useState('')
     const [newLanguage, setNewLanguage] = useState({ language: '', proficiency: 'Conversational' })
     const [resumeUrl, setResumeUrl] = useState(userData?.resume_url || '')
+    const [resumeFile, setResumeFile] = useState(null)
+    const [certificateFiles, setCertificateFiles] = useState([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
     const [trainingValidationError, setTrainingValidationError] = useState('')
-    const [licenseValidationError, setLicenseValidationError] = useState('')
-    const [civilServiceValidationError, setCivilServiceValidationError] = useState('')
     const [isDirty, setIsDirty] = useState(false)
     const initialFormDataRef = useRef(null)
 
@@ -363,11 +349,10 @@ const JobseekerProfileEdit = () => {
                 professional_licenses: userData.professional_licenses || [],
                 civil_service_eligibility: userData.civil_service_eligibility || '',
                 civil_service_date: userData.civil_service_date || '',
-                civil_service_cert_path: userData.civil_service_cert_path || '',
                 work_experiences: userData.work_experiences || [],
                 portfolio_url: userData.portfolio_url || '',
                 certifications: userData.certifications || [],
-                certificate_urls: normalizeCertificateRecords(userData.certificate_urls),
+                certificate_urls: userData.certificate_urls || [],
 
                 preferred_job_type: userData.preferred_job_type || [],
                 preferred_occupations: padArray(userData.preferred_occupations, 3),
@@ -458,7 +443,6 @@ const JobseekerProfileEdit = () => {
         setFormData(prev => ({ ...prev, professional_licenses: [...(prev.professional_licenses || []), { ...EMPTY_LICENSE }] }))
     }
     const updateLicense = (index, field, value) => {
-        if (field === 'license_copy_path') setLicenseValidationError('')
         setFormData(prev => {
             const updated = [...(prev.professional_licenses || [])]
             updated[index] = { ...updated[index], [field]: value }
@@ -466,7 +450,6 @@ const JobseekerProfileEdit = () => {
         })
     }
     const removeLicense = (index) => {
-        setLicenseValidationError('')
         setFormData(prev => ({ ...prev, professional_licenses: (prev.professional_licenses || []).filter((_, i) => i !== index) }))
     }
 
@@ -491,12 +474,6 @@ const JobseekerProfileEdit = () => {
     const getOtherTrainingFingerprints = (currentIndex) =>
         (formData.vocational_training || [])
             .flatMap((training, index) => index === currentIndex ? [] : getTrainingCertificateRecord(training, index))
-            .map(buildCertificateFingerprint)
-            .filter(Boolean)
-
-    const getOtherLicenseFingerprints = (currentIndex) =>
-        (formData.professional_licenses || [])
-            .flatMap((license, index) => index === currentIndex ? [] : getLicenseCertificateRecord(license, index))
             .map(buildCertificateFingerprint)
             .filter(Boolean)
 
@@ -607,14 +584,31 @@ const JobseekerProfileEdit = () => {
         })
     }
 
+    // --- Certificate file upload ---
+    const handleCertificateUpload = (e) => {
+        const files = Array.from(e.target.files)
+        files.forEach(file => {
+            if (file.size > 2 * 1024 * 1024) return
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setFormData(prev => ({
+                    ...prev,
+                    certificate_urls: [...(prev.certificate_urls || []), { name: file.name, data: reader.result, type: file.type }]
+                }))
+            }
+            reader.readAsDataURL(file)
+        })
+    }
+    const removeCertificateFile = (index) => {
+        setFormData(prev => ({ ...prev, certificate_urls: (prev.certificate_urls || []).filter((_, i) => i !== index) }))
+    }
+
     // --- Submit ---
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
         setSuccess('')
         setTrainingValidationError('')
-        setLicenseValidationError('')
-        setCivilServiceValidationError('')
         setLoading(true)
 
         try {
@@ -631,18 +625,9 @@ const JobseekerProfileEdit = () => {
                     throw new Error('Work experience: Year Ended must be ≥ Year Started')
                 }
             }
-
             if ((formData.vocational_training || []).length !== countTrainingCertificates(formData.vocational_training || [])) {
                 setTrainingValidationError('Each training entry requires a certificate upload before you can continue.')
                 throw new Error('Each training entry requires a certificate upload before you can continue.')
-            }
-            if ((formData.professional_licenses || []).length !== countLicenseCertificates(formData.professional_licenses || [])) {
-                setLicenseValidationError('Each professional license entry requires a proof upload before you can continue.')
-                throw new Error('Each professional license entry requires a proof upload before you can continue.')
-            }
-            if (formData.civil_service_eligibility?.trim() && !hasCivilServiceCertificate(formData)) {
-                setCivilServiceValidationError('Upload the proof for the civil service eligibility you entered before saving.')
-                throw new Error('Civil service eligibility requires an uploaded proof before you can continue.')
             }
 
             // Compose display name
@@ -683,7 +668,6 @@ const JobseekerProfileEdit = () => {
 
             // Normalize optional date fields (empty string → null)
             profileData.civil_service_date = profileData.civil_service_date?.trim() || null
-            profileData.civil_service_cert_path = profileData.civil_service_cert_path?.trim() || ''
             ;(profileData.professional_licenses || []).forEach(lic => {
                 lic.valid_until = lic.valid_until?.trim() || null
             })
@@ -709,7 +693,6 @@ const JobseekerProfileEdit = () => {
 
             // Use Supabase Storage URL for resume
             profileData.resume_url = resumeUrl
-            profileData.certificate_urls = stripCertificatePayloads(profileData.certificate_urls)
             profileData.updated_at = new Date().toISOString()
 
             const now = profileData.updated_at
@@ -729,20 +712,10 @@ const JobseekerProfileEdit = () => {
                 .eq('id', currentUser.uid)
             if (baseErr) throw baseErr
 
-            // Flag profile for re-verification if critical fields changed on a verified user
-            const CRITICAL_FIELDS = ['surname', 'first_name', 'highest_education', 'school_name', 'certifications']
-            if (isVerified() && initialFormDataRef.current) {
-                const initial = JSON.parse(initialFormDataRef.current)
-                const criticalChanged = CRITICAL_FIELDS.some(
-                    field => JSON.stringify(profileData[field]) !== JSON.stringify(initial[field])
-                )
-                if (criticalChanged) {
-                    profileData.profile_modified_since_verification = true
-                }
-            }
-
-            // Remove base-table fields before profile upsert
-            const { profile_photo, surname, first_name, middle_name, suffix, ...profileFields } = profileData
+            // Remove base-table-only fields before profile upsert.
+            // Note: first_name/surname/middle_name are kept in the profile upsert too
+            // so the reverification trigger on jobseeker_profiles can detect name changes.
+            const { profile_photo, suffix, ...profileFields } = profileData
 
             const { data: upsertedRows, error: profileErr } = await supabase
                 .from('jobseeker_profiles')
@@ -780,10 +753,7 @@ const JobseekerProfileEdit = () => {
                 const cached = localStorage.getItem(`peso-profile-${currentUser.uid}`)
                 if (cached) {
                     const parsed = JSON.parse(cached)
-                    Object.assign(parsed, profileFields, {
-                        certificate_urls: stripCertificatePayloads(profileFields.certificate_urls),
-                        updated_at: now
-                    })
+                    Object.assign(parsed, profileFields, { updated_at: now })
                     localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(parsed))
                 }
             } catch {}
@@ -826,16 +796,8 @@ const JobseekerProfileEdit = () => {
         } catch (err) {
             const message = err?.message || 'Failed to update profile'
             if (/violates check constraint/i.test(message)) {
-                if (message.includes('chk_professional_licenses_has_cert')) {
-                    setLicenseValidationError('Each professional license entry requires a proof upload before you can continue.')
-                    setError('One or more professional license entries is missing its proof. Please refresh and try again.')
-                } else if (message.includes('chk_civil_service_eligibility_has_cert')) {
-                    setCivilServiceValidationError('Upload the proof for the civil service eligibility you entered before saving.')
-                    setError('Civil service eligibility is missing its proof. Please refresh and try again.')
-                } else {
-                    setTrainingValidationError('Each training entry requires a certificate upload before you can continue.')
-                    setError('One or more training entries is missing a certificate. Please refresh and try again.')
-                }
+                setTrainingValidationError('Each training entry requires a certificate upload before you can continue.')
+                setError('One or more training entries is missing a certificate. Please refresh and try again.')
             } else {
                 setError(message)
             }
@@ -928,20 +890,6 @@ const JobseekerProfileEdit = () => {
                         <Sparkles className="w-4 h-4" />
                         Auto-fill from Resume with AI
                     </button>
-
-                    {userData?.is_verified && userData?.verified_for_year && (
-                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
-                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            <span className="text-sm font-medium text-green-700">
-                                Verified for {userData.verified_for_year}
-                            </span>
-                            {userData.verification_expires_at && (
-                                <span className="text-xs text-green-600">
-                                    &middot; Valid until {new Date(userData.verification_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </span>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 {/* Error/Success Messages */}
@@ -1317,13 +1265,7 @@ const JobseekerProfileEdit = () => {
                             {/* Professional Licenses */}
                             <div className="pt-4 border-t border-gray-200">
                                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Professional Licenses</h3>
-                                <p className="text-sm text-gray-500 mb-4">Optional -- add up to 2 licenses. Every license entry must include its proof.</p>
-                                {licenseValidationError && (
-                                    <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                                        <span>{licenseValidationError}</span>
-                                    </div>
-                                )}
+                                <p className="text-sm text-gray-500 mb-4">Optional -- add up to 2 licenses.</p>
 
                                 {(formData.professional_licenses || []).map((lic, index) => (
                                     <div key={index} className="relative p-4 bg-gray-50 rounded-xl mb-4 animate-scale-in">
@@ -1336,31 +1278,6 @@ const JobseekerProfileEdit = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <FloatingLabelInput label="License Number" name={`lic_num_${index}`} value={lic.number} onChange={(e) => updateLicense(index, 'number', e.target.value)} />
                                                 <FloatingLabelInput label="Valid Until" name={`lic_valid_${index}`} value={lic.valid_until} onChange={(e) => updateLicense(index, 'valid_until', e.target.value)} type="date" icon={Calendar} />
-                                            </div>
-                                            <div className="rounded-xl border border-gray-200 bg-white p-4">
-                                                {!lic.license_copy_path?.trim() && (
-                                                    <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                                                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                                                        <span>License Proof Required</span>
-                                                    </div>
-                                                )}
-                                                <CertificateUpload
-                                                    userId={currentUser?.uid}
-                                                    value={getLicenseCertificateRecord(lic, index)}
-                                                    onChange={(files) => {
-                                                        const selectedFile = files?.[0]
-                                                        updateLicense(index, 'license_copy_path', selectedFile?.path || '')
-                                                        updateLicense(index, 'license_file_name', selectedFile?.name || '')
-                                                        updateLicense(index, 'license_file_size', selectedFile?.size || null)
-                                                    }}
-                                                    inputId={`profile-license-certificate-${index}`}
-                                                    maxFiles={1}
-                                                    removeFromStorage={false}
-                                                    uploadLabel="Upload License Proof"
-                                                    helperText="PDF / JPG / PNG, 5MB"
-                                                    disallowedFingerprints={getOtherLicenseFingerprints(index)}
-                                                    duplicateErrorMessage="This certificate is already attached to another Professional License entry."
-                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1380,33 +1297,6 @@ const JobseekerProfileEdit = () => {
                                     <FloatingLabelInput label="Eligibility" name="civil_service_eligibility" value={formData.civil_service_eligibility} onChange={handleChange} icon={Shield} />
                                     <FloatingLabelInput label="Date Taken" name="civil_service_date" value={formData.civil_service_date} onChange={handleChange} type="date" icon={Calendar} />
                                 </div>
-                                {formData.civil_service_eligibility?.trim() && (
-                                    <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-                                        {!formData.civil_service_cert_path?.trim() && (
-                                            <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-                                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                                                <span>Civil Service Proof Required</span>
-                                            </div>
-                                        )}
-                                        <CertificateUpload
-                                            userId={currentUser?.uid}
-                                            value={getCivilServiceCertificateRecord(formData)}
-                                            onChange={(files) => {
-                                                const selectedFile = files?.[0]
-                                                setCivilServiceValidationError('')
-                                                setFormData(prev => ({ ...prev, civil_service_cert_path: selectedFile?.path || '' }))
-                                            }}
-                                            inputId="profile-civil-service-certificate"
-                                            maxFiles={1}
-                                            removeFromStorage={false}
-                                            uploadLabel="Upload Civil Service Proof"
-                                            helperText="PDF / JPG / PNG, 5MB"
-                                        />
-                                        {civilServiceValidationError && (
-                                            <p className="mt-2 text-sm text-red-500">{civilServiceValidationError}</p>
-                                        )}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Work Experience */}
@@ -1611,6 +1501,28 @@ const JobseekerProfileEdit = () => {
                                 label="Resume"
                                 optional={true}
                             />
+
+                            <div>
+                                <label className="label">Supporting Documents (Certificates)</label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary-400 transition-colors">
+                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={handleCertificateUpload} className="hidden" id="cert-upload" />
+                                    <label htmlFor="cert-upload" className="cursor-pointer">
+                                        <Award className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                                        <p className="text-sm text-gray-500">Click to upload certificates</p>
+                                        <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG -- max 2MB each</p>
+                                    </label>
+                                </div>
+                                {(formData.certificate_urls || []).length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                        {formData.certificate_urls.map((file, i) => (
+                                            <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                                <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                                                <button type="button" onClick={() => removeCertificateFile(i)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
