@@ -11,11 +11,13 @@ import {
     Bookmark
 } from 'lucide-react'
 import { JobListingSkeleton } from '../components/LoadingSkeletons'
+import EmployerAvatar from '../components/EmployerAvatar'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
 import { calculateDeterministicScore } from '../services/geminiService'
 import { getJobMatchesForUser } from '../services/matchingService'
 import { calculateCompletion } from '../utils/profileCompletion'
+import { getEmployerDisplayName } from '../utils/employerBranding'
 
 const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
@@ -104,8 +106,20 @@ const JobListings = () => {
             const today = new Date().toISOString().split('T')[0]
             const { data: jobsData, error } = await supabase
                 .from('job_postings')
-                .select('*')
+                .select(`
+                    *,
+                    employer:users!job_postings_employer_id_fkey (
+                        id,
+                        name,
+                        profile_photo,
+                        employer_profiles (
+                            company_name,
+                            company_logo
+                        )
+                    )
+                `)
                 .eq('status', 'open')
+                .gt('vacancies', 0)
                 .or(`deadline.is.null,deadline.gte.${today}`)
                 .order('created_at', { ascending: false })
                 .range(from, to)
@@ -371,12 +385,15 @@ const JobListings = () => {
                                         to={`/jobs/${job.id}`}
                                         className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary-50 to-white border border-primary-100 rounded-xl hover:shadow-md transition-shadow"
                                     >
-                                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
-                                            {job.title?.charAt(0).toUpperCase()}
-                                        </div>
+                                        <EmployerAvatar
+                                            job={job}
+                                            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                                            fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white font-bold"
+                                            textClassName="text-sm"
+                                        />
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-semibold text-gray-900 truncate">{job.title}</h3>
-                                            <p className="text-sm text-gray-500 truncate">{job.employer_name} · {job.location}</p>
+                                            <p className="text-sm text-gray-500 truncate">{getEmployerDisplayName(job)} · {job.location}</p>
                                         </div>
                                         <div className={`px-2.5 py-1 rounded-full text-xs font-bold border flex-shrink-0 ${
                                             matchScores[job.id].matchScore >= 80
@@ -411,9 +428,12 @@ const JobListings = () => {
                                 className="card card-hover block"
                             >
                                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                                    <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-primary-500/20 flex-shrink-0">
-                                        {job.title?.charAt(0).toUpperCase()}
-                                    </div>
+                                    <EmployerAvatar
+                                        job={job}
+                                        className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/20"
+                                        fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white"
+                                        textClassName="text-xl font-bold"
+                                    />
 
                                     <div className="flex-1">
                                         <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -449,6 +469,9 @@ const JobListings = () => {
                                         </div>
 
                                         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                                            <span className="font-medium text-gray-700">
+                                                {getEmployerDisplayName(job)}
+                                            </span>
                                             <span className="flex items-center gap-1">
                                                 <MapPin className="w-4 h-4" />
                                                 {job.location}

@@ -3,6 +3,8 @@ import {
     isSuperAdmin,
     hasAdminPermission,
     getVisibleAdminSections,
+    getPermissionLabel,
+    formatPermissionList,
     ALL_PERMISSIONS,
     SUPER_ADMIN_ONLY_PERMISSIONS,
     SECTION_PERMISSIONS,
@@ -69,19 +71,18 @@ describe('hasAdminPermission', () => {
         expect(hasAdminPermission(subAdminApproveEmployers, 'manage_admins')).toBe(false)
     })
 
-    it('sub-admin cannot have super-admin-only permissions even if listed', () => {
-        // hasAdminPermission defers to the permissions array for sub-admin,
-        // so if manage_admins is somehow in the array it would pass the helper.
-        // The enforcement of SUPER_ADMIN_ONLY is in the UI grant layer
-        // (AdminAccessEditor's DELEGATABLE_PERMISSIONS), not in the read helper.
-        // This test documents that behaviour.
-        const rowWithManageAdmins = {
-            admin_level: 'sub-admin',
-            permissions: ['manage_admins'],
+    it('sub-admin is rejected for super-admin-only permissions even if listed', () => {
+        // hasAdminPermission rejects SUPER_ADMIN_ONLY_PERMISSIONS for sub-admins
+        // regardless of what's in their permissions array. This protects against
+        // a rogue/compromised grant or stale cache containing an elevated permission.
+        for (const perm of SUPER_ADMIN_ONLY_PERMISSIONS) {
+            const row = { admin_level: 'sub-admin', permissions: [perm] }
+            expect(hasAdminPermission(row, perm)).toBe(false)
         }
-        expect(hasAdminPermission(rowWithManageAdmins, 'manage_admins')).toBe(true)
-        // A super-admin-row always returns true regardless.
-        expect(hasAdminPermission(superAdminRow, 'manage_admins')).toBe(true)
+        // A super-admin row always returns true for the same permissions.
+        for (const perm of SUPER_ADMIN_ONLY_PERMISSIONS) {
+            expect(hasAdminPermission(superAdminRow, perm)).toBe(true)
+        }
     })
 
     it('returns false for null adminAccess', () => {
@@ -124,11 +125,69 @@ describe('getVisibleAdminSections', () => {
         expect(getVisibleAdminSections(empty)).toEqual([])
     })
 
-    it('admin_management section requires manage_admins permission', () => {
+    it('admin_management section is super-admin only', () => {
         const noManage = { admin_level: 'sub-admin', permissions: ['view_overview'] }
         expect(getVisibleAdminSections(noManage)).not.toContain('admin_management')
 
         const withManage = { admin_level: 'sub-admin', permissions: ['manage_admins'] }
-        expect(getVisibleAdminSections(withManage)).toContain('admin_management')
+        expect(getVisibleAdminSections(withManage)).not.toContain('admin_management')
+
+        expect(getVisibleAdminSections(superAdminRow)).toContain('admin_management')
+    })
+})
+
+describe('getPermissionLabel', () => {
+    it('returns mapped labels for known permissions', () => {
+        expect(getPermissionLabel('manage_system_settings')).toBe('Manage System Settings')
+        expect(getPermissionLabel('view_overview')).toBe('View Overview')
+        expect(getPermissionLabel('reverify_jobseeker_profiles')).toBe('Reverify Jobseeker Profiles')
+        expect(getPermissionLabel('reverify_employer_profiles')).toBe('Reverify Employer Profiles')
+    })
+
+    it('humanizes unknown permission keys', () => {
+        expect(getPermissionLabel('archive_old_records')).toBe('Archive Old Records')
+    })
+})
+
+describe('reverification permissions', () => {
+    it('are included in the full permission list', () => {
+        expect(ALL_PERMISSIONS).toContain('reverify_jobseeker_profiles')
+        expect(ALL_PERMISSIONS).toContain('reverify_employer_profiles')
+    })
+
+    it('are implicitly allowed for super-admins', () => {
+        expect(hasAdminPermission(superAdminRow, 'reverify_jobseeker_profiles')).toBe(true)
+        expect(hasAdminPermission(superAdminRow, 'reverify_employer_profiles')).toBe(true)
+    })
+
+    it('are grantable independently to sub-admins', () => {
+        const row = { admin_level: 'sub-admin', permissions: ['reverify_jobseeker_profiles'] }
+        expect(hasAdminPermission(row, 'reverify_jobseeker_profiles')).toBe(true)
+        expect(hasAdminPermission(row, 'reverify_employer_profiles')).toBe(false)
+    })
+
+    it('accepts the legacy combined permission for backward compatibility', () => {
+        const row = { admin_level: 'sub-admin', permissions: ['reverify_profiles'] }
+        expect(hasAdminPermission(row, 'reverify_jobseeker_profiles')).toBe(true)
+        expect(hasAdminPermission(row, 'reverify_employer_profiles')).toBe(true)
+    })
+
+    it('shows the reverification section when either role-specific permission is granted', () => {
+        const jobseekerOnly = { admin_level: 'sub-admin', permissions: ['reverify_jobseeker_profiles'] }
+        const employerOnly = { admin_level: 'sub-admin', permissions: ['reverify_employer_profiles'] }
+
+        expect(getVisibleAdminSections(jobseekerOnly)).toContain('reverification')
+        expect(getVisibleAdminSections(employerOnly)).toContain('reverification')
+    })
+})
+
+describe('formatPermissionList', () => {
+    it('formats permission arrays using display labels', () => {
+        expect(formatPermissionList(['manage_admins', 'delete_users'])).toBe('Manage Admins, Delete Users')
+    })
+
+    it('returns an empty string for empty or invalid input', () => {
+        expect(formatPermissionList([])).toBe('')
+        expect(formatPermissionList(null)).toBe('')
     })
 })

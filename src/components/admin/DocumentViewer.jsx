@@ -6,6 +6,25 @@ import {
 
 const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 5]
 
+const getDocumentPath = (src = '') => {
+    if (!src) return ''
+    const withoutQuery = src.split('?')[0] || ''
+    return withoutQuery.toLowerCase()
+}
+
+const isImageDocument = (src = '') => {
+    if (!src) return false
+    if (src.startsWith('data:image')) return true
+    const path = getDocumentPath(src)
+    return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'].some((ext) => path.endsWith(ext))
+}
+
+const isPdfDocument = (src = '') => {
+    if (!src) return false
+    const normalized = src.toLowerCase()
+    return normalized.includes('application/pdf') || getDocumentPath(src).endsWith('.pdf')
+}
+
 const DocumentViewer = ({ documentViewer, onClose }) => {
     const [viewerZoom, setViewerZoom] = useState(1)
     const [imageLoading, setImageLoading] = useState(true)
@@ -189,7 +208,7 @@ const DocumentViewer = ({ documentViewer, onClose }) => {
                     }
                 }}
             >
-                {documentViewer.src.startsWith('data:image') ? (
+                {isImageDocument(documentViewer.src) ? (
                     <>
                         {imageLoading && (
                             <div className="flex flex-col items-center gap-3">
@@ -226,6 +245,14 @@ const DocumentViewer = ({ documentViewer, onClose }) => {
                             />
                         )}
                     </>
+                ) : isPdfDocument(documentViewer.src) ? (
+                    <div className="w-full h-full max-w-6xl bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+                        <iframe
+                            src={documentViewer.src}
+                            title={documentViewer.title}
+                            className="w-full h-full min-h-[80vh]"
+                        />
+                    </div>
                 ) : (
                     <div className="bg-slate-900 rounded-2xl p-8 text-center shadow-2xl max-w-sm border border-slate-800">
                         <FileText className="w-16 h-16 text-indigo-400 mx-auto mb-4" />

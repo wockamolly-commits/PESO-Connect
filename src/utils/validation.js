@@ -63,7 +63,7 @@ export const validators = {
         return null
     },
 
-    fileSize: (file, maxSizeMB = 2) => {
+    fileSize: (file, maxSizeMB = 5) => {
         if (!file) return null
         if (file.size > maxSizeMB * 1024 * 1024) {
             return `File must be under ${maxSizeMB}MB`

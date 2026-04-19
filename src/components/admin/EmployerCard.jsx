@@ -3,6 +3,8 @@ import {
     ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2
 } from 'lucide-react'
 
+const formatLabel = (value = '') => value ? value.replace(/_/g, ' ') : ''
+
 const EmployerCard = ({
     employer,
     expandedId,
@@ -16,6 +18,26 @@ const EmployerCard = ({
 }) => {
     const isExpanded = expandedId === employer.id
     const status = employer.employer_status || 'pending'
+
+    // Build business type label from the redesigned wizard fields, falling
+    // back to the legacy `employer_type` column for older rows.
+    const businessType = (
+        [employer.employer_sector, employer.employer_type_specific]
+            .filter(Boolean)
+            .join(' \u2014 ')
+        || employer.employer_type
+        || ''
+    ).replace(/_/g, ' ')
+
+    // Address: prefer composite street/barangay/city/province from the
+    // redesigned form, fall back to the legacy single `business_address`.
+    const composedAddress = [
+        employer.street,
+        employer.barangay,
+        employer.city,
+        employer.province,
+    ].filter(Boolean).join(', ')
+    const addressDisplay = composedAddress || employer.business_address || ''
 
     return (
         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors">
@@ -43,14 +65,17 @@ const EmployerCard = ({
                             ? 'bg-amber-500/15 text-amber-400'
                             : status === 'approved'
                                 ? 'bg-emerald-500/15 text-emerald-400'
-                                : 'bg-red-500/15 text-red-400'
+                                : status === 'expired'
+                                    ? 'bg-orange-500/15 text-orange-400'
+                                    : 'bg-red-500/15 text-red-400'
                     }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${
                             status === 'pending'
                                 ? 'bg-amber-400' : status === 'approved'
-                                    ? 'bg-emerald-400' : 'bg-red-400'
+                                    ? 'bg-emerald-400' : status === 'expired'
+                                        ? 'bg-orange-400' : 'bg-red-400'
                         }`} />
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                        {status === 'expired' ? 'Expired' : status.charAt(0).toUpperCase() + status.slice(1)}
                     </span>
                     {isExpanded
                         ? <ChevronUp className="w-5 h-5 text-slate-600" />
@@ -71,9 +96,14 @@ const EmployerCard = ({
                             </h4>
                             <div className="space-y-2.5 text-sm">
                                 {[
-                                    ['Company', employer.company_name],
-                                    ['Type', (employer.employer_type || '\u2014').replace('_', ' ')],
+                                    ['Company', employer.company_name || employer.name],
+                                    ['Trade Name', employer.trade_name],
+                                    ['Acronym', employer.acronym],
+                                    ['Office Type', formatLabel(employer.office_type)],
+                                    ['Type', businessType],
+                                    ['Workforce', formatLabel(employer.total_work_force)],
                                     ['Reg. No.', employer.business_reg_number],
+                                    ['TIN', employer.tin],
                                     ['Industry', employer.nature_of_business],
                                 ].map(([label, val], i) => (
                                     <div key={i} className="flex justify-between items-center">
@@ -83,7 +113,7 @@ const EmployerCard = ({
                                 ))}
                                 <div>
                                     <span className="text-slate-500">Address</span>
-                                    <p className="font-medium text-slate-200 mt-1">{employer.business_address || '\u2014'}</p>
+                                    <p className="font-medium text-slate-200 mt-1">{addressDisplay || '\u2014'}</p>
                                 </div>
                             </div>
                         </div>
@@ -96,10 +126,13 @@ const EmployerCard = ({
                             </h4>
                             <div className="space-y-2.5 text-sm">
                                 {[
-                                    ['Name', employer.representative_name || employer.name],
+                                    ['Owner', employer.owner_name],
+                                    ['Representative', employer.representative_name || employer.name],
+                                    ['Same as Owner', employer.same_as_owner ? 'Yes' : 'No'],
                                     ['Position', employer.representative_position],
                                     ['Email', employer.contact_email || employer.email],
-                                    ['Phone', employer.contact_number],
+                                    ['Mobile', employer.contact_number],
+                                    ['Telephone', employer.telephone_number],
                                     ['Preferred', employer.preferred_contact_method],
                                 ].map(([label, val], i) => (
                                     <div key={i} className="flex justify-between items-center">
@@ -213,6 +246,17 @@ const EmployerCard = ({
                         {employer.updated_at && ` \u2022 Updated: ${new Date(employer.updated_at).toLocaleString()}`}
                     </div>
 
+                    {/* Expiry info */}
+                    {status === 'expired' && employer.verification_expired_at && (
+                        <div className="mt-4 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                            <p className="text-sm text-orange-300">
+                                <strong className="text-orange-400">Verification Expired:</strong>{' '}
+                                {employer.verified_for_year ? `Previously verified for ${employer.verified_for_year}.` : 'Verification expired.'}{' '}
+                                Expired on {new Date(employer.verification_expired_at).toLocaleDateString()}.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div className="mt-5 pt-4 border-t border-slate-800 flex items-center gap-3">
                         {status !== 'approved' && canApprove && (
@@ -226,7 +270,7 @@ const EmployerCard = ({
                                 ) : (
                                     <CheckCircle className="w-4 h-4" />
                                 )}
-                                Approve
+                                {status === 'expired' ? 'Re-Approve' : 'Approve'}
                             </button>
                         )}
                         {status !== 'rejected' && canReject && (
@@ -241,7 +285,7 @@ const EmployerCard = ({
                         )}
                         {status === 'approved' && (
                             <span className="text-emerald-400 font-medium flex items-center gap-1.5 text-sm">
-                                <CheckCircle className="w-4 h-4" /> Employer is active
+                                <CheckCircle className="w-4 h-4" /> Employer is active{employer.verified_for_year ? ` (${employer.verified_for_year})` : ''}
                             </span>
                         )}
                         {!canApprove && !canReject && status !== 'approved' && (

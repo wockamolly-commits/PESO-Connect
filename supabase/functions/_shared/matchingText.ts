@@ -195,6 +195,6 @@ export const buildProfileText = (profile: Record<string, unknown>) => {
     `Preferred local locations: ${stringifyLocations(profile.preferred_local_locations)}`,
     `Preferred overseas locations: ${stringifyLocations(profile.preferred_overseas_locations)}`,
     `Willing to relocate: ${typeof profile.willing_to_relocate === 'string' ? profile.willing_to_relocate.trim() : 'Not specified'}`,
-    `Expected salary: ${stringifySalaryExpectation(profile)}`,
+    // Expected salary omitted — salary is a hard pre-filter, not a semantic signal
   ].join('\n')
 }

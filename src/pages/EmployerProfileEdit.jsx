@@ -230,6 +230,19 @@ const EmployerProfileEdit = () => {
                         currentPhoto={formData.profile_photo}
                         onPhotoChange={(dataUrl) => setFormData(prev => ({ ...prev, profile_photo: dataUrl }))}
                     />
+                    {userData?.is_verified && userData?.verified_for_year && (
+                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
+                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <span className="text-sm font-medium text-green-700">
+                                Verified for {userData.verified_for_year}
+                            </span>
+                            {userData.verification_expires_at && (
+                                <span className="text-xs text-green-600">
+                                    &middot; Valid until {new Date(userData.verification_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mb-6">

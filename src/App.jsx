@@ -78,7 +78,7 @@ function AppContent() {
                         <Route
                             path="/dashboard"
                             element={
-                                <ProtectedRoute>
+                                <ProtectedRoute allowedRoles={['user', 'employer']}>
                                     <ErrorBoundary><Dashboard /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
@@ -86,7 +86,7 @@ function AppContent() {
                         <Route
                             path="/register/continue"
                             element={
-                                <ProtectedRoute>
+                                <ProtectedRoute allowedRoles={['user', 'employer']}>
                                     <ErrorBoundary><RegistrationContinue /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
@@ -94,7 +94,7 @@ function AppContent() {
                         <Route
                             path="/profile"
                             element={
-                                <ProtectedRoute>
+                                <ProtectedRoute allowedRoles={['user', 'employer']}>
                                     <ErrorBoundary><Profile /></ErrorBoundary>
                                 </ProtectedRoute>
                             }
@@ -164,7 +164,7 @@ function AppContent() {
                         <Route
                             path="/settings"
                             element={
-                                <ProtectedRoute>
+                                <ProtectedRoute allowedRoles={['user', 'employer']}>
                                     <ErrorBoundary><Settings /></ErrorBoundary>
                                 </ProtectedRoute>
                             }

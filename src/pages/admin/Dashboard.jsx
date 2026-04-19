@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -8,23 +9,48 @@ import {
     sendEmployerApprovedEmail,
     sendEmployerRejectedEmail
 } from '../../services/emailService'
+import { insertNotification } from '../../services/notificationService'
 import { Shield, Loader2, Lock } from 'lucide-react'
 import {
     hasAdminPermission,
     getVisibleAdminSections,
 } from '../../utils/adminPermissions'
+import { useAdminNotifications } from '../../hooks/useAdminNotifications'
+import { buildVerifiedSnapshot } from '../../utils/reverification'
 
 import {
+    AdminAccountSettings,
+    AdminTopbar,
     AdminSidebar,
     AdminManagementSection,
     OverviewSection,
     EmployerVerificationSection,
     JobseekerVerificationSection,
+    ReverificationQueue,
     UserManagementSection,
+    JobseekerExportSection,
     DocumentViewer,
     RejectModal,
     EMPTY_FILTERS
 } from '../../components/admin'
+import {
+    ADMIN_DIRECTORY_PAGE_SIZE,
+    fetchAdminDirectoryPage,
+} from '../../services/adminUserDirectoryService'
+import { getVerificationMetadata } from '../../utils/verificationUtils'
+
+const getNotificationTargetUserId = (notification) => {
+    if (notification?.metadata?.user_id) return notification.metadata.user_id
+
+    if (!notification?.reference_link) return null
+
+    try {
+        const url = new URL(notification.reference_link, window.location.origin)
+        return url.searchParams.get('userId')
+    } catch {
+        return null
+    }
+}
 
 const SetupPasswordModal = ({ onClose }) => {
     const [password, setPassword] = useState('')
@@ -152,18 +178,141 @@ const AdminDashboard = () => {
     // Advanced filters
     const [showFilters, setShowFilters] = useState(false)
     const [filters, setFilters] = useState(EMPTY_FILTERS)
+    const [sortOrder, setSortOrder] = useState('desc')
 
     const [documentViewer, setDocumentViewer] = useState(null)
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [reverificationQueue, setReverificationQueue] = useState([])
+    const [sectionRows, setSectionRows] = useState({
+        employers: [],
+        jobseekers: [],
+        users: [],
+    })
+    const [sectionTotals, setSectionTotals] = useState({
+        employers: 0,
+        jobseekers: 0,
+        users: 0,
+    })
+    const [sectionHasMore, setSectionHasMore] = useState({
+        employers: false,
+        jobseekers: false,
+        users: false,
+    })
+    const [sectionLoading, setSectionLoading] = useState({
+        employers: false,
+        jobseekers: false,
+        users: false,
+    })
+    const [sectionLoadingMore, setSectionLoadingMore] = useState({
+        employers: false,
+        jobseekers: false,
+        users: false,
+    })
+
+    // Admin notifications
+    const {
+        notifications: adminNotifications,
+        unreadCount: adminUnreadCount,
+        loading: adminNotificationsLoading,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+    } = useAdminNotifications()
+
+    const handleNotificationNavigate = useCallback((notification) => {
+        const link = notification?.reference_link
+        if (!link) return
+
+        // Parse reference_link like /admin?section=employers&tab=pending&userId=<uuid>
+        try {
+            const url = new URL(link, window.location.origin)
+            const section = url.searchParams.get('section')
+            const tab = url.searchParams.get('tab')
+            const targetUserId = getNotificationTargetUserId(notification)
+            if (section) {
+                setActiveSection(section)
+                if (tab) setActiveTab(tab)
+                setExpandedId(targetUserId || null)
+                setSearchQuery('')
+                setShowFilters(false)
+                setFilters(EMPTY_FILTERS)
+                setSortOrder('desc')
+            } else {
+                navigate(link)
+            }
+        } catch {
+            navigate(link)
+        }
+    }, [navigate])
 
     // Derived permissions
     const canApproveEmployers = hasAdminPermission(adminAccess, 'approve_employers')
     const canRejectEmployers = hasAdminPermission(adminAccess, 'reject_employers')
     const canApproveJobseekers = hasAdminPermission(adminAccess, 'approve_jobseekers')
     const canRejectJobseekers = hasAdminPermission(adminAccess, 'reject_jobseekers')
+    const canReverifyJobseekers = hasAdminPermission(adminAccess, 'reverify_jobseeker_profiles')
+    const canReverifyEmployers = hasAdminPermission(adminAccess, 'reverify_employer_profiles')
+    const canReverifyProfiles = canReverifyJobseekers || canReverifyEmployers
     const visibleSections = getVisibleAdminSections(adminAccess)
+    const allowedReverificationRoles = [
+        ...(canReverifyJobseekers ? ['jobseeker'] : []),
+        ...(canReverifyEmployers ? ['employer'] : []),
+    ]
 
     useEffect(() => { fetchData() }, [])
+
+    const getSectionRoleFilter = useCallback((section) => {
+        if (section === 'employers') return 'employer'
+        if (section === 'jobseekers') return 'jobseeker'
+        return filters.role
+    }, [filters.role])
+
+    const getSectionStatusFilter = useCallback((section) => {
+        if (section === 'employers') {
+            if (activeTab === 'all') return filters.verificationStatus
+            return activeTab
+        }
+
+        if (section === 'jobseekers') {
+            if (activeTab === 'verified') return 'approved'
+            if (activeTab === 'all') return filters.verificationStatus
+            return activeTab
+        }
+
+        return filters.verificationStatus
+    }, [activeTab, filters.verificationStatus])
+
+    const loadSectionData = useCallback(async (section, { append = false, offset = 0 } = {}) => {
+        const setLoadingState = append ? setSectionLoadingMore : setSectionLoading
+
+        setLoadingState(prev => ({ ...prev, [section]: true }))
+
+        try {
+            const { rows, totalCount, hasMore } = await fetchAdminDirectoryPage({
+                role: getSectionRoleFilter(section),
+                verificationStatus: getSectionStatusFilter(section),
+                searchQuery,
+                sortOrder,
+                limit: ADMIN_DIRECTORY_PAGE_SIZE,
+                offset: append ? offset : 0,
+            })
+
+            setSectionRows(prev => ({
+                ...prev,
+                [section]: append ? [...prev[section], ...rows] : rows,
+            }))
+            setSectionTotals(prev => ({ ...prev, [section]: totalCount }))
+            setSectionHasMore(prev => ({ ...prev, [section]: hasMore }))
+        } catch (error) {
+            console.error(`Error fetching ${section}:`, error)
+        } finally {
+            setLoadingState(prev => ({ ...prev, [section]: false }))
+        }
+    }, [getSectionRoleFilter, getSectionStatusFilter, searchQuery, sortOrder])
+
+    useEffect(() => {
+        if (!['employers', 'jobseekers', 'users'].includes(activeSection)) return
+        loadSectionData(activeSection)
+    }, [activeSection, activeTab, filters.role, filters.verificationStatus, searchQuery, sortOrder, loadSectionData])
 
     // Redirect to the first accessible section when adminAccess loads or changes.
     useEffect(() => {
@@ -179,29 +328,92 @@ const AdminDashboard = () => {
             const { data: users, error } = await supabase.from('users').select('*')
             if (error) throw error
 
-            // Fetch all profile tables in parallel
-            const [
-                { data: empProfiles },
-                { data: jsProfiles },
-                { data: hoProfiles },
-            ] = await Promise.all([
+            // Fetch all profile tables in parallel. Use allSettled so a missing
+            // table or per-table RLS error doesn't wipe the other role data.
+            const [empRes, jsRes, hoRes] = await Promise.allSettled([
                 supabase.from('employer_profiles').select('*'),
                 supabase.from('jobseeker_profiles').select('*'),
                 supabase.from('homeowner_profiles').select('*'),
             ])
 
+            const pickRows = (res, label) => {
+                if (res.status !== 'fulfilled') {
+                    console.error(`[admin] ${label} fetch rejected:`, res.reason)
+                    return []
+                }
+                if (res.value.error) {
+                    console.error(`[admin] ${label} select error:`, res.value.error)
+                    return []
+                }
+                return res.value.data || []
+            }
+
+            const empProfiles = pickRows(empRes, 'employer_profiles')
+            const jsProfiles = pickRows(jsRes, 'jobseeker_profiles')
+            const hoProfiles = pickRows(hoRes, 'homeowner_profiles')
+
             // Index profiles by id for fast lookup
             const profileMap = {}
-            for (const p of [...(empProfiles || []), ...(jsProfiles || []), ...(hoProfiles || [])]) {
+            for (const p of [...empProfiles, ...jsProfiles, ...hoProfiles]) {
                 profileMap[p.id] = p
             }
 
-            // Merge each user with their profile
-            const merged = users.map(u => ({ ...u, ...(profileMap[u.id] || {}) }))
+            // Merge each user with their profile. Do NOT let empty profile
+            // values (null/'' / []) overwrite meaningful fields coming from
+            // public.users (e.g. `name` is often populated on the user row).
+            const merged = users.map(u => {
+                const profile = profileMap[u.id] || {}
+                const out = { ...u }
+                for (const [key, val] of Object.entries(profile)) {
+                    const isEmpty =
+                        val === null ||
+                        val === '' ||
+                        (Array.isArray(val) && val.length === 0)
+                    if (isEmpty) {
+                        if (out[key] === undefined) out[key] = val
+                    } else {
+                        out[key] = val
+                    }
+                }
+                return out
+            }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+
+            if (import.meta.env.DEV) {
+                console.info('[admin] fetched:', {
+                    users: users.length,
+                    employer_profiles: empProfiles.length,
+                    jobseeker_profiles: jsProfiles.length,
+                    homeowner_profiles: hoProfiles.length,
+                })
+            }
 
             setAllUsers(merged)
             setEmployers(merged.filter(u => u.role === 'employer'))
             setJobseekers(merged.filter(u => u.role === 'user' && u.subtype === 'jobseeker'))
+
+            if (currentUser) {
+                try {
+                    const { data: queueData, error: queueError } = await supabase.rpc('admin_get_reverification_queue')
+                    if (queueError) throw queueError
+
+                    const normalizedQueue = (queueData || []).map((item) => ({
+                        id: item.id,
+                        roleLabel: item.role_label,
+                        email: item.email,
+                        display_name: item.display_name,
+                        company_name: item.company_name,
+                        updated_at: item.updated_at,
+                        is_verified: item.is_verified,
+                        profile_modified_since_verification: item.profile_modified_since_verification,
+                        verified_snapshot: item.verified_snapshot || {},
+                        ...(item.profile_data || {}),
+                    }))
+                    setReverificationQueue(normalizedQueue)
+                } catch (queueFetchError) {
+                    console.error('Error fetching re-verification queue:', queueFetchError)
+                    setReverificationQueue([])
+                }
+            }
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
@@ -212,6 +424,41 @@ const AdminDashboard = () => {
     // NOTE: 'jobseeker' here is the subtype value, not the DB role field.
     // JobseekerCard passes 'jobseeker' explicitly; do not change to user.role.
     const PROFILE_TABLE = { employer: 'employer_profiles', jobseeker: 'jobseeker_profiles' }
+
+    const getKnownUserById = (userId) => {
+        const directoryRows = [
+            ...sectionRows.employers,
+            ...sectionRows.jobseekers,
+            ...sectionRows.users,
+        ]
+
+        return directoryRows.find(u => u.id === userId) || allUsers.find(u => u.id === userId)
+    }
+
+    // Attempt a profile update, falling back to a stripped payload if the DB
+    // is missing the annual-verification columns (not yet migrated).
+    const updateProfileRobust = async (profileTable, fullPayload) => {
+        const { error } = await supabase.from(profileTable).update(fullPayload).eq('id', fullPayload.id || undefined)
+        if (!error) return
+
+        // If the error looks like a missing column, retry without verified_for_year /
+        // verification_expires_at — those are also stored on public.users and the
+        // admin_search_users RPC falls back to u.verified_for_year automatically.
+        const msg = (error.message || '').toLowerCase()
+        const isMissingColumn =
+            msg.includes('could not find') ||
+            msg.includes('column') ||
+            msg.includes('pgrst204') ||
+            (error.code && (error.code === 'PGRST204' || error.code === '42703'))
+        if (isMissingColumn) {
+            console.warn('[updateProfileRobust] missing column in profile table — retrying without verification year fields:', error.message)
+            const { verified_for_year: _vfy, verification_expires_at: _vea, ...fallbackPayload } = fullPayload
+            const { error: fallbackErr } = await supabase.from(profileTable).update(fallbackPayload).eq('id', fullPayload.id || undefined)
+            if (fallbackErr) throw fallbackErr
+            return
+        }
+        throw error
+    }
 
     const handleApprove = async (userId, userRole) => {
         // Permission guard — checked client-side before any DB write.
@@ -227,30 +474,27 @@ const AdminDashboard = () => {
         setActionLoading(userId)
         try {
             const now = new Date().toISOString()
+            const verificationMeta = getVerificationMetadata()
 
-            // Update base user record
+            // Update base user record with annual verification metadata
             const { error: updateError } = await supabase
                 .from('users')
-                .update({ is_verified: true, updated_at: now })
+                .update({ is_verified: true, ...verificationMeta, updated_at: now })
                 .eq('id', userId)
             if (updateError) throw updateError
 
-            // Update role-specific profile
+            // Update role-specific profile (robust — handles missing verification year columns)
             const profileTable = PROFILE_TABLE[userRole]
             if (profileTable) {
-                const profileUpdate = { rejection_reason: '', updated_at: now, is_verified: true }
+                const profileUpdate = { id: userId, rejection_reason: '', updated_at: now, is_verified: true, ...verificationMeta }
                 if (userRole === 'employer') profileUpdate.employer_status = 'approved'
                 else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'verified'
 
-                const { error: profileErr } = await supabase
-                    .from(profileTable)
-                    .update(profileUpdate)
-                    .eq('id', userId)
-                if (profileErr) throw profileErr
+                await updateProfileRobust(profileTable, profileUpdate)
             }
 
             try {
-                const user = allUsers.find(u => u.id === userId)
+                const user = getKnownUserById(userId)
                 if (user) {
                     if (userRole === 'employer') {
                         await sendEmployerApprovedEmail({
@@ -258,22 +502,46 @@ const AdminDashboard = () => {
                             representative_name: user.representative_name || user.name,
                             company_name: user.company_name
                         })
+                        await insertNotification(
+                            userId,
+                            'account_status',
+                            'Account Approved',
+                            'Your employer account has been successfully verified! You can now post jobs.',
+                            { status: 'approved' }
+                        )
                     } else if (userRole === 'jobseeker') {
                         await sendJobseekerVerifiedEmail({
                             email: user.email,
                             full_name: user.display_name || user.full_name || user.name
                         })
+                        await insertNotification(
+                            userId,
+                            'account_status',
+                            'Account Verified',
+                            'Your jobseeker account has been successfully verified! You can now apply for jobs.',
+                            { status: 'verified' }
+                        )
                     }
                 }
             } catch (emailError) {
                 console.error('Failed to send approval email:', emailError)
             }
-
-            await fetchData()
         } catch (error) {
             console.error('Error approving user:', error)
+            // Surface failures — admins otherwise have no signal that the
+            // DB write was rejected (e.g. blocked by the tightened RLS
+            // from sql/tighten_admin_profile_rls.sql for sub-admins
+            // without approve_* permission).
+            toast.error('Failed to approve user', {
+                description: error?.message || 'Please try again or contact a super-admin.',
+            })
         } finally {
+            // Always refresh — even on error — so the UI reflects the actual DB state.
             setActionLoading('')
+            await fetchData()
+            if (['employers', 'jobseekers', 'users'].includes(activeSection)) {
+                await loadSectionData(activeSection)
+            }
         }
     }
 
@@ -292,29 +560,37 @@ const AdminDashboard = () => {
         try {
             const now = new Date().toISOString()
 
-            // Update base user record
+            // Update base user record — clear annual verification markers on rejection
             const { error: updateError } = await supabase
                 .from('users')
-                .update({ is_verified: false, updated_at: now })
+                .update({
+                    is_verified: false,
+                    verified_for_year: null,
+                    verification_expires_at: null,
+                    updated_at: now,
+                })
                 .eq('id', userId)
             if (updateError) throw updateError
 
-            // Update role-specific profile
+            // Update role-specific profile (robust — handles missing verification year columns)
             const profileTable = PROFILE_TABLE[userRole]
             if (profileTable) {
-                const profileUpdate = { rejection_reason: rejectReason, updated_at: now, is_verified: false }
+                const profileUpdate = {
+                    id: userId,
+                    rejection_reason: rejectReason,
+                    updated_at: now,
+                    is_verified: false,
+                    verified_for_year: null,
+                    verification_expires_at: null,
+                }
                 if (userRole === 'employer') profileUpdate.employer_status = 'rejected'
                 else if (userRole === 'jobseeker') profileUpdate.jobseeker_status = 'rejected'
 
-                const { error: profileErr } = await supabase
-                    .from(profileTable)
-                    .update(profileUpdate)
-                    .eq('id', userId)
-                if (profileErr) throw profileErr
+                await updateProfileRobust(profileTable, profileUpdate)
             }
 
             try {
-                const user = allUsers.find(u => u.id === userId)
+                const user = getKnownUserById(userId)
                 if (user) {
                     if (userRole === 'employer') {
                         await sendEmployerRejectedEmail({
@@ -323,12 +599,26 @@ const AdminDashboard = () => {
                             company_name: user.company_name,
                             rejection_reason: rejectReason
                         })
+                        await insertNotification(
+                            userId,
+                            'account_status',
+                            'Account Rejected',
+                            'Your employer registration was rejected.',
+                            { status: 'rejected' }
+                        )
                     } else if (userRole === 'jobseeker') {
                         await sendJobseekerRejectedEmail({
                             email: user.email,
                             full_name: user.display_name || user.full_name || user.name,
                             rejection_reason: rejectReason
                         })
+                        await insertNotification(
+                            userId,
+                            'account_status',
+                            'Account Rejected',
+                            'Your jobseeker registration was rejected.',
+                            { status: 'rejected' }
+                        )
                     }
                 }
             } catch (emailError) {
@@ -337,11 +627,18 @@ const AdminDashboard = () => {
 
             setShowRejectModal(null)
             setRejectReason('')
-            await fetchData()
         } catch (error) {
             console.error('Error rejecting user:', error)
+            toast.error('Failed to reject user', {
+                description: error?.message || 'Please try again or contact a super-admin.',
+            })
         } finally {
+            // Always refresh — even on error — so the UI reflects the actual DB state.
             setActionLoading('')
+            await fetchData()
+            if (['employers', 'jobseekers', 'users'].includes(activeSection)) {
+                await loadSectionData(activeSection)
+            }
         }
     }
 
@@ -354,11 +651,52 @@ const AdminDashboard = () => {
         }
     }
 
+    const handleReverificationAction = async (item, action) => {
+        if (!canReverifyProfiles) {
+            console.warn('[RBAC] reverify role permission denied')
+            return
+        }
+        if (item.roleLabel === 'jobseeker' && !canReverifyJobseekers) {
+            console.warn('[RBAC] reverify_jobseeker_profiles permission denied')
+            return
+        }
+        if (item.roleLabel === 'employer' && !canReverifyEmployers) {
+            console.warn('[RBAC] reverify_employer_profiles permission denied')
+            return
+        }
+
+        let reason = null
+        if (action === 'reject') {
+            reason = window.prompt('Why are you rejecting this profile update?')
+            if (!reason || !reason.trim()) return
+        }
+
+        setActionLoading(item.id)
+        try {
+            const { error } = await supabase.rpc('admin_process_reverification', {
+                p_user_id: item.id,
+                p_role_label: item.roleLabel,
+                p_action: action,
+                p_reason: reason,
+            })
+            if (error) throw error
+            await fetchData()
+        } catch (rpcError) {
+            console.error(`Error handling ${action} reverification:`, rpcError)
+            toast.error(`Failed to ${action} profile`, {
+                description: rpcError?.message || 'Please try again.',
+            })
+        } finally {
+            setActionLoading('')
+        }
+    }
+
     const handleSectionChange = (sectionId) => {
         setActiveSection(sectionId)
         setSearchQuery('')
         setShowFilters(false)
         setFilters(EMPTY_FILTERS)
+        setSortOrder('desc')
     }
 
     const handleViewDocument = (src, title) => {
@@ -366,19 +704,7 @@ const AdminDashboard = () => {
     }
 
     const getFilteredEmployers = () => {
-        let filtered = employers
-        if (activeTab === 'pending') filtered = employers.filter(e => (e.employer_status || 'pending') === 'pending')
-        else if (activeTab === 'approved') filtered = employers.filter(e => e.employer_status === 'approved')
-        else if (activeTab === 'rejected') filtered = employers.filter(e => e.employer_status === 'rejected')
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase()
-            filtered = filtered.filter(e =>
-                (e.company_name || '').toLowerCase().includes(q) ||
-                (e.representative_name || e.name || '').toLowerCase().includes(q) ||
-                (e.email || '').toLowerCase().includes(q)
-            )
-        }
+        let filtered = sectionRows.employers
 
         if (filters.location) {
             const loc = filters.location.toLowerCase()
@@ -408,6 +734,7 @@ const AdminDashboard = () => {
         pending: employers.filter(e => (e.employer_status || 'pending') === 'pending').length,
         approved: employers.filter(e => e.employer_status === 'approved').length,
         rejected: employers.filter(e => e.employer_status === 'rejected').length,
+        expired: employers.filter(e => e.employer_status === 'expired').length,
         total: employers.length,
     }
 
@@ -415,6 +742,7 @@ const AdminDashboard = () => {
         pending: jobseekers.filter(j => (j.jobseeker_status || 'pending') === 'pending').length,
         verified: jobseekers.filter(j => j.jobseeker_status === 'verified').length,
         rejected: jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
+        expired: jobseekers.filter(j => j.jobseeker_status === 'expired').length,
         total: jobseekers.length,
     }
 
@@ -433,6 +761,11 @@ const AdminDashboard = () => {
     }
 
     const filteredEmployers = getFilteredEmployers()
+    const filteredUsers = sectionRows.users
+    const displayedJobseekers = sectionRows.jobseekers
+    const sectionBadges = {
+        reverification: reverificationQueue.filter((item) => allowedReverificationRoles.includes(item.roleLabel)).length,
+    }
 
     // Render a locked-section message for sections the current admin cannot access.
     const renderUnauthorized = (sectionLabel) => (
@@ -457,9 +790,20 @@ const AdminDashboard = () => {
                 adminAccess={adminAccess}
                 onLogout={handleLogout}
                 onSectionChange={handleSectionChange}
+                sectionBadges={sectionBadges}
             />
 
             <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
+                <AdminTopbar
+                    userData={userData}
+                    adminAccess={adminAccess}
+                    notifications={adminNotifications}
+                    unreadCount={adminUnreadCount}
+                    notificationsLoading={adminNotificationsLoading}
+                    onMarkAsRead={markNotificationAsRead}
+                    onMarkAllAsRead={markAllNotificationsAsRead}
+                    onNotificationNavigate={handleNotificationNavigate}
+                />
                 <div className="p-6 lg:p-8 max-w-7xl">
                     {activeSection === 'overview' && (
                         hasAdminPermission(adminAccess, 'view_overview')
@@ -478,6 +822,11 @@ const AdminDashboard = () => {
                         hasAdminPermission(adminAccess, 'view_employers')
                             ? <EmployerVerificationSection
                                 filteredEmployers={filteredEmployers}
+                                totalCount={sectionTotals.employers}
+                                hasMore={sectionHasMore.employers}
+                                isFetching={sectionLoading.employers}
+                                isLoadingMore={sectionLoadingMore.employers}
+                                onLoadMore={() => loadSectionData('employers', { append: true, offset: sectionRows.employers.length })}
                                 employerCounts={employerCounts}
                                 activeTab={activeTab}
                                 setActiveTab={setActiveTab}
@@ -487,6 +836,8 @@ const AdminDashboard = () => {
                                 setShowFilters={setShowFilters}
                                 filters={filters}
                                 setFilters={setFilters}
+                                sortOrder={sortOrder}
+                                setSortOrder={setSortOrder}
                                 expandedId={expandedId}
                                 setExpandedId={setExpandedId}
                                 actionLoading={actionLoading}
@@ -502,7 +853,12 @@ const AdminDashboard = () => {
                     {activeSection === 'jobseekers' && (
                         hasAdminPermission(adminAccess, 'view_jobseekers')
                             ? <JobseekerVerificationSection
-                                jobseekers={jobseekers}
+                                jobseekers={displayedJobseekers}
+                                totalCount={sectionTotals.jobseekers}
+                                hasMore={sectionHasMore.jobseekers}
+                                isFetching={sectionLoading.jobseekers}
+                                isLoadingMore={sectionLoadingMore.jobseekers}
+                                onLoadMore={() => loadSectionData('jobseekers', { append: true, offset: sectionRows.jobseekers.length })}
                                 jobseekerCounts={jobseekerCounts}
                                 activeTab={activeTab}
                                 setActiveTab={setActiveTab}
@@ -512,6 +868,8 @@ const AdminDashboard = () => {
                                 setShowFilters={setShowFilters}
                                 filters={filters}
                                 setFilters={setFilters}
+                                sortOrder={sortOrder}
+                                setSortOrder={setSortOrder}
                                 expandedId={expandedId}
                                 setExpandedId={setExpandedId}
                                 actionLoading={actionLoading}
@@ -527,17 +885,54 @@ const AdminDashboard = () => {
                     {activeSection === 'users' && (
                         hasAdminPermission(adminAccess, 'view_users')
                             ? <UserManagementSection
-                                allUsers={allUsers}
+                                allUsers={filteredUsers}
+                                totalCount={sectionTotals.users}
+                                hasMore={sectionHasMore.users}
+                                isFetching={sectionLoading.users}
+                                isLoadingMore={sectionLoadingMore.users}
+                                onLoadMore={() => loadSectionData('users', { append: true, offset: sectionRows.users.length })}
                                 searchQuery={searchQuery}
                                 setSearchQuery={setSearchQuery}
+                                showFilters={showFilters}
+                                setShowFilters={setShowFilters}
+                                filters={filters}
+                                setFilters={setFilters}
+                                sortOrder={sortOrder}
+                                setSortOrder={setSortOrder}
                             />
                             : renderUnauthorized('User Management')
+                    )}
+
+                    {activeSection === 'reverification' && (
+                        canReverifyProfiles
+                            ? <ReverificationQueue
+                                queueItems={reverificationQueue.filter((item) => allowedReverificationRoles.includes(item.roleLabel))}
+                                actionLoading={actionLoading}
+                                onApprove={(item) => handleReverificationAction(item, 'approve')}
+                                onReject={(item) => handleReverificationAction(item, 'reject')}
+                                onRevoke={(item) => handleReverificationAction(item, 'revoke')}
+                                allowedRoleLabels={allowedReverificationRoles}
+                            />
+                            : renderUnauthorized('Re-verification Queue')
+                    )}
+
+                    {activeSection === 'jobseeker_export' && (
+                        hasAdminPermission(adminAccess, 'export_jobseekers')
+                            ? <JobseekerExportSection
+                                jobseekers={jobseekers}
+                                adminId={currentUser?.uid ?? currentUser?.id}
+                            />
+                            : renderUnauthorized('Jobseeker Export')
                     )}
 
                     {activeSection === 'admin_management' && (
                         hasAdminPermission(adminAccess, 'manage_admins')
                             ? <AdminManagementSection adminAccess={adminAccess} />
                             : renderUnauthorized('Admin Management')
+                    )}
+
+                    {activeSection === 'account_settings' && (
+                        <AdminAccountSettings />
                     )}
                 </div>
             </main>

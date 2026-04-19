@@ -1,4 +1,4 @@
-import { useState, useReducer } from 'react'
+import { useState, useReducer, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -24,8 +24,103 @@ import {
     Mail,
     Lock,
     Eye,
-    EyeOff
+    EyeOff,
+    Users,
+    FileText,
+    Cpu,
+    MessageCircle,
+    DollarSign,
+    AlertOctagon,
+    AlertTriangle,
+    ClipboardList,
+    Droplets,
+    Layers,
+    Flame,
+    Hammer
 } from 'lucide-react'
+
+// ─── Static Data ─────────────────────────────────────────────────────────────
+
+const workerCounts = {
+    plumbing: '8 workers',
+    electrical: '12 workers',
+    masonry: '6 workers',
+    welding: '5 workers',
+    carpentry: '9 workers',
+}
+
+const tradeDescriptions = {
+    plumbing: 'Pipes, leaks, drains, toilets, water heaters',
+    electrical: 'Wiring, outlets, switches, circuit breakers',
+    masonry: 'Concrete, tiles, walls, foundations, bricks',
+    welding: 'Metal gates, fences, grills, fabrication',
+    carpentry: 'Wood, cabinets, furniture, doors, windows',
+}
+
+const costEstimates = {
+    plumbing: '₱500 – ₱3,000',
+    electrical: '₱300 – ₱2,500',
+    masonry: '₱1,000 – ₱5,000',
+    welding: '₱500 – ₱4,000',
+    carpentry: '₱800 – ₱3,500',
+}
+
+const urgencyMap = {
+    'Emergency': { text: 'Fix immediately — do not delay', iconClass: 'text-red-500', Icon: AlertOctagon },
+    'High': { text: 'Should be addressed within 24 hours', iconClass: 'text-orange-500', Icon: AlertTriangle },
+    'Medium': { text: 'Can wait 2-3 days safely', iconClass: 'text-yellow-500', Icon: ClipboardList },
+    'Low': { text: 'Non-urgent — schedule at your convenience', iconClass: 'text-green-500', Icon: CheckCircle },
+}
+
+const cyclingPlaceholders = [
+    "My toilet is leaking and there is water everywhere...",
+    "The light switch in my kitchen sparks when I flip it...",
+    "I need to fix cracks in my concrete wall...",
+    "The metal gate is rusty and won't close properly...",
+    "My wooden cabinet door is broken and needs repair...",
+]
+
+const tradeHoverBg = {
+    blue: '#eff6ff',
+    yellow: '#fefce8',
+    orange: '#fff7ed',
+    gray: '#f9fafb',
+    brown: '#fef3c7',
+}
+
+const tradeIconMap = {
+    plumbing:   { Icon: Droplets, colorClass: 'text-blue-500' },
+    electrical: { Icon: Zap,      colorClass: 'text-yellow-500' },
+    masonry:    { Icon: Layers,   colorClass: 'text-orange-500' },
+    welding:    { Icon: Flame,    colorClass: 'text-gray-500' },
+    carpentry:  { Icon: Hammer,   colorClass: 'text-amber-600' },
+}
+
+const TradeIcon = ({ tradeId, size = 'w-7 h-7' }) => {
+    const entry = tradeIconMap[tradeId]
+    if (!entry) return null
+    const { Icon, colorClass } = entry
+    return <Icon className={`${size} ${colorClass}`} />
+}
+
+// ─── Worker Card Skeleton ────────────────────────────────────────────────────
+const WorkerCardSkeleton = () => (
+    <div className="flex flex-col p-4 bg-white border border-gray-100 rounded-2xl animate-pulse">
+        <div className="flex items-center gap-4 mb-3">
+            <div className="w-12 h-12 bg-gray-200 rounded-full" />
+            <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-gray-200 rounded" />
+                <div className="h-3 w-20 bg-gray-200 rounded" />
+            </div>
+        </div>
+        <div className="flex gap-1 mb-3">
+            <div className="h-5 w-16 bg-gray-200 rounded" />
+            <div className="h-5 w-20 bg-gray-200 rounded" />
+            <div className="h-5 w-14 bg-gray-200 rounded" />
+        </div>
+        <div className="h-10 w-full bg-gray-200 rounded-xl" />
+    </div>
+)
 
 // ─── Quick Contact Modal ────────────────────────────────────────────────────
 // Shown when a non-logged-in user tries to message a worker.
@@ -243,7 +338,9 @@ const Diagnostic = () => {
     const navigate = useNavigate()
     const { currentUser, userData } = useAuth()
 
-    const [problemText, setProblemText] = useState('')
+    const [problemText, setProblemText] = useState(
+        () => sessionStorage.getItem('diagnostic-problem-text') || ''
+    )
     const [state, dispatch] = useReducer(diagnosticReducer, initialDiagnosticState)
     const { status, results, workers, error: diagError, degraded } = state
 
@@ -251,8 +348,63 @@ const Diagnostic = () => {
     const [contactModal, setContactModal] = useState({ open: false, worker: null })
     const [messagingWorker, setMessagingWorker] = useState(null)
 
+    // Multi-step analysis progress
+    const [analysisStep, setAnalysisStep] = useState(0)
+    const analysisTimers = useRef([])
+
+    // Cycling placeholder
+    const [placeholderIdx, setPlaceholderIdx] = useState(0)
+
+    // Hovered service trade for color tint
+    const [hoveredTrade, setHoveredTrade] = useState(null)
+
+    // Refs
+    const textareaRef = useRef(null)
+    const resultsRef = useRef(null)
+
+    // Persist problem text across navigation
+    useEffect(() => {
+        sessionStorage.setItem('diagnostic-problem-text', problemText)
+    }, [problemText])
+
+    // Cycle placeholder every 3s when textarea is empty
+    useEffect(() => {
+        if (problemText) return
+        const interval = setInterval(() => {
+            setPlaceholderIdx(prev => (prev + 1) % cyclingPlaceholders.length)
+        }, 3000)
+        return () => clearInterval(interval)
+    }, [problemText])
+
+    // Auto-scroll to results after analysis completes
+    useEffect(() => {
+        if (status === 'complete' && resultsRef.current) {
+            resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+    }, [status])
+
+    // Detect first matching trade from typed text
+    const getKeywordHint = (text) => {
+        if (!text.trim()) return null
+        const lower = text.toLowerCase()
+        for (const [id, trade] of Object.entries(tradeKeywords)) {
+            if (trade.keywords.some(kw => lower.includes(kw.toLowerCase()))) {
+                return { id, ...trade }
+            }
+        }
+        return null
+    }
+    const keywordHint = getKeywordHint(problemText)
+
     const handleAnalyze = async () => {
         if (!problemText.trim()) return
+
+        // Reset and start multi-step progress timers
+        analysisTimers.current.forEach(clearTimeout)
+        analysisTimers.current = []
+        setAnalysisStep(0)
+        analysisTimers.current.push(setTimeout(() => setAnalysisStep(1), 2000))
+        analysisTimers.current.push(setTimeout(() => setAnalysisStep(2), 4000))
 
         dispatch({ type: 'ANALYZE_START' })
 
@@ -356,6 +508,7 @@ const Diagnostic = () => {
 
     const clearResults = () => {
         setProblemText('')
+        sessionStorage.removeItem('diagnostic-problem-text')
         dispatch({ type: 'RESET' })
     }
 
@@ -400,6 +553,28 @@ const Diagnostic = () => {
                         Describe your household problem and our AI will identify the type of worker you need
                         and recommend verified professionals.
                     </p>
+
+                    {/* How It Works — 3-step flow */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mt-6">
+                        {[
+                            { step: '1', Icon: FileText, iconClass: 'text-primary-500', title: 'Describe', sub: 'Tell us about your problem' },
+                            { step: '2', Icon: Cpu, iconClass: 'text-purple-500', title: 'AI Match', sub: 'Our AI identifies the right trade' },
+                            { step: '3', Icon: MessageCircle, iconClass: 'text-green-500', title: 'Connect', sub: 'Message verified workers directly' },
+                        ].map((item, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <div
+                                    className="flex flex-col items-center text-center p-3 bg-white/60 border border-white/40 rounded-2xl shadow-sm w-28 animate-fade-in"
+                                    style={{ animationDelay: `${i * 0.15}s`, opacity: 0, animationFillMode: 'forwards' }}
+                                >
+                                    <item.Icon className={`w-6 h-6 ${item.iconClass} mb-1`} />
+                                    <span className="text-[10px] font-bold text-primary-600 uppercase mb-0.5">Step {item.step}</span>
+                                    <span className="text-xs font-bold text-gray-900">{item.title}</span>
+                                    <span className="text-[10px] text-gray-500">{item.sub}</span>
+                                </div>
+                                {i < 2 && <ArrowRight className="w-4 h-4 text-gray-300 flex-shrink-0 hidden sm:block" />}
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Input Section */}
@@ -408,14 +583,37 @@ const Diagnostic = () => {
                         <Lightbulb className="w-5 h-5 text-yellow-500" />
                         Describe your problem
                     </label>
-                    <textarea
-                        value={problemText}
-                        onChange={(e) => setProblemText(e.target.value)}
-                        placeholder="Example: My toilet is leaking and there is water everywhere..."
-                        className="input-field min-h-[120px] mb-4"
-                    />
+                    <div className="relative">
+                        <textarea
+                            ref={textareaRef}
+                            value={problemText}
+                            onChange={(e) => setProblemText(e.target.value)}
+                            placeholder={cyclingPlaceholders[placeholderIdx]}
+                            className="input-field min-h-[120px] mb-1"
+                        />
+                    </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Character counter + hint */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-xs text-gray-400">
+                            {problemText.length < 20 && problemText.length > 0 && (
+                                <span className="text-amber-500">Add more detail for better results</span>
+                            )}
+                        </div>
+                        <span className="text-xs text-gray-400">{problemText.length} chars</span>
+                    </div>
+
+                    {/* Real-time keyword hint */}
+                    {keywordHint && (
+                        <div className="mb-3 animate-slide-up">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-50 text-primary-700 text-xs font-medium rounded-full border border-primary-100">
+                                Looks like you need: <TradeIcon tradeId={keywordHint.id} size="w-3.5 h-3.5" /> {keywordHint.name}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Action buttons — sticky on mobile */}
+                    <div className="flex flex-col sm:flex-row gap-3 sticky bottom-4 z-10 sm:static sm:bottom-auto">
                         <button
                             onClick={handleAnalyze}
                             disabled={status === 'analyzing' || !problemText.trim()}
@@ -452,7 +650,7 @@ const Diagnostic = () => {
                                         onClick={() => {
                                             setProblemText(example)
                                         }}
-                                        className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors text-left"
+                                        className="px-3 py-1.5 min-h-[44px] bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition-colors text-left"
                                     >
                                         {example.substring(0, 40)}...
                                     </button>
@@ -461,6 +659,41 @@ const Diagnostic = () => {
                         </div>
                     )}
                 </div>
+
+                {/* Multi-step analysis progress */}
+                {status === 'analyzing' && (
+                    <div className="card mb-6 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                            {[
+                                { label: 'Understanding your problem...' },
+                                { label: 'Matching to the right trade...' },
+                                { label: 'Finding verified workers...' },
+                            ].map((step, i) => (
+                                <div key={i} className="flex items-center gap-2 flex-1">
+                                    <div className="flex-shrink-0">
+                                        {i < analysisStep ? (
+                                            <CheckCircle className="w-5 h-5 text-green-500" />
+                                        ) : i === analysisStep ? (
+                                            <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
+                                        ) : (
+                                            <div className="w-5 h-5 rounded-full border-2 border-gray-200" />
+                                        )}
+                                    </div>
+                                    <span className={`text-sm ${
+                                        i < analysisStep
+                                            ? 'text-green-600 font-medium'
+                                            : i === analysisStep
+                                                ? 'text-primary-600 font-semibold'
+                                                : 'text-gray-400'
+                                    }`}>
+                                        {step.label}
+                                    </span>
+                                    {i < 2 && <ArrowRight className="w-4 h-4 text-gray-200 hidden sm:block" />}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Error State */}
                 {status === 'error' && (
@@ -482,10 +715,16 @@ const Diagnostic = () => {
 
                 {/* Results Section */}
                 {results && (
-                    <div className="space-y-6 animate-fade-in">
+                    <div
+                        ref={resultsRef}
+                        className="space-y-6 scroll-mt-20"
+                    >
                         {/* Degradation Warning */}
                         {degraded && (
-                            <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                            <div
+                                className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl animate-fade-in"
+                                style={{ animationDelay: '0.1s' }}
+                            >
                                 <Info className="w-5 h-5 text-yellow-600 flex-shrink-0" />
                                 <p className="text-sm text-yellow-800">
                                     <span className="font-semibold">AI analysis was unavailable.</span> Showing keyword-based results which may be less accurate.
@@ -494,15 +733,29 @@ const Diagnostic = () => {
                         )}
 
                         {/* Diagnostic Report */}
-                        <div className="card overflow-hidden">
-                            <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                        <div
+                            className="card overflow-hidden animate-fade-in"
+                            style={{ animationDelay: '0.2s' }}
+                        >
+                            <div className="flex items-start justify-between mb-4 pb-4 border-b gap-4">
                                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                     <ShieldAlert className="w-5 h-5 text-primary-600" />
                                     Diagnostic Report
                                 </h2>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${getSeverityColor(results.severity)}`}>
-                                    {results.severity} Severity
-                                </span>
+                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${getSeverityColor(results.severity)}`}>
+                                        {results.severity} Severity
+                                    </span>
+                                    {urgencyMap[results.severity] && (() => {
+                                        const u = urgencyMap[results.severity]
+                                        return (
+                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                <u.Icon className={`w-3.5 h-3.5 ${u.iconClass}`} />
+                                                {u.text}
+                                            </span>
+                                        )
+                                    })()}
+                                </div>
                             </div>
 
                             <div className="grid md:grid-cols-3 gap-6">
@@ -513,6 +766,16 @@ const Diagnostic = () => {
                                             {results.diagnosticSummary || "We've analyzed your problem and identified matching trades."}
                                         </p>
                                     </div>
+
+                                    {/* Cost estimate */}
+                                    {results.primaryTrade && costEstimates[results.primaryTrade.id] && (
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-xl">
+                                            <DollarSign className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                            <span className="text-sm text-green-800">
+                                                Estimated cost: <span className="font-semibold">{costEstimates[results.primaryTrade.id]}</span>
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {results.safetyAdvice && results.safetyAdvice.length > 0 && (
                                         <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
@@ -564,7 +827,7 @@ const Diagnostic = () => {
                                                 >
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-2xl">{trade.icon}</span>
+                                                            <TradeIcon tradeId={trade.id} size="w-6 h-6" />
                                                             <div>
                                                                 <h4 className="text-sm font-bold text-gray-900">{trade.name}</h4>
                                                                 <p className="text-[10px] text-gray-500 uppercase tracking-tighter">
@@ -572,8 +835,20 @@ const Diagnostic = () => {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className="text-xs font-bold text-primary-600">{trade.confidence}%</p>
+                                                        {/* Confidence gauge */}
+                                                        <div className="relative w-12 h-12 flex-shrink-0">
+                                                            <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
+                                                                <circle cx="18" cy="18" r="14" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                                                                <circle
+                                                                    cx="18" cy="18" r="14"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="3"
+                                                                    strokeDasharray={`${trade.confidence * 0.88} 88`}
+                                                                    className="text-primary-600 transition-all duration-1000"
+                                                                />
+                                                            </svg>
+                                                            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{trade.confidence}%</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -586,52 +861,107 @@ const Diagnostic = () => {
 
                         {/* Matching Workers */}
                         {results.primaryTrade && (
-                            <div className="card">
+                            <div
+                                className="card animate-fade-in"
+                                style={{ animationDelay: '0.3s' }}
+                            >
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                     <User className="w-5 h-5 text-primary-600" />
                                     Verified {results.primaryTrade.name} Professionals
                                 </h2>
 
                                 {status === 'loadingWorkers' ? (
-                                    <div className="text-center py-8">
-                                        <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-4" />
-                                        <p className="text-gray-600">Finding verified workers...</p>
+                                    <div className="grid sm:grid-cols-2 gap-4">
+                                        {[...Array(4)].map((_, i) => <WorkerCardSkeleton key={i} />)}
                                     </div>
                                 ) : workers.length === 0 ? (
-                                    <div className="text-center py-8 bg-gray-50 rounded-2xl border-2 border-dashed">
-                                        <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <p className="text-gray-600 mb-2 font-medium">No verified workers found in this trade</p>
-                                        <p className="text-gray-400 text-sm">We're expanding our network. Try a broader search or check back later.</p>
+                                    <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed">
+                                        <div className="flex items-center justify-center gap-2 mb-4">
+                                            <Users className="w-10 h-10 text-gray-300" />
+                                            <Search className="w-6 h-6 text-gray-200" />
+                                        </div>
+                                        <p className="text-gray-600 mb-1 font-medium">No verified workers found in this trade</p>
+                                        <p className="text-gray-400 text-sm mb-5">We're expanding our network. Try a broader search or check back later.</p>
+                                        <div className="flex flex-wrap justify-center gap-2">
+                                            <a
+                                                href="/jobs"
+                                                className="px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors"
+                                            >
+                                                Browse all job listings
+                                            </a>
+                                            <button
+                                                onClick={() => { dispatch({ type: 'RESET' }); setTimeout(() => textareaRef.current?.focus(), 0) }}
+                                                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                                            >
+                                                Try a different description
+                                            </button>
+                                        </div>
+                                        {results.trades.length > 1 && (
+                                            <div className="mt-5 px-6">
+                                                <p className="text-sm text-gray-500 mb-2">These related workers might help:</p>
+                                                <div className="flex flex-wrap justify-center gap-2">
+                                                    {results.trades.slice(1).map((trade, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => {
+                                                                setProblemText(`I need help with a ${trade.name.toLowerCase()} problem: `)
+                                                                dispatch({ type: 'RESET' })
+                                                            }}
+                                                            className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-sm hover:bg-primary-100 transition-colors flex items-center gap-1"
+                                                        >
+                                                            <TradeIcon tradeId={trade.id} size="w-4 h-4" />
+                                                            {trade.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="grid sm:grid-cols-2 gap-4">
-                                        {workers.map((worker) => (
+                                        {workers.map((worker, wIdx) => (
                                             <div
                                                 key={worker.id}
-                                                className="group relative flex flex-col p-4 bg-white border border-gray-100 rounded-2xl hover:border-primary-300 hover:shadow-lg hover:shadow-primary-500/10 transition-all"
+                                                className="group relative flex flex-col p-4 bg-white border border-gray-100 rounded-2xl hover:border-primary-300 hover:shadow-lg hover:shadow-primary-500/10 transition-all animate-fade-in"
+                                                style={{ animationDelay: `${0.35 + wIdx * 0.07}s` }}
                                             >
                                                 <div className="flex items-center gap-4 mb-3">
-                                                    <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
                                                         {worker.name?.charAt(0).toUpperCase() || 'W'}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <p className="font-bold text-gray-900 truncate">{worker.name}</p>
                                                             <CheckCircle className="w-4 h-4 text-green-500 fill-current flex-shrink-0" />
                                                         </div>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {worker.skills?.slice(0, 2).map((skill, i) => (
-                                                                <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] uppercase font-bold">
-                                                                    {skill}
-                                                                </span>
-                                                            ))}
-                                                            {worker.skills?.length > 2 && (
-                                                                <span className="text-[10px] text-gray-400 font-medium self-center">+{worker.skills.length - 2} more</span>
-                                                            )}
-                                                        </div>
+                                                        {/* Availability dot */}
+                                                        <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-0.5">
+                                                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                                            Available
+                                                        </span>
                                                     </div>
                                                 </div>
-                                                {/* Message Worker Button */}
+
+                                                {/* "New on PESO Connect" badge */}
+                                                <div className="mb-2">
+                                                    <span className="px-2 py-0.5 bg-primary-50 text-primary-600 text-[10px] font-bold rounded-full">
+                                                        New on PESO Connect
+                                                    </span>
+                                                </div>
+
+                                                {/* Skills — up to 4 */}
+                                                <div className="flex flex-wrap gap-1 mb-3">
+                                                    {worker.skills?.slice(0, 4).map((skill, i) => (
+                                                        <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] uppercase font-bold">
+                                                            {skill}
+                                                        </span>
+                                                    ))}
+                                                    {worker.skills?.length > 4 && (
+                                                        <span className="text-[10px] text-gray-400 font-medium self-center">+{worker.skills.length - 4} more</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Message + View Profile */}
                                                 <button
                                                     onClick={() => handleMessageWorker(worker)}
                                                     disabled={messagingWorker === worker.id}
@@ -649,6 +979,12 @@ const Diagnostic = () => {
                                                         </>
                                                     )}
                                                 </button>
+                                                <button
+                                                    onClick={() => navigate(`/profile/${worker.id}`)}
+                                                    className="mt-2 text-sm text-primary-600 hover:text-primary-700 font-medium text-center w-full"
+                                                >
+                                                    View Profile
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -661,12 +997,37 @@ const Diagnostic = () => {
                 {/* Trade Categories Reference */}
                 {!results && status === 'idle' && (
                     <div className="card">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4 ">Available Services</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Services</h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                             {Object.entries(tradeKeywords).map(([id, trade]) => (
-                                <div key={id} className="text-center p-4 bg-gray-50 rounded-2xl hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-primary-100 group">
-                                    <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">{trade.icon}</span>
+                                <div
+                                    key={id}
+                                    className="relative text-center p-4 bg-gray-50 rounded-2xl hover:shadow-md transition-all border border-transparent hover:border-primary-100 group cursor-pointer hover:scale-105"
+                                    style={{
+                                        backgroundColor: hoveredTrade === id ? tradeHoverBg[trade.color] : undefined,
+                                    }}
+                                    onMouseEnter={() => setHoveredTrade(id)}
+                                    onMouseLeave={() => setHoveredTrade(null)}
+                                    onClick={() => {
+                                        setProblemText(`I have a ${trade.name.toLowerCase()} issue: `)
+                                        setTimeout(() => textareaRef.current?.focus(), 0)
+                                    }}
+                                    title={tradeDescriptions[id]}
+                                >
+                                    <div className="flex justify-center mb-2 group-hover:scale-110 transition-transform">
+                                        <TradeIcon tradeId={id} size="w-8 h-8" />
+                                    </div>
                                     <p className="text-xs font-bold text-gray-900">{trade.name}</p>
+                                    {/* Worker count badge */}
+                                    <span className="mt-1 inline-block px-1.5 py-0.5 bg-white border border-gray-200 text-[10px] text-gray-500 font-medium rounded-full">
+                                        {workerCounts[id]}
+                                    </span>
+                                    {/* Tooltip description */}
+                                    {hoveredTrade === id && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-[10px] rounded-lg whitespace-nowrap z-10 pointer-events-none animate-fade-in">
+                                            {tradeDescriptions[id]}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -69,6 +69,7 @@ describe('ProtectedRoute', () => {
       userData: { role: 'jobseeker' },
       loading: false,
       isVerified: () => true,
+      isEmailVerified: () => true,
     })
 
     renderProtected()
@@ -82,6 +83,7 @@ describe('ProtectedRoute', () => {
       userData: { role: 'jobseeker' },
       loading: false,
       isVerified: () => false,
+      isEmailVerified: () => true,
     })
 
     renderProtected({ allowedRoles: ['admin'] })
@@ -95,6 +97,7 @@ describe('ProtectedRoute', () => {
       userData: { role: 'employer' },
       loading: false,
       isVerified: () => true,
+      isEmailVerified: () => true,
     })
 
     renderProtected({ allowedRoles: ['employer', 'admin'] })
@@ -108,6 +111,7 @@ describe('ProtectedRoute', () => {
       userData: { role: 'employer', employer_status: 'pending' },
       loading: false,
       isVerified: () => false,
+      isEmailVerified: () => true,
     })
 
     renderProtected({ requireVerified: true })
@@ -125,6 +129,7 @@ describe('ProtectedRoute', () => {
       },
       loading: false,
       isVerified: () => false,
+      isEmailVerified: () => true,
     })
 
     renderProtected({ requireVerified: true })
@@ -133,16 +138,87 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText(/invalid business permit/i)).toBeInTheDocument()
   })
 
+  it('shows expired verification message when employer_status is expired', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: { uid: 'emp-1' },
+      userData: { role: 'employer', employer_status: 'expired' },
+      loading: false,
+      isVerified: () => false,
+      isEmailVerified: () => true,
+    })
+
+    renderProtected({ requireVerified: true })
+
+    expect(screen.getByText('Annual Verification Expired')).toBeInTheDocument()
+    expect(screen.getByText(/annual re-verification is required/i)).toBeInTheDocument()
+  })
+
+  it('shows expired verification message when jobseeker_status is expired', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: { uid: 'js-1' },
+      userData: { role: 'user', subtype: 'jobseeker', jobseeker_status: 'expired' },
+      loading: false,
+      isVerified: () => false,
+      isEmailVerified: () => true,
+    })
+
+    renderProtected({ requireVerified: true })
+
+    expect(screen.getByText('Annual Verification Expired')).toBeInTheDocument()
+  })
+
+  it('does not show expired message for pending status', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: { uid: 'js-1' },
+      userData: { role: 'user', subtype: 'jobseeker', jobseeker_status: 'pending' },
+      loading: false,
+      isVerified: () => false,
+      isEmailVerified: () => true,
+    })
+
+    renderProtected({ requireVerified: true })
+
+    expect(screen.queryByText('Annual Verification Expired')).not.toBeInTheDocument()
+    expect(screen.getByText('Account Pending Verification')).toBeInTheDocument()
+  })
+
   it('renders children when requireVerified and user is verified', () => {
     mockUseAuth.mockReturnValue({
       currentUser: { uid: 'emp-1' },
       userData: { role: 'employer', is_verified: true },
       loading: false,
       isVerified: () => true,
+      isEmailVerified: () => true,
     })
 
     renderProtected({ requireVerified: true, allowedRoles: ['employer'] })
 
     expect(screen.getByText('Protected Content')).toBeInTheDocument()
+  })
+
+  it('shows expired verification message when verified_for_year is stale', () => {
+    // Employer whose DB flag still says is_verified=true but whose
+    // verified_for_year is in a past year — before the annual cron has
+    // run. isVerified() in AuthContext already returns false for this
+    // case; ProtectedRoute's expiry branch must still render the
+    // "Annual Verification Expired" panel rather than the generic
+    // pending state.
+    mockUseAuth.mockReturnValue({
+      currentUser: { uid: 'emp-1' },
+      userData: {
+        role: 'employer',
+        is_verified: true,
+        employer_status: 'approved',
+        verified_for_year: 2020,
+      },
+      loading: false,
+      isVerified: () => false,
+      isEmailVerified: () => true,
+    })
+
+    renderProtected({ requireVerified: true })
+
+    expect(screen.getByText('Annual Verification Expired')).toBeInTheDocument()
+    expect(screen.queryByText('Account Pending Verification')).not.toBeInTheDocument()
   })
 })

@@ -28,8 +28,9 @@ import {
 } from 'lucide-react'
 import Select from '../../components/common/Select'
 import psgcData from '../../data/psgc.json'
+import coursesData from '../../data/courses.json'
 import { SearchableSelect } from '../../components/forms/SearchableSelect'
-import { SKILL_VOCAB, getSuggestedSkillsFromTitle, getSuggestedSkillsFromDescription } from '../../utils/jobSkillRecommender'
+import { SKILL_VOCAB, getSuggestedSkillsFromTitle, getSuggestedSkillsFromDescription, getSuggestedSkillsFromVocab } from '../../utils/jobSkillRecommender'
 
 // --- PSGC helpers ---
 const CITY_OR_MUNICIPALITY_SUFFIX = /\b(city|municipality)\b/gi
@@ -96,7 +97,8 @@ const EXPERIENCE_LEVELS = [
 const EDUCATION_OPTIONS = [
     { value: 'none', label: 'No formal education required' },
     { value: 'elementary', label: 'Elementary Graduate' },
-    { value: 'high-school', label: 'High School Graduate' },
+    { value: 'high-school', label: 'High School Graduate (Old Curriculum)' },
+    { value: 'senior-high', label: 'Senior High School Graduate (K-12)' },
     { value: 'vocational', label: 'Vocational/TESDA Certificate' },
     { value: 'college', label: 'College Graduate' },
     { value: 'postgraduate', label: 'Postgraduate' },
@@ -124,44 +126,19 @@ const PostJobWizard = () => {
     const [currentStep, setCurrentStep] = useState(1)
     const [fetchingJob, setFetchingJob] = useState(false)
 
-    // Global job data state
-    const [jobData, setJobData] = useState({
-        // Step 1: Job Overview
-        title: '',
-        category: '',
-        type: 'permanent',
-        workArrangement: 'on-site',
-        workProvince: '',
-        workCity: '',
-        vacancies: 1,
+    const DRAFT_KEY = currentUser ? `peso-job-draft-${currentUser.uid}` : null
 
-        // Step 2: Role Details & Compensation
-        jobSummary: '',
-        keyResponsibilities: '',
-        salaryMin: '',
-        salaryMax: '',
-        benefits: [],
+    const DEFAULT_JOB_DATA = {
+        title: '', category: '', type: 'permanent', workArrangement: 'on-site',
+        workProvince: '', workCity: '', vacancies: 1,
+        jobSummary: '', keyResponsibilities: '', salaryMin: '', salaryMax: '', benefits: [],
+        educationLevel: 'high-school', courseStrand: '', experienceLevel: 'entry',
+        requiredSkills: [], preferredSkills: [], requiredLanguages: [], licensesCertifications: '',
+        acceptsPwd: false, pwdDisabilities: [], acceptsOfw: false, otherQualifications: '',
+        deadline: '', filterMode: 'strict', aiMatchingEnabled: true,
+    }
 
-        // Step 3: Qualifications & Skills
-        educationLevel: 'high-school',
-        courseStrand: '',
-        experienceLevel: 'entry',
-        requiredSkills: [],
-        preferredSkills: [],
-        requiredLanguages: [],
-        licensesCertifications: '',
-
-        // Step 4: Inclusive Hiring
-        acceptsPwd: false,
-        pwdDisabilities: [],
-        acceptsOfw: false,
-        otherQualifications: '',
-
-        // Step 5: Posting Settings
-        deadline: '',
-        filterMode: 'strict',
-        aiMatchingEnabled: true,
-    })
+    const [jobData, setJobData] = useState(DEFAULT_JOB_DATA)
 
     // Skills autocomplete UI state (required skills)
     const [skillInput, setSkillInput] = useState('')
@@ -294,6 +271,21 @@ const PostJobWizard = () => {
         fetchJob()
     }, [isEditMode, editId, currentUser])
 
+    // Restore draft once currentUser is known (new posts only)
+    useEffect(() => {
+        if (isEditMode || !DRAFT_KEY) return
+        try {
+            const saved = localStorage.getItem(DRAFT_KEY)
+            if (saved) setJobData(JSON.parse(saved))
+        } catch { /* ignore */ }
+    }, [DRAFT_KEY])
+
+    // Autosave draft to localStorage on every jobData change (new posts only)
+    useEffect(() => {
+        if (isEditMode || !DRAFT_KEY) return
+        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(jobData)) } catch { /* ignore */ }
+    }, [jobData])
+
     // Deterministic AI suggestions when entering step 3
     useEffect(() => {
         if (currentStep !== 3) return
@@ -302,8 +294,9 @@ const PostJobWizard = () => {
         const fromTitle = getSuggestedSkillsFromTitle(jobData.title, jobData.category)
         const descriptionText = [jobData.jobSummary, jobData.keyResponsibilities].join(' ')
         const fromDesc = getSuggestedSkillsFromDescription(descriptionText)
+        const fromVocab = getSuggestedSkillsFromVocab(jobData.keyResponsibilities, jobData.category)
 
-        const combined = [...new Set([...fromTitle, ...fromDesc])]
+        const combined = [...new Set([...fromTitle, ...fromDesc, ...fromVocab])]
             .filter(s => !jobData.requiredSkills.includes(s))
             .slice(0, 12)
 
@@ -505,6 +498,16 @@ const PostJobWizard = () => {
 
     // Publish or update job
     const publishJob = async () => {
+        // Build final arrays by flushing any text still in tag inputs (state updates are async,
+        // so we compute the merged values directly here rather than calling addTag)
+        const mergeTag = (existing, pending) => {
+            const v = pending.trim()
+            return v && !existing.includes(v) ? [...existing, v] : existing
+        }
+        const finalPreferredSkills = mergeTag(jobData.preferredSkills, preferredSkillInput)
+        const finalLanguages = mergeTag(jobData.requiredLanguages, languageInput)
+        const finalBenefits = mergeTag(jobData.benefits, benefitInput)
+
         // Validate every step before submit
         for (let s = 1; s <= 5; s++) {
             if (!validateStep(s)) {
@@ -543,14 +546,14 @@ const PostJobWizard = () => {
                 salary_range: `PHP ${Number(jobData.salaryMin).toLocaleString()} - ${Number(jobData.salaryMax).toLocaleString()}`,
                 salary_min: Number(jobData.salaryMin),
                 salary_max: Number(jobData.salaryMax),
-                benefits: jobData.benefits,
+                benefits: finalBenefits,
 
                 education_level: jobData.educationLevel,
                 course_strand: jobData.courseStrand.trim() || null,
                 experience_level: jobData.experienceLevel,
                 requirements: jobData.requiredSkills,
-                preferred_skills: jobData.preferredSkills,
-                required_languages: jobData.requiredLanguages,
+                preferred_skills: finalPreferredSkills,
+                required_languages: finalLanguages,
                 licenses_certifications: jobData.licensesCertifications.trim() || null,
 
                 accepts_pwd: jobData.acceptsPwd,
@@ -582,6 +585,7 @@ const PostJobWizard = () => {
                 if (error) throw error
             }
 
+            if (DRAFT_KEY) localStorage.removeItem(DRAFT_KEY)
             setSuccess(true)
             setTimeout(() => {
                 navigate('/my-listings')
@@ -1027,7 +1031,12 @@ const PostJobWizard = () => {
                                     icon={GraduationCap}
                                     options={EDUCATION_OPTIONS}
                                     value={jobData.educationLevel}
-                                    onChange={(val) => updateJobData('educationLevel', val)}
+                                    onChange={(val) => {
+                                        updateJobData('educationLevel', val)
+                                        if (!['senior-high', 'college', 'postgraduate'].includes(val)) {
+                                            updateJobData('courseStrand', '')
+                                        }
+                                    }}
                                     placeholder="Select education level"
                                 />
                                 {stepErrors.educationLevel && (
@@ -1035,17 +1044,28 @@ const PostJobWizard = () => {
                                 )}
                             </div>
 
-                            {/* Course / Strand */}
-                            <div>
-                                <label className="label">Course / SHS Strand (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={jobData.courseStrand}
-                                    onChange={(e) => updateJobData('courseStrand', e.target.value)}
-                                    className="input-field"
-                                    placeholder="e.g. BS Electrical Engineering, STEM, TVL - EIM"
-                                />
-                            </div>
+                            {/* Course / Strand — shown only when education level is SHS, college, or postgraduate */}
+                            {['senior-high', 'college', 'postgraduate'].includes(jobData.educationLevel) && (
+                                <div>
+                                    <SearchableSelect
+                                        label="Course / SHS Strand (Optional)"
+                                        name="courseStrand"
+                                        value={jobData.courseStrand}
+                                        onChange={(e) => {
+                                            updateJobData('courseStrand', e.target.value)
+                                        }}
+                                        options={
+                                            jobData.educationLevel === 'senior-high'
+                                                ? coursesData.seniorHigh
+                                                : jobData.educationLevel === 'postgraduate'
+                                                    ? coursesData.graduate
+                                                    : coursesData.tertiary
+                                        }
+                                        grouped
+                                        placeholder="Select a course or strand"
+                                    />
+                                </div>
+                            )}
 
                             {/* Experience Level */}
                             <div>

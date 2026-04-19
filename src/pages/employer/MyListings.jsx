@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,9 +18,149 @@ import {
     Calendar,
     Save,
     X,
-    MessageSquare
+    MessageSquare,
+    ChevronDown,
+    Check
 } from 'lucide-react'
+import EmployerAvatar from '../../components/EmployerAvatar'
 import { JobListingSkeleton } from '../../components/LoadingSkeletons'
+
+const STATUS_OPTIONS = [
+    { value: 'open', label: 'Open', description: 'Accepting new applicants' },
+    { value: 'filled', label: 'Filled', description: 'Position has been filled' },
+    { value: 'closed', label: 'Closed', description: 'Listing is no longer active' },
+]
+
+const JobStatusDropdown = ({ jobId, value, disabled, onChange, getStatusColor, zeroVacancies }) => {
+    const [isOpen, setIsOpen] = useState(false)
+    const [dropdownStyle, setDropdownStyle] = useState(null)
+    const containerRef = useRef(null)
+    const triggerRef = useRef(null)
+    const dropdownRef = useRef(null)
+    const selectedOption = STATUS_OPTIONS.find((option) => option.value === value) || STATUS_OPTIONS[0]
+
+    useEffect(() => {
+        // Only attach the document listener while the dropdown is open —
+        // otherwise every card on the page wastes a mousedown handler
+        // closing dropdowns that aren't showing.
+        if (!isOpen) return
+        const handleClickOutside = (event) => {
+            const clickedTrigger = containerRef.current?.contains(event.target)
+            const clickedDropdown = dropdownRef.current?.contains(event.target)
+            if (!clickedTrigger && !clickedDropdown) {
+                setIsOpen(false)
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [isOpen])
+
+    useEffect(() => {
+        if (!isOpen) {
+            setDropdownStyle(null)
+            return
+        }
+
+        const updateDropdownPosition = () => {
+            const triggerRect = triggerRef.current?.getBoundingClientRect()
+            const dropdownHeight = dropdownRef.current?.offsetHeight || 220
+            if (!triggerRect) return
+
+            const spaceBelow = window.innerHeight - triggerRect.bottom
+            const spaceAbove = triggerRect.top
+            const shouldOpenUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+            const top = shouldOpenUpward
+                ? Math.max(12, triggerRect.top - dropdownHeight - 8)
+                : Math.min(window.innerHeight - dropdownHeight - 12, triggerRect.bottom + 8)
+
+            setDropdownStyle({
+                top,
+                left: triggerRect.left,
+                width: Math.max(triggerRect.width + 92, 220),
+            })
+        }
+
+        updateDropdownPosition()
+        window.addEventListener('resize', updateDropdownPosition)
+        window.addEventListener('scroll', updateDropdownPosition, true)
+
+        return () => {
+            window.removeEventListener('resize', updateDropdownPosition)
+            window.removeEventListener('scroll', updateDropdownPosition, true)
+        }
+    }, [isOpen])
+
+    return (
+        <div ref={containerRef} className="relative inline-block">
+            <button
+                ref={triggerRef}
+                type="button"
+                onClick={() => !disabled && setIsOpen(prev => !prev)}
+                disabled={disabled}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-60 ${getStatusColor(value)}`}
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                aria-label={`Job status for ${jobId}`}
+            >
+                <span>{selectedOption.label}</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isOpen && dropdownStyle && createPortal(
+                <div
+                    ref={dropdownRef}
+                    className="fixed z-[1100] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]"
+                    style={dropdownStyle}
+                    role="listbox"
+                >
+                    <div className="border-b border-slate-100 bg-gradient-to-r from-primary-50 via-white to-white px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Update Status</p>
+                    </div>
+                    <div className="p-2">
+                        {STATUS_OPTIONS.map((option) => {
+                            const isSelected = option.value === value
+                            const isOpenBlockedByVacancy = option.value === 'open' && zeroVacancies
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    disabled={isOpenBlockedByVacancy}
+                                    onClick={() => {
+                                        if (isOpenBlockedByVacancy) return
+                                        setIsOpen(false)
+                                        if (option.value !== value) onChange(option.value)
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                                        isOpenBlockedByVacancy
+                                            ? 'cursor-not-allowed opacity-40'
+                                            : isSelected ? 'bg-slate-100' : 'hover:bg-slate-50'
+                                    }`}
+                                    title={isOpenBlockedByVacancy ? 'Increase vacancies before reopening' : undefined}
+                                >
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getStatusColor(option.value)}`}>
+                                                {option.label}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            {isOpenBlockedByVacancy
+                                                ? 'Increase vacancies before reopening'
+                                                : option.description}
+                                        </p>
+                                    </div>
+                                    {isSelected && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" />}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    )
+}
 
 const MyListings = () => {
     const { currentUser } = useAuth()
@@ -42,7 +183,18 @@ const MyListings = () => {
         try {
             const { data: jobsData, error: jobsError } = await supabase
                 .from('job_postings')
-                .select('*')
+                .select(`
+                    *,
+                    employer:users!job_postings_employer_id_fkey (
+                        id,
+                        name,
+                        profile_photo,
+                        employer_profiles (
+                            company_name,
+                            company_logo
+                        )
+                    )
+                `)
                 .eq('employer_id', currentUser.uid)
                 .order('created_at', { ascending: false })
             if (jobsError) throw jobsError
@@ -181,33 +333,43 @@ const MyListings = () => {
                     <div className="space-y-6">
                         {jobs.map((job) => (
                             <div key={job.id} className="card hover:shadow-lg transition-shadow duration-300">
+                                {(() => {
+                                    const applicantCount = applications[job.id]?.length || 0
+                                    const pendingCount = applications[job.id]?.filter(a => a.status === 'pending').length || 0
+
+                                    return (
+                                <>
                                 <div className="flex flex-col lg:flex-row gap-6">
                                     {/* Left: Job Info */}
                                     <div className="flex-1">
                                         <div className="flex items-start gap-4">
-                                            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-primary-500/20 flex-shrink-0">
-                                                {job.title?.charAt(0).toUpperCase()}
-                                            </div>
+                                            <EmployerAvatar
+                                                job={job}
+                                                className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/20"
+                                                fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white"
+                                                textClassName="text-xl font-bold"
+                                            />
                                             <div className="flex-1">
                                                 <div className="flex flex-wrap items-center gap-3 mb-2">
                                                     <h3 className="text-xl font-bold text-gray-900">{job.title}</h3>
 
                                                     {/* Status Dropdown */}
-                                                    <div className="relative inline-block">
-                                                        <select
-                                                            value={job.status}
-                                                            onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                                                            disabled={actionLoading === job.id}
-                                                            className={`appearance-none pl-3 pr-8 py-1 rounded-full text-sm font-semibold border-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 capitalize ${getStatusColor(job.status)}`}
-                                                        >
-                                                            <option value="open">Open</option>
-                                                            <option value="filled">Filled</option>
-                                                            <option value="closed">Closed</option>
-                                                        </select>
-                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-600">
-                                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                                                        </div>
-                                                    </div>
+                                                    <JobStatusDropdown
+                                                        jobId={job.id}
+                                                        value={job.status}
+                                                        disabled={actionLoading === job.id}
+                                                        onChange={(nextStatus) => updateJobStatus(job.id, nextStatus)}
+                                                        getStatusColor={getStatusColor}
+                                                        zeroVacancies={(job.vacancies ?? 0) === 0}
+                                                    />
+
+                                                    {/* No-vacancy closed hint */}
+                                                    {job.status === 'closed' && (job.vacancies ?? 0) === 0 && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                                            <AlertCircle className="w-3 h-3" />
+                                                            No vacancies remaining
+                                                        </span>
+                                                    )}
 
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${job.filter_mode === 'strict'
                                                             ? 'bg-purple-100 text-purple-700 border-purple-200'
@@ -274,12 +436,12 @@ const MyListings = () => {
                                         {/* Application Stats */}
                                         <div className="flex items-center gap-4 text-center">
                                             <div className="px-4">
-                                                <p className="text-2xl font-bold text-gray-900">{applications[job.id]?.length || 0}</p>
+                                                <p className="text-2xl font-bold text-gray-900">{applicantCount}</p>
                                                 <p className="text-xs text-gray-500 uppercase font-semibold">Applicants</p>
                                             </div>
-                                            {applications[job.id]?.filter(a => a.status === 'pending').length > 0 && (
+                                            {pendingCount > 0 && (
                                                 <div className="px-4">
-                                                    <p className="text-2xl font-bold text-yellow-600">{applications[job.id].filter(a => a.status === 'pending').length}</p>
+                                                    <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
                                                     <p className="text-xs text-gray-500 uppercase font-semibold">Pending</p>
                                                 </div>
                                             )}
@@ -288,13 +450,25 @@ const MyListings = () => {
 
                                         {/* Action Buttons */}
                                         <div className="flex flex-wrap gap-2">
-                                            <Link
-                                                to={`/employer/jobs/${job.id}/applicants`}
-                                                className="btn-secondary text-sm py-2"
-                                            >
-                                                <Users className="w-4 h-4 mr-2" />
-                                                View Applicants
-                                            </Link>
+                                            {applicantCount > 0 ? (
+                                                <Link
+                                                    to={`/employer/jobs/${job.id}/applicants`}
+                                                    className="btn-secondary text-sm py-2"
+                                                >
+                                                    <Users className="w-4 h-4 mr-2" />
+                                                    View Applicants
+                                                </Link>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
+                                                    title="No applicants yet"
+                                                >
+                                                    <Users className="w-4 h-4 mr-2" />
+                                                    No Applicants Yet
+                                                </button>
+                                            )}
                                             <Link
                                                 to={`/edit-job/${job.id}`}
                                                 className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-primary-600 transition-colors"
@@ -322,7 +496,7 @@ const MyListings = () => {
                                 </div>
 
                                 {/* Quick Applicant Preview */}
-                                {applications[job.id] && applications[job.id].length > 0 && (
+                                {applicantCount > 0 && (
                                     <div className="mt-6 pt-4 border-t border-gray-100 bg-gray-50/50 -mx-6 -mb-6 px-6 py-4 rounded-b-xl">
                                         <div className="flex items-center justify-between mb-3">
                                             <p className="text-sm font-semibold text-gray-700">Recent Applications</p>
@@ -351,6 +525,9 @@ const MyListings = () => {
                                         </div>
                                     </div>
                                 )}
+                                </>
+                                    )
+                                })()}
                             </div>
                         ))}
                     </div>

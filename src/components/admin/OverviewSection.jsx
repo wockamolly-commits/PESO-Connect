@@ -1,6 +1,6 @@
 import {
     Users, CheckCircle, XCircle, Clock,
-    Building2, Activity, ChevronRight
+    Building2, Activity, ChevronRight, AlertTriangle
 } from 'lucide-react'
 
 const StatCard = ({ label, value, color, dotColor, icon: Icon }) => (
@@ -37,6 +37,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
         { label: 'Total Users', value: allUsers.length, color: 'from-indigo-500 to-indigo-600', dotColor: 'bg-indigo-400', icon: Users },
         { label: 'Pending Review', value: employerCounts.pending + jobseekerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock },
         { label: 'Verified', value: employerCounts.approved + jobseekerCounts.verified, color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle },
+        { label: 'Expired', value: (employerCounts.expired || 0) + (jobseekerCounts.expired || 0), color: 'from-orange-500 to-amber-500', dotColor: 'bg-orange-400', icon: AlertTriangle },
         { label: 'Rejected', value: employerCounts.rejected + jobseekerCounts.rejected, color: 'from-red-500 to-rose-500', dotColor: 'bg-red-400', icon: XCircle },
     ]
 
@@ -83,6 +84,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                         {[
                             { label: 'Pending', count: employerCounts.pending, color: 'bg-amber-500' },
                             { label: 'Approved', count: employerCounts.approved, color: 'bg-emerald-500' },
+                            { label: 'Expired', count: employerCounts.expired || 0, color: 'bg-orange-500' },
                             { label: 'Rejected', count: employerCounts.rejected, color: 'bg-red-500' },
                         ].map((item, i) => (
                             <ProgressBar key={i} {...item} total={employerCounts.total} />
@@ -99,6 +101,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                         {[
                             { label: 'Pending', count: jobseekerCounts.pending, color: 'bg-amber-500' },
                             { label: 'Verified', count: jobseekerCounts.verified, color: 'bg-emerald-500' },
+                            { label: 'Expired', count: jobseekerCounts.expired || 0, color: 'bg-orange-500' },
                             { label: 'Rejected', count: jobseekerCounts.rejected, color: 'bg-red-500' },
                         ].map((item, i) => (
                             <ProgressBar key={i} {...item} total={jobseekerCounts.total} />

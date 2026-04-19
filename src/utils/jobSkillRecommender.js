@@ -310,3 +310,45 @@ export function getSuggestedSkillsFromDescription(description = '') {
 
     return [...suggested]
 }
+
+/**
+ * Scans text directly against the category skill vocabulary by name.
+ * Catches freeform phrasing like "perform plumbing repairs" → "Plumbing".
+ * @param {string} text - Key responsibilities or any free-form job text
+ * @param {string} category - The job category key to prioritise
+ * @returns {string[]} Deduplicated array of matched skill strings
+ */
+// Escapes special regex chars in a string so it can be used in a RegExp
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Returns true if every word in the skill name matches as a whole word in text
+function skillMatchesText(skill, text) {
+    const words = skill.toLowerCase().split(/[\s/()]+/).filter(w => w.length > 2)
+    if (words.length === 0) return false
+    return words.every(w => new RegExp(`\\b${escapeRegex(w)}\\b`, 'i').test(text))
+}
+
+export function getSuggestedSkillsFromVocab(text = '', category = '') {
+    if (!text.trim()) return []
+
+    const suggested = new Set()
+
+    // Category vocab first (higher relevance)
+    const categorySkills = SKILL_VOCAB[category] || []
+    for (const skill of categorySkills) {
+        if (skillMatchesText(skill, text)) suggested.add(skill)
+    }
+
+    // Cross-category: only add if the full skill name matches at word boundaries
+    for (const skills of Object.values(SKILL_VOCAB)) {
+        for (const skill of skills) {
+            if (suggested.has(skill)) continue
+            const fullPattern = new RegExp(`\\b${escapeRegex(skill)}\\b`, 'i')
+            if (fullPattern.test(text)) suggested.add(skill)
+        }
+    }
+
+    return [...suggested]
+}

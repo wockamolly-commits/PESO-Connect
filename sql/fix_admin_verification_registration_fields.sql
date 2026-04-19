@@ -33,6 +33,7 @@ alter table public.jobseeker_profiles add column if not exists predefined_skills
 alter table public.jobseeker_profiles add column if not exists professional_licenses jsonb default '[]';
 alter table public.jobseeker_profiles add column if not exists civil_service_eligibility text default '';
 alter table public.jobseeker_profiles add column if not exists civil_service_date date;
+alter table public.jobseeker_profiles add column if not exists civil_service_cert_path text default '';
 alter table public.jobseeker_profiles add column if not exists preferred_occupations text[] default '{}';
 alter table public.jobseeker_profiles add column if not exists preferred_local_locations text[] default '{}';
 alter table public.jobseeker_profiles add column if not exists preferred_overseas_locations text[] default '{}';

@@ -1,7 +1,7 @@
 export { Step1AccountCredentials } from './Step1AccountCredentials'
 export { Step2PersonalInfo, SUFFIX_OPTIONS, CIVIL_STATUS_OPTIONS, DISABILITY_TYPES, RELIGION_OPTIONS } from './Step2PersonalInfo'
 export { Step3ContactEmployment, EMPLOYMENT_TYPES, SELF_EMPLOYMENT_TYPES, UNEMPLOYMENT_REASONS } from './Step3ContactEmployment'
-export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS } from './Step4Education'
+export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS, LEVELS_WITH_COURSE } from './Step4Education'
 export { Step5SkillsExperience, PREDEFINED_SKILLS, WORK_STATUS_OPTIONS } from './Step5SkillsExperience'
 export { Step6JobPreferences, JOB_TYPE_OPTIONS, PROFICIENCY_LEVELS } from './Step6JobPreferences'
 export { Step7Consent, CONSENT_ITEMS } from './Step7Consent'

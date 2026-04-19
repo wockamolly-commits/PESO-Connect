@@ -45,7 +45,6 @@
         "Bachelor of Science in Economics",
         "Bachelor of Arts in Psychology",
         "Bachelor of Science in Psychology",
-        "Bachelor of Science in Criminology",
         "Bachelor of Arts in Political Science",
         "Bachelor of Arts in Linguistics",
         "Bachelor of Arts in Literature",
@@ -77,6 +76,8 @@
         "Bachelor of Science in Computer Science",
         "Bachelor of Science in Information Technology",
         "Bachelor of Science in Information Systems",
+        "Bachelor of Science in Entertainment and Multimedia Computing",
+        "Bachelor of Science in Data Science",
         "Bachelor of Science in Mathematics",
         "Bachelor of Science in Applied Mathematics",
         "Bachelor of Science in Statistics"
@@ -102,6 +103,12 @@
       "courses": [
         "Bachelor of Science in Accountancy",
         "Bachelor of Science in Accounting Technology",
+        "Bachelor of Science in Finance",
+        "Bachelor of Science in Marketing",
+        "Bachelor of Science in Office Administration",
+        "Bachelor of Science in E-Commerce",
+        "Bachelor of Science in Management Accounting",
+        "Bachelor of Science in Internal Auditing",
         "Bachelor of Science in Business Administration (Business Economics)",
         "Bachelor of Science in Business Administration (Financial Management)",
         "Bachelor of Science in Business Administration (Human Resource Development)",
@@ -117,6 +124,10 @@
       "category": "Health Sciences",
       "courses": [
         "Bachelor of Science in Nursing",
+        "Doctor of Dental Medicine (DMD)",
+        "Doctor of Optometry (OD)",
+        "Doctor of Veterinary Medicine (DVM)",
+        "Bachelor of Science in Public Health",
         "Bachelor of Science in Physical Therapy",
         "Bachelor of Science in Occupational Therapy",
         "Bachelor of Science in Pharmacy",
@@ -132,6 +143,10 @@
       "courses": [
         "Bachelor in Secondary Education",
         "Bachelor in Elementary Education",
+        "Bachelor of Early Childhood Education",
+        "Bachelor of Special Needs Education",
+        "Bachelor of Technology and Livelihood Education",
+        "Bachelor of Technical-Vocational Teacher Education",
         "Bachelor in Secondary Education (Technology and Livelihood Education)",
         "Bachelor in Secondary Education (Biological Sciences)",
         "Bachelor in Secondary Education (English)",
@@ -156,6 +171,10 @@
         "Bachelor of Science in Chemical Engineering",
         "Bachelor of Science in Ceramic Engineering",
         "Bachelor of Science in Civil Engineering",
+        "Bachelor of Science in Mechatronics Engineering",
+        "Bachelor of Science in Manufacturing Engineering",
+        "Bachelor of Science in Software Engineering",
+        "Bachelor of Science in Packaging Engineering",
         "Bachelor of Science in Electrical Engineering",
         "Bachelor of Science in Electronics and Communications Engineering",
         "Bachelor of Science in Geodetic Engineering",
@@ -176,6 +195,7 @@
       "category": "Media and Communication",
       "courses": [
         "Bachelor of Science in Development Communication",
+        "Bachelor of Arts in Multimedia Arts",
         "Bachelor of Arts in Journalism",
         "Bachelor of Arts in Communication",
         "Bachelor of Arts in Broadcasting"
@@ -200,6 +220,14 @@
       ]
     },
     {
+      "category": "Aviation",
+      "courses": [
+        "Bachelor of Science in Aviation",
+        "Bachelor of Science in Aircraft Maintenance Technology",
+        "Bachelor of Science in Aerospace Engineering"
+      ]
+    },
+    {
       "category": "Family and Consumer Science",
       "courses": [
         "Bachelor of Science in Nutrition and Dietetics"
@@ -208,7 +236,18 @@
     {
       "category": "Criminal Justice",
       "courses": [
-        "Bachelor of Science in Forensic Science"
+        "Bachelor of Science in Criminology",
+        "Bachelor of Science in Forensic Science",
+        "Bachelor of Science in Industrial Security Management",
+        "Bachelor of Science in Law Enforcement Administration"
+      ]
+    },
+    {
+      "category": "Law",
+      "courses": [
+        "Juris Doctor (JD)",
+        "Bachelor of Laws (LLB)",
+        "Bachelor of Science in Legal Management"
       ]
     }
   ],

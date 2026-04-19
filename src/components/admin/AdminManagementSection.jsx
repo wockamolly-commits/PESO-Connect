@@ -1,28 +1,38 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { ALL_PERMISSIONS, SUPER_ADMIN_ONLY_PERMISSIONS, isSuperAdmin } from '../../utils/adminPermissions'
+import {
+    ALL_PERMISSIONS,
+    SUPER_ADMIN_ONLY_PERMISSIONS,
+    formatPermissionList,
+    getPermissionLabel,
+    isSuperAdmin,
+} from '../../utils/adminPermissions'
 import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle } from 'lucide-react'
 import { InviteAdminModal } from './InviteAdminModal'
-
-const PERMISSION_LABELS = {
-    view_overview: 'View Overview',
-    view_employers: 'View Employers',
-    approve_employers: 'Approve Employers',
-    reject_employers: 'Reject Employers',
-    view_jobseekers: 'View Jobseekers',
-    approve_jobseekers: 'Approve Jobseekers',
-    reject_jobseekers: 'Reject Jobseekers',
-    view_users: 'View All Users',
-    export_jobseekers: 'Export Jobseekers',
-    manage_admins: 'Manage Admins (super-admin only)',
-    manage_system_settings: 'System Settings (super-admin only)',
-    delete_users: 'Delete Users (super-admin only)',
-}
 
 // Permissions a super-admin may delegate to sub-admins
 const DELEGATABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
     p => !SUPER_ADMIN_ONLY_PERMISSIONS.includes(p)
 )
+
+const PERMISSION_GROUPS = [
+    {
+        title: 'Overview',
+        permissions: ['view_overview'],
+    },
+    {
+        title: 'Employer Verification',
+        permissions: ['view_employers', 'approve_employers', 'reject_employers', 'reverify_employer_profiles'],
+    },
+    {
+        title: 'Jobseeker Verification',
+        permissions: ['view_jobseekers', 'approve_jobseekers', 'reject_jobseekers', 'reverify_jobseeker_profiles'],
+    },
+    {
+        title: 'General Admin Tools',
+        permissions: ['view_users', 'export_jobseekers'],
+    },
+]
 
 const AdminManagementSection = ({ adminAccess }) => {
     const [adminUsers, setAdminUsers] = useState([])
@@ -251,26 +261,40 @@ const AdminAccessEditor = ({ user, access, canManage, saving, feedback, onSave }
                 {adminLevel === 'admin' ? (
                     <p className="text-xs text-slate-500">Super-admins receive all permissions implicitly.</p>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {DELEGATABLE_PERMISSIONS.map(perm => (
-                            <label
-                                key={perm}
-                                className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
-                                    isReadOnly
-                                        ? 'border-slate-800 cursor-default'
-                                        : 'border-slate-700/50 hover:border-slate-600 cursor-pointer'
-                                } ${selectedPerms.includes(perm) ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-slate-800/40'}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={selectedPerms.includes(perm)}
-                                    onChange={() => !isReadOnly && togglePerm(perm)}
-                                    disabled={isReadOnly}
-                                    className="w-4 h-4 accent-indigo-500 flex-shrink-0"
-                                />
-                                <span className="text-xs text-slate-300">{PERMISSION_LABELS[perm] || perm}</span>
-                            </label>
-                        ))}
+                    <div className="space-y-5">
+                        {PERMISSION_GROUPS.map((group) => {
+                            const groupPermissions = group.permissions.filter((perm) => DELEGATABLE_PERMISSIONS.includes(perm))
+                            if (groupPermissions.length === 0) return null
+
+                            return (
+                                <div key={group.title}>
+                                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        {group.title}
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {groupPermissions.map((perm) => (
+                                            <label
+                                                key={perm}
+                                                className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                                                    isReadOnly
+                                                        ? 'border-slate-800 cursor-default'
+                                                        : 'border-slate-700/50 hover:border-slate-600 cursor-pointer'
+                                                } ${selectedPerms.includes(perm) ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-slate-800/40'}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPerms.includes(perm)}
+                                                    onChange={() => !isReadOnly && togglePerm(perm)}
+                                                    disabled={isReadOnly}
+                                                    className="w-4 h-4 accent-indigo-500 flex-shrink-0"
+                                                />
+                                                <span className="text-xs text-slate-300">{getPermissionLabel(perm)}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 )}
             </div>
@@ -280,7 +304,7 @@ const AdminAccessEditor = ({ user, access, canManage, saving, feedback, onSave }
                 <div className="mb-4 p-3 bg-slate-800/60 border border-slate-700 rounded-lg">
                     <p className="text-xs text-slate-400">
                         The following permissions are always super-admin only and cannot be delegated:
-                        {' '}{SUPER_ADMIN_ONLY_PERMISSIONS.join(', ')}.
+                        {' '}{formatPermissionList(SUPER_ADMIN_ONLY_PERMISSIONS)}.
                     </p>
                 </div>
             )}

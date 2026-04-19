@@ -12,8 +12,8 @@ const ProfilePhotoUpload = ({ name, currentPhoto, onPhotoChange, size = 'lg' }) 
         const file = e.target.files?.[0]
         if (!file) return
 
-        if (file.size > 2 * 1024 * 1024) {
-            alert('Image must be under 2MB')
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image must be under 5MB')
             return
         }
 

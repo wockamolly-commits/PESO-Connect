@@ -359,6 +359,12 @@ allow_dynamic_registration = false
 [functions.invite-admin]
 verify_jwt = false
 
+[functions.match-jobs]
+verify_jwt = false
+
+[functions.suggest-job-skills]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

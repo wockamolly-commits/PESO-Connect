@@ -128,6 +128,36 @@ const Dashboard = () => {
                 {!isVerified() && !isHomeowner() && (() => {
                     const verificationStatus = isJobseeker() ? userData?.jobseeker_status : userData?.employer_status;
                     const isRejected = verificationStatus === 'rejected';
+                    const isExpired = verificationStatus === 'expired';
+
+                    if (isExpired) {
+                        return (
+                            <div className="card mb-8 bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                        <AlertCircle className="w-6 h-6 text-orange-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-semibold mb-1 text-orange-800">
+                                            Annual Verification Expired
+                                        </h3>
+                                        <p className="text-sm text-orange-700">
+                                            Your PESO verification from the previous year has expired. You must complete annual re-verification before you can {isEmployer() ? 'post new jobs' : 'apply to jobs'}. Please visit or contact your local PESO office to renew.
+                                        </p>
+                                        {userData?.verified_for_year && (
+                                            <p className="text-orange-600 text-xs mt-1.5 font-medium">
+                                                Last verified for {userData.verified_for_year}
+                                                {userData.verification_expired_at && (
+                                                    <> &middot; Expired {new Date(userData.verification_expired_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</>
+                                                )}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+
                     return (
                     <div className={`card mb-8 ${isRejected
                         ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200'
@@ -226,6 +256,14 @@ const Dashboard = () => {
                                 <p className="text-green-700 text-sm">
                                     Your account has been verified by PESO. You have full access to all platform features.
                                 </p>
+                                {(isJobseeker() || isEmployer()) && userData?.verified_for_year && (
+                                    <p className="text-green-600 text-xs mt-1.5 font-medium">
+                                        Verified for {userData.verified_for_year}
+                                        {userData.verification_expires_at && (
+                                            <> &middot; Valid until {new Date(userData.verification_expires_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</>
+                                        )}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

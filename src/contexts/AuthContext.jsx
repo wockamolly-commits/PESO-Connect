@@ -2,8 +2,73 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../config/supabase'
 import { compressAndEncode } from '../utils/fileUtils'
 import { getProfileTable, getStatusField, ROLES, SUBTYPES } from '../utils/roles'
+import { stripCertificatePayloads } from '../utils/certificateUtils'
+import { isVerificationExpired } from '../utils/verificationUtils'
 
 const AuthContext = createContext({})
+
+const PROFILE_DERIVED_FIELDS = new Set([
+    'display_name',
+])
+
+// Recompute display_name from the split name fields. Keeping this
+// helper alongside sanitizeLocalProfileSnapshot so derived values are
+// always freshly derived from the source-of-truth columns rather than
+// copied from potentially-stale state.
+const deriveDisplayName = (data) => {
+    if (!data) return ''
+    if (data.first_name || data.surname) {
+        return [data.first_name, data.surname].filter(Boolean).join(' ')
+    }
+    if (data.full_name) return data.full_name
+    return data.name || ''
+}
+
+const sanitizeLocalProfileSnapshot = (data) => {
+    if (!data || typeof data !== 'object') return data
+    const snapshot = { ...data }
+    // Derived fields must not be written to cache as a stale copy; strip
+    // them so a later name edit doesn't leave display_name pointing at
+    // the previous value. Re-derive on read (see validateCachedProfile).
+    for (const field of PROFILE_DERIVED_FIELDS) {
+        delete snapshot[field]
+    }
+    snapshot.certificate_urls = stripCertificatePayloads(data.certificate_urls)
+    return snapshot
+}
+
+// Guard against tampered / stale localStorage payloads. We sanitize on
+// write, but nothing prevents a user (or old cache from a previous app
+// version) from shipping malformed values back in. Reject anything that
+// can't be trusted so the app falls through to the fresh DB fetch.
+const ROLE_VALUES = new Set(Object.values(ROLES))
+const SUBTYPE_VALUES = new Set(Object.values(SUBTYPES))
+const ADMIN_LEVEL_VALUES = new Set(['admin', 'sub-admin'])
+
+const validateCachedProfile = (data) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    if (typeof data.id !== 'string' || !data.id) return null
+    if (!ROLE_VALUES.has(data.role)) return null
+    if (data.subtype != null && !SUBTYPE_VALUES.has(data.subtype)) return null
+    // is_verified must be an actual boolean; cached strings/numbers must
+    // not be trusted for gating verified-only routes.
+    if (data.is_verified != null && typeof data.is_verified !== 'boolean') return null
+    if (data.registration_complete != null && typeof data.registration_complete !== 'boolean') return null
+    // Re-derive display_name on cache read so a stale value cannot leak
+    // back into state (sanitizeLocalProfileSnapshot strips it on write).
+    return { ...data, display_name: deriveDisplayName(data) }
+}
+
+const validateCachedAdminAccess = (data) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    if (!ADMIN_LEVEL_VALUES.has(data.admin_level)) return null
+    if (data.permissions != null
+        && (!Array.isArray(data.permissions)
+            || !data.permissions.every(p => typeof p === 'string'))) {
+        return null
+    }
+    return data
+}
 
 export const useAuth = () => useContext(AuthContext)
 
@@ -111,7 +176,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             setUserData(merged)
-            try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(merged)) } catch {}
+            try { localStorage.setItem(`peso-profile-${userId}`, JSON.stringify(sanitizeLocalProfileSnapshot(merged))) } catch {}
             return merged
         })()
 
@@ -165,7 +230,7 @@ export const AuthProvider = ({ children }) => {
             credentials_url: '',
         }
 
-        try { localStorage.setItem(`peso-profile-${user.id}`, JSON.stringify(minimalDoc)) } catch {}
+        try { localStorage.setItem(`peso-profile-${user.id}`, JSON.stringify(sanitizeLocalProfileSnapshot(minimalDoc))) } catch {}
 
         return { user: { ...user, uid: user.id }, userData: minimalDoc, emailVerificationRequired }
     }
@@ -252,6 +317,16 @@ export const AuthProvider = ({ children }) => {
         return converted
     }
 
+    const stripDerivedProfileFields = (profile) => {
+        const sanitized = { ...profile }
+        for (const field of PROFILE_DERIVED_FIELDS) {
+            if (Object.prototype.hasOwnProperty.call(sanitized, field)) {
+                delete sanitized[field]
+            }
+        }
+        return sanitized
+    }
+
     const getMissingProfileColumn = (error) => {
         const errorMessage = toSupabaseErrorMessage(error)
         if (!errorMessage) return null
@@ -283,7 +358,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         // Pre-convert known array fields so the first attempt succeeds
-        let payload = buildAllArraysPayload({ ...profileData })
+        let payload = buildAllArraysPayload(stripDerivedProfileFields({ ...profileData }))
         let triedArrayConversion = false
         let lastError = null
 
@@ -357,7 +432,7 @@ export const AuthProvider = ({ children }) => {
 
         setUserData(prev => {
             const next = { ...prev, ...stepData, registration_step: stepNumber }
-            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(next)) } catch {}
+            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(sanitizeLocalProfileSnapshot(next))) } catch {}
             return next
         })
     }
@@ -402,7 +477,7 @@ export const AuthProvider = ({ children }) => {
         setUserData(prev => {
             const next = { ...prev, ...finalData, registration_complete: true, registration_step: null }
             if (subtype === SUBTYPES.HOMEOWNER) next.is_verified = true
-            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(next)) } catch {}
+            try { localStorage.setItem(`peso-profile-${currentUser.uid}`, JSON.stringify(sanitizeLocalProfileSnapshot(next))) } catch {}
             return next
         })
     }
@@ -469,7 +544,11 @@ export const AuthProvider = ({ children }) => {
         setUserData(null)
     }
 
-    const isVerified = () => userData?.is_verified === true
+    // Annual expiry is also treated as "not verified" so routes gated on
+    // requireVerified redirect expired employers/jobseekers to the
+    // expired-state panel even before the DB cron has flipped is_verified.
+    const isVerified = () =>
+        userData?.is_verified === true && !isVerificationExpired(userData)
     const isEmailVerified = () => !!(currentUser?.email_confirmed_at || currentUser?.confirmed_at)
     const hasRole = (role) => userData?.role === role
     const isAdmin = () => userData?.role === ROLES.ADMIN
@@ -495,16 +574,32 @@ export const AuthProvider = ({ children }) => {
             if (session?.user) {
                 const user = session.user
                 setCurrentUser({ ...user, uid: user.id })
-                // Restore cached profile instantly so Navbar never shows "User"
+                // Restore cached profile instantly so Navbar never shows "User".
+                // Validate the payload so a tampered / stale cache cannot seed
+                // userData with a malformed role, non-boolean is_verified, etc.
                 try {
                     const cached = localStorage.getItem(`peso-profile-${user.id}`)
-                    if (cached) setUserData(JSON.parse(cached))
-                } catch {}
-                // Restore cached adminAccess so permission helpers work on reload
+                    if (cached) {
+                        const parsed = validateCachedProfile(JSON.parse(cached))
+                        if (parsed) setUserData(parsed)
+                        else localStorage.removeItem(`peso-profile-${user.id}`)
+                    }
+                } catch {
+                    localStorage.removeItem(`peso-profile-${user.id}`)
+                }
+                // Restore cached adminAccess so permission helpers work on reload.
+                // Same validation rationale: admin_level must be a known value
+                // and permissions must be an array of strings.
                 try {
                     const cachedAccess = localStorage.getItem(`peso-admin-access-${user.id}`)
-                    if (cachedAccess) setAdminAccess(JSON.parse(cachedAccess))
-                } catch {}
+                    if (cachedAccess) {
+                        const parsedAccess = validateCachedAdminAccess(JSON.parse(cachedAccess))
+                        if (parsedAccess) setAdminAccess(parsedAccess)
+                        else localStorage.removeItem(`peso-admin-access-${user.id}`)
+                    }
+                } catch {
+                    localStorage.removeItem(`peso-admin-access-${user.id}`)
+                }
                 // Fetch fresh data outside the auth callback to avoid
                 // competing for Supabase's navigator lock.
                 const result = await fetchUserData(user.id)

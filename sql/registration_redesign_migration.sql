@@ -32,6 +32,7 @@ ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS predefined_skills
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS professional_licenses JSONB DEFAULT '[]';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS civil_service_eligibility TEXT DEFAULT '';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS civil_service_date DATE;
+ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS civil_service_cert_path TEXT DEFAULT '';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS preferred_occupations TEXT[] DEFAULT '{}';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS preferred_local_locations TEXT[] DEFAULT '{}';
 ALTER TABLE public.jobseeker_profiles ADD COLUMN IF NOT EXISTS preferred_overseas_locations TEXT[] DEFAULT '{}';

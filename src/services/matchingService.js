@@ -16,6 +16,7 @@ const normalizeMatchResult = (item = {}) => ({
     candidateSignals: Array.isArray(item.candidateSignals) ? item.candidateSignals : [],
     overqualificationSignal: item.overqualificationSignal || null,
     rebrandingSuggestions: Array.isArray(item.rebrandingSuggestions) ? item.rebrandingSuggestions : [],
+    preferredSkillBonus: Number(item.preferredSkillBonus ?? 0),
     explanation: item.explanation || '',
     skillBreakdown: Array.isArray(item.skillBreakdown) ? item.skillBreakdown : [],
     actionItems: Array.isArray(item.actionItems) ? item.actionItems : [],

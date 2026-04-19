@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import EmployerAvatar from '../components/EmployerAvatar'
 import {
     Bookmark,
     Briefcase,
@@ -10,6 +11,7 @@ import {
     Loader2,
     Trash2
 } from 'lucide-react'
+import { getEmployerDisplayName } from '../utils/employerBranding'
 
 const SavedJobs = () => {
     const { currentUser } = useAuth()
@@ -25,7 +27,21 @@ const SavedJobs = () => {
         try {
             const { data, error } = await supabase
                 .from('saved_jobs')
-                .select('*, job_postings(*)')
+                .select(`
+                    *,
+                    job_postings (
+                        *,
+                        employer:users!job_postings_employer_id_fkey (
+                            id,
+                            name,
+                            profile_photo,
+                            employer_profiles (
+                                company_name,
+                                company_logo
+                            )
+                        )
+                    )
+                `)
                 .eq('user_id', currentUser.uid)
                 .order('created_at', { ascending: false })
             if (error) throw error
@@ -100,14 +116,17 @@ const SavedJobs = () => {
                                 <div key={saved.id} className="card card-hover">
                                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                                         <Link to={`/jobs/${job.id}`} className="flex-1 flex items-start gap-4">
-                                            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg flex-shrink-0">
-                                                {job.title?.charAt(0).toUpperCase()}
-                                            </div>
+                                            <EmployerAvatar
+                                                job={job}
+                                                className="w-12 h-12 rounded-xl flex items-center justify-center text-lg shadow-lg flex-shrink-0"
+                                                fallbackClassName="bg-gradient-to-br from-primary-500 to-primary-700 text-white"
+                                                textClassName="font-bold"
+                                            />
                                             <div>
                                                 <h3 className="text-lg font-semibold text-gray-900 hover:text-primary-600 transition-colors">
                                                     {job.title}
                                                 </h3>
-                                                <p className="text-sm text-gray-600">{job.employer_name}</p>
+                                                <p className="text-sm text-gray-600">{getEmployerDisplayName(job)}</p>
                                                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mt-1">
                                                     <span className="flex items-center gap-1">
                                                         <MapPin className="w-3.5 h-3.5" />

@@ -21,7 +21,8 @@
     "lucide-react": "^0.312.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.3"
+    "react-router-dom": "^6.21.3",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

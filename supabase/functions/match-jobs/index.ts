@@ -23,7 +23,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const MAX_CANDIDATES = 500
 const SEMANTIC_SHORTLIST_SIZE = 50
 const MAX_USER_SKILL_TEXTS = 96
-const MATCHER_VERSION = 'inferential-v1'
+const MATCHER_VERSION = 'inferential-v2'
 
 interface MatchJobsRequest {
   userId?: string
@@ -56,6 +56,26 @@ const uniqueStrings = (values: string[]) => {
     result.push(trimmed)
   }
   return result
+}
+
+const computePreferredSkillBonus = (job: JobRecord, profile: ProfileRecord): number => {
+  const preferred = Array.isArray(job.preferred_skills)
+    ? (job.preferred_skills as string[]).filter((s) => typeof s === 'string' && s.trim())
+    : []
+  if (preferred.length === 0) return 0
+
+  const userSkills = [
+    ...((profile.predefined_skills as string[]) || []),
+    ...((profile.skills as string[]) || []),
+  ].map((s) => (typeof s === 'string' ? s.toLowerCase().trim() : ''))
+
+  const matched = preferred.filter((pSkill) => {
+    const pl = pSkill.toLowerCase()
+    return userSkills.some((us) => us.includes(pl) || pl.includes(us))
+  })
+
+  // Up to +10 bonus points, proportional to matched preferred skills
+  return Math.round((matched.length / preferred.length) * 10)
 }
 
 const getJobRequirements = (job: JobRecord) => {
@@ -130,7 +150,7 @@ const getRuleSignal = (
 }
 
 const normalizeRequirementCosine = (cosine: number) => {
-  const min = 0.55
+  const min = 0.50
   const max = 0.85
   const normalized = (cosine - min) / (max - min)
   return Math.max(0, Math.min(1, normalized))
@@ -164,7 +184,7 @@ const computeHybridSkillScore = async (job: JobRecord, profile: ProfileRecord) =
   const requirementEmbeddingMap = new Map<string, number[]>()
 
   if (requirementTextsToEmbed.length > 0) {
-    const { embeddings } = await embedTexts(requirementTextsToEmbed, 'search_document')
+    const { embeddings } = await embedTexts(requirementTextsToEmbed, 'search_query')
     requirementTextsToEmbed.forEach((req, index) => {
       requirementEmbeddingMap.set(req, embeddings[index] as number[])
     })
@@ -295,7 +315,7 @@ Deno.serve(async (req) => {
 
       const { data: profile, error: profileError } = await supabase
         .from('jobseeker_profiles')
-        .select('id, user_id, predefined_skills, skills, skill_aliases, work_experiences, highest_education, date_of_birth, course_or_field, preferred_occupations, preferred_job_type, preferred_local_locations, preferred_overseas_locations, experience_categories, languages, certifications, professional_licenses, vocational_training, portfolio_url, employment_status, willing_to_relocate, expected_salary_min, expected_salary_max')
+        .select('id, predefined_skills, skills, skill_aliases, work_experiences, highest_education, date_of_birth, course_or_field, preferred_occupations, preferred_job_type, preferred_local_locations, preferred_overseas_locations, experience_categories, languages, certifications, professional_licenses, vocational_training, portfolio_url, employment_status, willing_to_relocate, expected_salary_min, expected_salary_max')
       .eq('id', userId)
       .maybeSingle()
 
@@ -304,14 +324,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Profile not found' }, { status: 404 })
     }
 
-    const profileEmbedding = await ensureProfileEmbedding(supabase as never, profile as ProfileRecord)
+    // jobseeker_profiles.id === auth user id; ensureProfileEmbedding needs both id and user_id
+    const profileWithUserId = { ...profile, user_id: userId }
+    const profileEmbedding = await ensureProfileEmbedding(supabase as never, profileWithUserId as ProfileRecord)
 
     let jobs: JobRecord[] = []
     const jobIdFilter = typeof filters.jobId === 'string' ? filters.jobId : ''
     if (jobIdFilter) {
         const { data: singleJob, error: singleJobError } = await supabase
           .from('job_postings')
-          .select('id, title, category, description, requirements, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode')
+          .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode')
         .eq('id', jobIdFilter)
         .maybeSingle()
 
@@ -321,7 +343,7 @@ Deno.serve(async (req) => {
       const today = new Date().toISOString().split('T')[0]
         let query = supabase
           .from('job_postings')
-          .select('id, title, category, description, requirements, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode')
+          .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode')
         .eq('status', 'open')
         .or(`deadline.is.null,deadline.gte.${today}`)
         .order('created_at', { ascending: false })
@@ -391,7 +413,7 @@ Deno.serve(async (req) => {
     const results = []
 
     for (const item of shortlist) {
-      const det = calculateDeterministicScore(item.job, profile as ProfileRecord)
+      const det = calculateDeterministicScore(item.job, profileWithUserId as ProfileRecord)
       const cached = cacheMap.get(String(item.job.id))
       const versionedProfileHash = `${profileEmbedding.contentHash}:${MATCHER_VERSION}`
       const versionedJobHash = `${item.jobHash}:${MATCHER_VERSION}`
@@ -402,7 +424,7 @@ Deno.serve(async (req) => {
 
       const hybridSkillScore = cacheValid
         ? Number(cached.hybrid_skill_score ?? 0)
-        : await computeHybridSkillScore(item.job, profile as ProfileRecord)
+        : await computeHybridSkillScore(item.job, profileWithUserId as ProfileRecord)
 
       const semanticScore = cacheValid
         ? Number(cached.semantic_score ?? item.semanticScore)
@@ -411,7 +433,8 @@ Deno.serve(async (req) => {
       const experienceScore = det.experienceScore
       const educationScore = det.educationScore
       const deterministicScore = det.matchScore
-      const finalScore = deterministicScore
+      const preferredBonus = computePreferredSkillBonus(item.job, profileWithUserId as ProfileRecord)
+      const finalScore = Math.min(100, Math.round(deterministicScore * 0.5 + hybridSkillScore * 0.3 + semanticScore * 0.2) + preferredBonus)
 
       const matchLevel = cacheValid && typeof cached.match_level === 'string'
         ? cached.match_level
@@ -466,6 +489,7 @@ Deno.serve(async (req) => {
         candidateSignals: det.candidateSignals,
         overqualificationSignal: det.overqualificationSignal,
         rebrandingSuggestions: det.rebrandingSuggestions,
+        preferredSkillBonus: preferredBonus,
         explanation: cacheValid ? cached?.explanation || null : null,
       })
     }

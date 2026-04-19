@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../config/supabase'
 import {
     User,
+    Users,
     Mail,
     Phone,
     FileText,
@@ -121,6 +122,9 @@ const JobApplicants = () => {
     const updateStatus = async (appId, newStatus) => {
         setActionLoading(appId)
         try {
+            const applicant = applicants.find(app => app.id === appId)
+            const wasAlreadyHired = applicant?.status === 'hired'
+
             const { error } = await supabase
                 .from('applications')
                 .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -129,6 +133,21 @@ const JobApplicants = () => {
             setApplicants(applicants.map(app =>
                 app.id === appId ? { ...app, status: newStatus } : app
             ))
+
+            // Decrement vacancy count when hiring — guard against double-decrement.
+            if (newStatus === 'hired' && !wasAlreadyHired) {
+                const { data: updatedJob, error: vacancyError } = await supabase
+                    .from('job_postings')
+                    .update({ vacancies: Math.max(0, (job?.vacancies ?? 1) - 1) })
+                    .eq('id', jobId)
+                    .select('vacancies, status')
+                    .maybeSingle()
+                if (vacancyError) {
+                    console.error('Failed to decrement vacancies:', vacancyError)
+                } else if (updatedJob) {
+                    setJob(prev => prev ? { ...prev, vacancies: updatedJob.vacancies, status: updatedJob.status } : prev)
+                }
+            }
 
             // Insert status history row
             try {
@@ -143,7 +162,6 @@ const JobApplicants = () => {
 
             // Send notification for key status changes
             if (['shortlisted', 'hired', 'rejected'].includes(newStatus)) {
-                const applicant = applicants.find(app => app.id === appId)
                 if (applicant) sendStatusNotification(applicant, newStatus)
             }
         } catch (error) {
@@ -162,6 +180,17 @@ const JobApplicants = () => {
         })
     }
 
+    // Declared ABOVE toggleSelectAll / bulkUpdateStatus so the handlers
+    // close over a value that's guaranteed to be initialized before any
+    // click handler fires. Wrapped in useMemo so the reference is stable
+    // across renders where the inputs haven't changed.
+    const filteredApplicants = useMemo(
+        () => filterStatus === 'all'
+            ? applicants
+            : applicants.filter(app => app.status === filterStatus),
+        [applicants, filterStatus]
+    )
+
     const toggleSelectAll = () => {
         if (selectedIds.size === filteredApplicants.length) {
             setSelectedIds(new Set())
@@ -175,6 +204,15 @@ const JobApplicants = () => {
         setBulkLoading(true)
         try {
             const ids = [...selectedIds]
+
+            // Snapshot the pre-update applicants list once, up-front. The
+            // rest of this function derives everything (newly-hired count,
+            // notification payloads) from this snapshot rather than the
+            // `applicants` state variable, so any ordering of setApplicants
+            // vs. subsequent reads cannot produce a stale-closure bug.
+            const applicantsSnapshot = applicants
+            const snapshotById = new Map(applicantsSnapshot.map(a => [a.id, a]))
+
             const { error } = await supabase
                 .from('applications')
                 .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -184,6 +222,29 @@ const JobApplicants = () => {
             setApplicants(prev => prev.map(app =>
                 ids.includes(app.id) ? { ...app, status: newStatus } : app
             ))
+
+            // Decrement vacancy count for each newly hired applicant (skip already-hired ones).
+            if (newStatus === 'hired') {
+                const newlyHiredCount = ids.filter(appId => {
+                    const app = snapshotById.get(appId)
+                    return app && app.status !== 'hired'
+                }).length
+
+                if (newlyHiredCount > 0) {
+                    const newVacancies = Math.max(0, (job?.vacancies ?? newlyHiredCount) - newlyHiredCount)
+                    const { data: updatedJob, error: vacancyError } = await supabase
+                        .from('job_postings')
+                        .update({ vacancies: newVacancies })
+                        .eq('id', jobId)
+                        .select('vacancies, status')
+                        .maybeSingle()
+                    if (vacancyError) {
+                        console.error('Failed to decrement vacancies (bulk):', vacancyError)
+                    } else if (updatedJob) {
+                        setJob(prev => prev ? { ...prev, vacancies: updatedJob.vacancies, status: updatedJob.status } : prev)
+                    }
+                }
+            }
 
             // Insert history rows and send notifications for each
             for (const appId of ids) {
@@ -198,7 +259,7 @@ const JobApplicants = () => {
                 }
 
                 if (['shortlisted', 'hired', 'rejected'].includes(newStatus)) {
-                    const applicant = applicants.find(a => a.id === appId)
+                    const applicant = snapshotById.get(appId)
                     if (applicant) sendStatusNotification(applicant, newStatus)
                 }
             }
@@ -242,10 +303,6 @@ const JobApplicants = () => {
             minute: '2-digit'
         })
     }
-
-    const filteredApplicants = filterStatus === 'all'
-        ? applicants
-        : applicants.filter(app => app.status === filterStatus)
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -364,7 +421,9 @@ const JobApplicants = () => {
                 {filteredApplicants.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-xl border border-gray-200 shadow-sm">
                         <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900">No applicants found</h3>
+                        <h3 className="text-lg font-medium text-gray-900">
+                            {filterStatus === 'all' ? 'No applicants yet' : 'No applicants found'}
+                        </h3>
                         <p className="text-gray-500">
                             {filterStatus === 'all'
                                 ? "You haven't received any applications for this job yet."

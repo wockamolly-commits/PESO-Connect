@@ -10,6 +10,8 @@ import {
 } from '../../services/notificationService'
 
 const STATUS_CONFIG = {
+    approved: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50' },
+    verified: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50' },
     shortlisted: { icon: CheckCircle, color: 'text-blue-500', bg: 'bg-blue-50' },
     hired: { icon: Briefcase, color: 'text-green-500', bg: 'bg-green-50' },
     rejected: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50' },

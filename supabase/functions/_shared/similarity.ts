@@ -20,7 +20,7 @@ export const cosineSimilarity = (a: number[], b: number[]) => {
 }
 
 export const normalizeCosineScore = (cosine: number) => {
-  const min = 0.45
+  const min = 0.50
   const max = 0.85
   const normalized = (cosine - min) / (max - min)
   return Math.max(0, Math.min(1, normalized)) * 100

@@ -7,8 +7,8 @@ export const compressAndEncode = (file) => {
         if (!file) return resolve('')
 
         if (!file.type.startsWith('image/')) {
-            if (file.size > 400 * 1024) {
-                return reject(new Error('PDF must be under 400KB.'))
+            if (file.size > 5 * 1024 * 1024) {
+                return reject(new Error('PDF must be under 5MB.'))
             }
             const reader = new FileReader()
             reader.onload = () => resolve(reader.result)

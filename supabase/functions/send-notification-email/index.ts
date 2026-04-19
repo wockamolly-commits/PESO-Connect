@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -60,6 +61,11 @@ const EMAIL_TEMPLATES: Record<string, (data: Record<string, unknown>, title: str
 const GENERIC_TEMPLATE = (subject: string, html: string) => ({ subject, html })
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return handleCorsPreflightRequest()
+  }
+
   try {
     const body = await req.json()
 
@@ -67,7 +73,10 @@ Deno.serve(async (req) => {
     if (body.type === 'direct') {
       const { to, subject, html } = body
       if (!to || !subject || !html) {
-        return new Response(JSON.stringify({ error: 'Missing to, subject, or html' }), { status: 400 })
+        return new Response(JSON.stringify({ error: 'Missing to, subject, or html' }), {
+          status: 400,
+          headers: corsHeaders,
+        })
       }
 
       const res = await fetch('https://api.resend.com/emails', {
@@ -82,11 +91,14 @@ Deno.serve(async (req) => {
       const result = await res.json()
       if (!res.ok) {
         console.error('Resend error:', result)
-        return new Response(JSON.stringify({ error: result }), { status: res.status })
+        return new Response(JSON.stringify({ error: result }), {
+          status: res.status,
+          headers: corsHeaders,
+        })
       }
 
       return new Response(JSON.stringify({ success: true, id: result.id }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       })
     }
 
@@ -95,7 +107,7 @@ Deno.serve(async (req) => {
     const record = payload.record
 
     if (!record?.user_id || !record?.type) {
-      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 })
+      return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400, headers: corsHeaders })
     }
 
     // Create admin client to read user preferences
@@ -110,7 +122,7 @@ Deno.serve(async (req) => {
 
     if (userError || !user?.email) {
       console.error('User not found:', userError)
-      return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 })
+      return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: corsHeaders })
     }
 
     // Check notification preferences
@@ -124,7 +136,7 @@ Deno.serve(async (req) => {
     if (!emailEnabled || !typeEnabled) {
       console.log('Email notifications disabled for user:', record.user_id)
       return new Response(JSON.stringify({ skipped: true, reason: 'notifications_disabled' }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       })
     }
 
@@ -133,7 +145,7 @@ Deno.serve(async (req) => {
     if (!templateFn) {
       console.log('No email template for notification type:', record.type)
       return new Response(JSON.stringify({ skipped: true, reason: 'no_template' }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders,
       })
     }
 
@@ -157,15 +169,15 @@ Deno.serve(async (req) => {
     const result = await res.json()
     if (!res.ok) {
       console.error('Resend error:', result)
-      return new Response(JSON.stringify({ error: result }), { status: res.status })
+      return new Response(JSON.stringify({ error: result }), { status: res.status, headers: corsHeaders })
     }
 
     console.log('Email sent:', result.id, 'to', user.email)
     return new Response(JSON.stringify({ success: true, id: result.id }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
     })
   } catch (err) {
     console.error('Edge function error:', err)
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
   }
 })

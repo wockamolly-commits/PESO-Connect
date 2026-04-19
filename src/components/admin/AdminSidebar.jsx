@@ -1,6 +1,6 @@
 import {
     Shield, User, LogOut, ChevronRight,
-    LayoutDashboard, ClipboardList, Building2, Users, UserCog
+    LayoutDashboard, ClipboardList, Building2, Users, UserCog, Settings, Download, RefreshCw
 } from 'lucide-react'
 import { getVisibleAdminSections, isSuperAdmin } from '../../utils/adminPermissions'
 
@@ -8,11 +8,13 @@ const ALL_NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'employers', label: 'Employer Verification', icon: Building2 },
     { id: 'jobseekers', label: 'Jobseeker Verification', icon: Users },
+    { id: 'reverification', label: 'Re-verification', icon: RefreshCw },
     { id: 'users', label: 'All Users', icon: ClipboardList },
+    { id: 'jobseeker_export', label: 'Jobseeker Export', icon: Download },
     { id: 'admin_management', label: 'Admin Management', icon: UserCog },
 ]
 
-const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, adminAccess, onLogout, onSectionChange }) => {
+const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, adminAccess, onLogout, onSectionChange, sectionBadges = {} }) => {
     const visibleSectionIds = getVisibleAdminSections(adminAccess)
     const navItems = ALL_NAV_ITEMS.filter(item => visibleSectionIds.includes(item.id))
     const isSuper = isSuperAdmin(adminAccess)
@@ -52,7 +54,12 @@ const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, ad
                         {sidebarOpen && (
                             <span className="text-sm font-medium">{item.label}</span>
                         )}
-                        {sidebarOpen && activeSection === item.id && (
+                        {sidebarOpen && sectionBadges[item.id] > 0 && (
+                            <span className="ml-auto rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                                {sectionBadges[item.id]}
+                            </span>
+                        )}
+                        {sidebarOpen && activeSection === item.id && !sectionBadges[item.id] && (
                             <ChevronRight className="w-4 h-4 ml-auto text-indigo-500" />
                         )}
                     </button>
@@ -61,6 +68,26 @@ const AdminSidebar = ({ activeSection, sidebarOpen, setSidebarOpen, userData, ad
                 {navItems.length === 0 && sidebarOpen && (
                     <p className="px-3 py-4 text-xs text-slate-600 text-center">No sections accessible</p>
                 )}
+
+                {/* Account Settings — always visible, bypasses RBAC */}
+                <div className="mt-auto pt-2 border-t border-slate-800">
+                    <button
+                        onClick={() => onSectionChange('account_settings')}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${activeSection === 'account_settings'
+                                ? 'bg-indigo-500/15 text-indigo-400 shadow-lg shadow-indigo-500/5'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                            }`}
+                    >
+                        <Settings className={`w-5 h-5 flex-shrink-0 ${activeSection === 'account_settings' ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'
+                            }`} />
+                        {sidebarOpen && (
+                            <span className="text-sm font-medium">Account Settings</span>
+                        )}
+                        {sidebarOpen && activeSection === 'account_settings' && (
+                            <ChevronRight className="w-4 h-4 ml-auto text-indigo-500" />
+                        )}
+                    </button>
+                </div>
             </nav>
 
             {/* Sidebar toggle */}

@@ -26,9 +26,11 @@ import {
 import geminiService, { calculateDeterministicScore } from '../services/geminiService'
 import { generateMatchExplanation, getSingleJobMatch } from '../services/matchingService'
 import ResumeUpload from '../components/common/ResumeUpload'
+import EmployerAvatar from '../components/EmployerAvatar'
 import { insertNotification } from '../services/notificationService'
 import { sendApplicationReceivedEmail, sendNewApplicantEmail } from '../services/emailService'
 import { XCircle } from 'lucide-react'
+import { getEmployerDisplayName } from '../utils/employerBranding'
 
 const getAllSkills = (userData) => [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
 const isStubExplanationResponse = (response) =>
@@ -155,7 +157,18 @@ const JobDetail = () => {
         try {
             const { data, error } = await supabase
                 .from('job_postings')
-                .select('*')
+                .select(`
+                    *,
+                    employer:users!job_postings_employer_id_fkey (
+                        id,
+                        name,
+                        profile_photo,
+                        employer_profiles (
+                            company_name,
+                            company_logo
+                        )
+                    )
+                `)
                 .eq('id', id)
                 .maybeSingle()
             if (error) throw error
@@ -246,15 +259,21 @@ const JobDetail = () => {
         setApplying(true)
 
         try {
-            // Re-check job status to prevent race condition (job closed between page load and submit)
+            // Re-check job status and vacancies to prevent race condition
+            // (job could be closed or filled between page load and submit)
             const { data: freshJob, error: freshError } = await supabase
                 .from('job_postings')
-                .select('status, deadline')
+                .select('status, deadline, vacancies')
                 .eq('id', id)
                 .maybeSingle()
             if (freshError) throw freshError
             if (!freshJob || freshJob.status !== 'open') {
                 setError('This job is no longer accepting applications.')
+                setApplying(false)
+                return
+            }
+            if ((freshJob.vacancies ?? 0) <= 0) {
+                setError('This job has no remaining vacancies.')
                 setApplying(false)
                 return
             }
@@ -373,7 +392,18 @@ const JobDetail = () => {
             }
         } catch (err) {
             console.error('Error applying:', err)
-            setError('Failed to submit application. Please try again.')
+            // The DB trigger applications_guard_vacancies raises job_full /
+            // job_closed with SQLSTATE 23514 when the race is lost between
+            // the client-side re-check and the INSERT. Map those to a
+            // specific message so the user knows what happened.
+            const msg = String(err?.message || '')
+            if (msg.includes('job_full')) {
+                setError('This job has no remaining vacancies.')
+            } else if (msg.includes('job_closed')) {
+                setError('This job is no longer accepting applications.')
+            } else {
+                setError('Failed to submit application. Please try again.')
+            }
         } finally {
             setApplying(false)
         }
@@ -453,17 +483,20 @@ const JobDetail = () => {
                 <div className="card mb-6">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
                         <div className="flex items-start gap-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                                {job.title?.charAt(0).toUpperCase()}
-                            </div>
+                            <EmployerAvatar
+                                job={job}
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                                fallbackClassName="bg-gradient-to-br from-primary-400 to-primary-600 text-white"
+                                textClassName="text-2xl font-bold"
+                            />
                             <div>
                                 <h1 className="text-2xl font-bold text-gray-900 mb-1">{job.title}</h1>
                                 {job.employer_id ? (
                                     <Link to={`/profile/${job.employer_id}`} className="text-gray-600 mb-3 hover:text-primary-600 transition-colors inline-block">
-                                        {job.employer_name || 'Employer'}
+                                        {getEmployerDisplayName(job)}
                                     </Link>
                                 ) : (
-                                    <p className="text-gray-600 mb-3">{job.employer_name || 'Employer'}</p>
+                                    <p className="text-gray-600 mb-3">{getEmployerDisplayName(job)}</p>
                                 )}
                                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                                     <span className="flex items-center gap-1">
@@ -546,6 +579,37 @@ const JobDetail = () => {
                                     <span className="inline-block w-3 h-3 bg-green-100 rounded-full mr-2"></span>
                                     Skills highlighted in green match your profile
                                 </p>
+                            )}
+
+                            {job.preferred_skills?.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Preferred Skills</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {job.preferred_skills.map((skill, i) => {
+                                            const userSkills = getAllSkills(userData)
+                                            const matched = currentUser && userSkills.length > 0 && userSkills.some(us =>
+                                                us.toLowerCase().includes(skill.toLowerCase()) || skill.toLowerCase().includes(us.toLowerCase())
+                                            )
+                                            return (
+                                                <span
+                                                    key={i}
+                                                    className={`px-3 py-1 rounded-full text-sm font-medium ${matched
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-blue-50 text-blue-700'
+                                                    }`}
+                                                >
+                                                    {skill}
+                                                </span>
+                                            )
+                                        })}
+                                    </div>
+                                    {currentUser && getAllSkills(userData).length > 0 && (
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            <span className="inline-block w-3 h-3 bg-green-100 rounded-full mr-2"></span>
+                                            Preferred skills in green are a bonus match
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -713,6 +777,20 @@ const JobDetail = () => {
                                                                 </div>
                                                             )
                                                         })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Preferred Skills Bonus */}
+                                            {matchData.preferredSkillBonus > 0 && (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preferred Skills Bonus</p>
+                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-green-50 border border-green-100">
+                                                        <div className="flex items-center gap-2">
+                                                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                                            <p className="text-xs text-green-800 font-medium">You matched preferred skills</p>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-green-700">+{matchData.preferredSkillBonus} pts</span>
                                                     </div>
                                                 </div>
                                             )}

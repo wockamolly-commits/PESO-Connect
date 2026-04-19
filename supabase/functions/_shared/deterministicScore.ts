@@ -158,7 +158,9 @@ export const getJobEducationOrdinal = (educationRequirement = '') => {
     return JOB_EDUCATION_ORDINAL.elementary
   }
 
-  return -1
+  // If a non-empty requirement string couldn't be parsed, return elementary (0) rather than
+  // -1 so the job is not silently treated as having no education requirement.
+  return raw ? JOB_EDUCATION_ORDINAL.elementary : -1
 }
 
 export const SKILL_SYNONYM_GROUPS = [
@@ -567,6 +569,8 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
   let inferredPossible = 0
   let baselineEarned = 0
   let baselinePossible = 0
+  let languageEarned = 0
+  let languagePossible = 0
 
   const safeAliases = aliases || {}
   const skillSignals = getSkillSignals(skills, safeAliases)
@@ -604,10 +608,10 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
     }
 
     if (isLanguageRequirement(req)) {
-      technicalPossible += 1
+      languagePossible += 1
       if (languageSatisfied(req, userData.languages)) {
         matchingSkills.push(req)
-        technicalEarned += 1
+        languageEarned += 1
       } else {
         missingSkills.push(req)
       }
@@ -666,7 +670,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
 
     if (!matched && highPrecisionCandidate && requirementMatchesAnyPattern(req, OVERQUALIFICATION_TRANSFER_PATTERNS)) {
       matched = true
-      requirementCredit = 1
+      requirementCredit = 0.6
     }
 
     if (matched) {
@@ -686,6 +690,8 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
     technicalRequirementScore: computeBucketScore(technicalEarned, technicalPossible),
     inferredSoftSkillScore: computeBucketScore(inferredEarned, inferredPossible),
     baselineRequirementScore: computeBucketScore(baselineEarned, baselinePossible),
+    languageRequirementScore: computeBucketScore(languageEarned, languagePossible),
+    languageRequirementApplicable: languagePossible > 0,
     inferredSoftSkillApplicable: inferredPossible > 0,
     skillScore: requirements.length > 0
       ? Math.round(((technicalEarned + inferredEarned + baselineEarned) / requirements.length) * 100)
@@ -774,6 +780,7 @@ export const calculateDeterministicScore = (job, userData) => {
     { score: technicalCompetencyScore, weight: 0.5, active: true },
     { score: classified.inferredSoftSkillScore, weight: 0.2, active: classified.inferredSoftSkillApplicable },
     { score: baselineScore, weight: 0.3, active: true },
+    { score: classified.languageRequirementScore, weight: 0.1, active: classified.languageRequirementApplicable },
   ])
 
   return {
