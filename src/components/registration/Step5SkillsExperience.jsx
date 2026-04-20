@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, X, Briefcase, Sparkles, TrendingUp, RotateCw, Check } from 'lucide-react'
+import { Plus, X, Briefcase, Sparkles, TrendingUp, RotateCw, Check, Brain, Loader2 } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import TagInput from '../forms/TagInput'
@@ -7,6 +7,7 @@ import ResumeUpload from '../common/ResumeUpload'
 import { generateSuggestedSkills, getSkillsForPosition } from '../../utils/skillRecommender'
 import { inferCategoryFromProfile, getTopDemandSkills } from '../../services/skillDemandService'
 import { logSkillAcceptance } from '../../services/telemetryService'
+import { deepAnalyzeProfileSkills } from '../../services/geminiService'
 
 const PREDEFINED_SKILLS = [
   'Auto Mechanic', 'Beautician', 'Carpentry Work', 'Computer Literate',
@@ -25,6 +26,9 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
   const [dismissedSuggestions, setDismissedSuggestions] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isDeepScanning, setIsDeepScanning] = useState(false)
+  const [deepScanSkills, setDeepScanSkills] = useState([])
+  const [deepScanError, setDeepScanError] = useState('')
   const predefinedSkills = formData.predefined_skills || []
   const customSkills = formData.skills || []
 
@@ -122,6 +126,22 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       logSkillAcceptance(skill, source, inferredCategory || null, userId || null)
     }
     toggleSuggestedSkill(skill)
+  }
+
+  const handleDeepScan = async () => {
+    setIsDeepScanning(true)
+    setDeepScanError('')
+    setDeepScanSkills([])
+    try {
+      const results = await deepAnalyzeProfileSkills(formData)
+      const fresh = results.filter(s => !isSkillSelected(s))
+      setDeepScanSkills(fresh)
+      if (fresh.length === 0) setDeepScanError('No new skills found. Try adding more work experience details.')
+    } catch {
+      setDeepScanError('AI scan failed. Please try again.')
+    } finally {
+      setIsDeepScanning(false)
+    }
   }
 
   const addAllSuggestions = () => {
@@ -230,6 +250,18 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
               <div className="flex items-center gap-1">
                 <button
                   type="button"
+                  onClick={handleDeepScan}
+                  disabled={isDeepScanning}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60 text-xs font-semibold"
+                  title="Use AI to deep-scan your full profile for specialized skills"
+                >
+                  {isDeepScanning
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Brain className="w-3.5 h-3.5" />}
+                  {isDeepScanning ? 'Scanning...' : '✨ Re-analyze'}
+                </button>
+                <button
+                  type="button"
                   onClick={handleRefreshSuggestions}
                   disabled={isRefreshing}
                   className="p-1 text-blue-500 hover:text-blue-700 transition-colors disabled:opacity-60"
@@ -283,6 +315,45 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
                 </div>
               ))}
             </div>
+            {/* Deep scan loading overlay */}
+            {isDeepScanning && (
+              <div className="mt-3 flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-pulse">
+                <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
+                <p className="text-xs text-violet-700 font-medium">Scanning your profile for specialized skills…</p>
+              </div>
+            )}
+
+            {/* Deep scan results — distinct violet highlight */}
+            {deepScanSkills.length > 0 && (
+              <div className="mt-3 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-scale-in">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Brain className="w-3.5 h-3.5 text-violet-600" />
+                  <span className="text-xs font-semibold text-violet-700">AI Deep Scan — freshly discovered skills</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {deepScanSkills.filter(s => !isSkillSelected(s)).map(skill => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => {
+                        logSkillAcceptance(skill, 'ai_deep_scan', inferredCategory || null, userId || null)
+                        addSuggestedSkill(skill)
+                        setDeepScanSkills(prev => prev.filter(s => s !== skill))
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
+                    >
+                      <span className="text-[11px] leading-none">+</span>
+                      <span>{skill}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {deepScanError && !isDeepScanning && (
+              <p className="mt-2 text-xs text-violet-500 italic">{deepScanError}</p>
+            )}
+
             <button
               type="button"
               onClick={addAllSuggestions}

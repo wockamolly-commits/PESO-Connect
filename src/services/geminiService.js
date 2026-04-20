@@ -433,6 +433,63 @@ export {
     VALID_EDUCATION_LEVELS,
 }
 
+/**
+ * Deep-scans a jobseeker's full profile context (course, vocational training,
+ * work experience) with an LLM and returns up to 15 specialized skills that
+ * the deterministic rules may have missed.
+ *
+ * Returns [] on any error so the UI can degrade gracefully.
+ *
+ * @param {object} formData - Registration form state (Step 4 + Step 5 data)
+ * @returns {Promise<string[]>}
+ */
+export const deepAnalyzeProfileSkills = async (formData = {}) => {
+    const course = formData.course_or_field || ''
+    const vocational = (formData.vocational_training || [])
+        .map(t => [t.course_name, t.skills_acquired].filter(Boolean).join(': '))
+        .filter(Boolean)
+        .join('; ')
+    const experiences = (formData.work_experiences || [])
+        .map(e => {
+            const parts = [e.position, e.company].filter(Boolean).join(' at ')
+            return parts
+        })
+        .filter(Boolean)
+        .join(', ')
+
+    if (!course && !vocational && !experiences) return []
+
+    const contextLines = []
+    if (course) contextLines.push(`Course/Field of Study: ${course}`)
+    if (vocational) contextLines.push(`Vocational/Technical Training: ${vocational}`)
+    if (experiences) contextLines.push(`Work Experience: ${experiences}`)
+
+    const prompt = `You are a professional career analyst. Based on the following jobseeker background, extract up to 15 specialized technical and soft skills that are most relevant for employment in the Philippines.
+
+${contextLines.join('\n')}
+
+Rules:
+- Return ONLY a JSON object with a single key "skills" containing an array of strings.
+- Each skill should be a short, normalized phrase (2-4 words max).
+- Prioritize technical/vocational skills over generic ones.
+- Do not repeat obvious skills like "Communication" unless clearly specialized.
+- Example output: {"skills": ["Preventative Maintenance", "Safety Compliance", "Tool Calibration"]}`
+
+    try {
+        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 512 })
+        const parsed = safeParseAIJSON(raw)
+        if (!parsed.ok) return []
+        const skills = parsed.data?.skills
+        if (!Array.isArray(skills)) return []
+        return skills
+            .map(s => (typeof s === 'string' ? s.trim() : ''))
+            .filter(s => s.length > 0 && s.length < 60)
+            .slice(0, 15)
+    } catch {
+        return []
+    }
+}
+
 export default {
     analyzeResume,
     calculateJobMatch,
@@ -442,4 +499,5 @@ export default {
     normalizeEducationLevel,
     calculateDeterministicScore,
     expandProfileAliases,
+    deepAnalyzeProfileSkills,
 }
