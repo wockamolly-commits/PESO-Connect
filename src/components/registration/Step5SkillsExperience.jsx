@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, X, Briefcase, Sparkles, TrendingUp, RotateCw } from 'lucide-react'
+import { Plus, X, Briefcase, Sparkles, TrendingUp, RotateCw, Check } from 'lucide-react'
 import { FloatingLabelInput } from '../forms/FloatingLabelInput'
 import { SearchableSelect } from '../forms/SearchableSelect'
 import TagInput from '../forms/TagInput'
 import ResumeUpload from '../common/ResumeUpload'
 import { generateSuggestedSkills, getSkillsForPosition } from '../../utils/skillRecommender'
 import { inferCategoryFromProfile, getTopDemandSkills } from '../../services/skillDemandService'
+import { logSkillAcceptance } from '../../services/telemetryService'
 
 const PREDEFINED_SKILLS = [
   'Auto Mechanic', 'Beautician', 'Carpentry Work', 'Computer Literate',
@@ -114,6 +115,15 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
   const toggleSuggestedSkill = (skill) =>
     isSkillSelected(skill) ? removeSuggestedSkill(skill) : addSuggestedSkill(skill)
 
+  // Wraps toggleSuggestedSkill and logs telemetry only when the skill is being
+  // added (not removed). source must be 'deterministic', 'ai_enrichment', or 'demand_side'.
+  const handleSuggestedSkillClick = (skill, source) => {
+    if (!isSkillSelected(skill)) {
+      logSkillAcceptance(skill, source, inferredCategory || null, userId || null)
+    }
+    toggleSuggestedSkill(skill)
+  }
+
   const addAllSuggestions = () => {
     const newPredefined = [...predefinedSkills]
     predefinedToCheck.forEach(s => { if (!newPredefined.includes(s)) newPredefined.push(s) })
@@ -176,7 +186,10 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
                       <button
                         key={skill}
                         type="button"
-                        onClick={() => addSuggestedSkill(skill)}
+                        onClick={() => {
+                          logSkillAcceptance(skill, 'ai_enrichment', inferredCategory || null, userId || null)
+                          addSuggestedSkill(skill)
+                        }}
                         className="px-2 py-0.5 rounded-full text-xs font-medium bg-white text-blue-700 border border-blue-300 hover:bg-blue-50 transition-colors"
                       >
                         + {skill}
@@ -203,7 +216,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
 
       <div className="pt-4 border-t border-gray-200 space-y-6">
         <h3 className="text-lg font-semibold text-gray-800">Skills</h3>
-        <p className="text-sm text-gray-500">Select skills you have or add your own below. Suggestions are based on your Course, Technical/Vocational Training, and Work Experience. At least 1 skill required.</p>
+        <p className="text-sm text-gray-500">Select skills you have or add your own below. Suggestions are based on your Course, Technical/Vocational Training, and Work Experience.</p>
 
         {showSuggestions && (
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl animate-scale-in">
@@ -249,18 +262,20 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
                   <div className="flex flex-wrap gap-2">
                     {section.skills.map(skill => {
                       const selected = isSkillSelected(skill)
+                      const source = section.key === 'practical' ? 'ai_enrichment' : 'deterministic'
                       return (
                         <button
                           key={`${section.key}-${skill}`}
                           type="button"
-                          onClick={() => toggleSuggestedSkill(skill)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          onClick={() => handleSuggestedSkillClick(skill, source)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                             selected
                               ? 'bg-blue-600 text-white border-blue-600'
                               : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
                           }`}
                         >
-                          {selected ? '[x] ' : '+ '}{skill}
+                          {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                          <span>{skill}</span>
                         </button>
                       )
                     })}
@@ -279,8 +294,9 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
         )}
 
         {inferredCategory && demandSkills.length > 0 && (() => {
-          const unselected = demandSkills.filter(d => !isSkillSelected(d.requirement))
-          if (unselected.length === 0) return null
+          const allSuggestedLower = new Set(allSuggested.map(s => s.toLowerCase()))
+          const demandFiltered = demandSkills.filter(d => !allSuggestedLower.has(d.requirement.toLowerCase()))
+          if (demandFiltered.length === 0) return null
           return (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
               <div className="flex items-center gap-2 mb-2">
@@ -290,20 +306,59 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
                 </span>
               </div>
               <p className="text-xs text-emerald-700 mb-3">
-                Skills currently listed in open job postings. Click to add ones you have:
+                Skills currently listed in open job postings. Click to add or remove:
               </p>
               <div className="flex flex-wrap gap-2">
-                {unselected.map(d => (
-                  <button
-                    key={d.requirement}
-                    type="button"
-                    onClick={() => addSuggestedSkill(d.requirement)}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100 transition-all"
-                    title={`Requested in ${d.demand_count} open job${d.demand_count > 1 ? 's' : ''}`}
-                  >
-                    + {d.requirement}
-                  </button>
-                ))}
+                {demandFiltered.map(d => {
+                  const selected = isSkillSelected(d.requirement)
+                  return (
+                    <button
+                      key={d.requirement}
+                      type="button"
+                      onClick={() => handleSuggestedSkillClick(d.requirement, 'demand_side')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        selected
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                      }`}
+                      title={`Requested in ${d.demand_count} open job${d.demand_count > 1 ? 's' : ''}`}
+                    >
+                      {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                      {d.requirement}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {(() => {
+          const allSuggestedLower = new Set(allSuggested.map(s => s.toLowerCase()))
+          const predefinedFiltered = PREDEFINED_SKILLS.filter(s => !allSuggestedLower.has(s.toLowerCase()))
+          if (predefinedFiltered.length === 0) return null
+          return (
+            <div>
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400 mb-2">Common Skills</p>
+              <div className="flex flex-wrap gap-2">
+                {predefinedFiltered.map(skill => {
+                  const selected = isSkillSelected(skill)
+                  return (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => toggleSuggestedSkill(skill)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        selected
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-primary-700 border-primary-300 hover:bg-primary-50'
+                      }`}
+                    >
+                      {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                      <span>{skill}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )
@@ -314,9 +369,15 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
             label="Additional Skills"
             value={skillInput}
             onChange={setSkillInput}
-            tags={formData.skills || []}
+            tags={[...(formData.predefined_skills || []), ...(formData.skills || [])]}
             onAdd={(tag) => { setFormData(prev => ({ ...prev, skills: [...(prev.skills || []), tag] })); setSkillInput('') }}
-            onRemove={(tag) => setFormData(prev => ({ ...prev, skills: (prev.skills || []).filter(s => s !== tag) }))}
+            onRemove={(tag) => {
+              if (PREDEFINED_SKILLS.includes(tag)) {
+                setFormData(prev => ({ ...prev, predefined_skills: (prev.predefined_skills || []).filter(s => s !== tag) }))
+              } else {
+                setFormData(prev => ({ ...prev, skills: (prev.skills || []).filter(s => s !== tag) }))
+              }
+            }}
             placeholder="Type a skill and press Enter..."
             tagClassName="bg-primary-100 text-primary-700"
             removeClassName="hover:text-primary-900"
