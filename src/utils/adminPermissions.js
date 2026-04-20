@@ -18,6 +18,9 @@ export const ALL_PERMISSIONS = [
     'view_users',
     'export_jobseekers',
     'reverify_profiles',
+    'reverify_jobseeker_profiles',
+    'reverify_employer_profiles',
+    'view_skill_insights',
     'manage_admins',
     'manage_system_settings',
     'delete_users',
@@ -37,6 +40,8 @@ export const SECTION_PERMISSIONS = {
     jobseekers: 'view_jobseekers',
     users: 'view_users',
     reverification: 'reverify_profiles',
+    jobseeker_export: 'export_jobseekers',
+    skill_insights: 'view_skill_insights',
     admin_management: 'manage_admins',
 }
 
@@ -63,8 +68,38 @@ export const isSuperAdmin = (adminAccess) => {
 export const hasAdminPermission = (adminAccess, permission) => {
     if (!adminAccess) return false
     if (adminAccess.admin_level === 'admin') return true
-    return Array.isArray(adminAccess.permissions) && adminAccess.permissions.includes(permission)
+    if (!Array.isArray(adminAccess.permissions)) return false
+    if (SUPER_ADMIN_ONLY_PERMISSIONS.includes(permission)) return false
+
+    if (permission === 'reverify_profiles') {
+        return (
+            adminAccess.permissions.includes('reverify_profiles')
+            || adminAccess.permissions.includes('reverify_jobseeker_profiles')
+            || adminAccess.permissions.includes('reverify_employer_profiles')
+        )
+    }
+
+    if (
+        (permission === 'reverify_jobseeker_profiles' || permission === 'reverify_employer_profiles')
+        && adminAccess.permissions.includes('reverify_profiles')
+    ) {
+        return true
+    }
+
+    return adminAccess.permissions.includes(permission)
 }
+
+/**
+ * Converts a permission key to a human-readable label.
+ * e.g. 'manage_system_settings' → 'Manage System Settings'
+ *
+ * @param {string} permission - One of ALL_PERMISSIONS.
+ */
+export const getPermissionLabel = (permission) =>
+    permission
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
 
 /**
  * Returns the list of section IDs the current admin is allowed to see.
@@ -77,4 +112,9 @@ export const getVisibleAdminSections = (adminAccess) => {
     return Object.entries(SECTION_PERMISSIONS)
         .filter(([, permission]) => hasAdminPermission(adminAccess, permission))
         .map(([sectionId]) => sectionId)
+}
+
+export const formatPermissionList = (permissions) => {
+    if (!Array.isArray(permissions) || permissions.length === 0) return ''
+    return permissions.map(getPermissionLabel).join(', ')
 }
