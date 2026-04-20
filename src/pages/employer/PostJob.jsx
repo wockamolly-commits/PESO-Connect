@@ -25,12 +25,14 @@ import {
     Globe,
     Settings,
     Languages,
+    TrendingUp,
 } from 'lucide-react'
 import Select from '../../components/common/Select'
 import psgcData from '../../data/psgc.json'
 import coursesData from '../../data/courses.json'
 import { SearchableSelect } from '../../components/forms/SearchableSelect'
 import { SKILL_VOCAB, getSuggestedSkillsFromTitle, getSuggestedSkillsFromDescription, getSuggestedSkillsFromVocab } from '../../utils/jobSkillRecommender'
+import { getMarketTrendSkills, getSkillSupplyCounts } from '../../utils/employerSkillSuggestions'
 
 // --- PSGC helpers ---
 const CITY_OR_MUNICIPALITY_SUFFIX = /\b(city|municipality)\b/gi
@@ -152,6 +154,10 @@ const PostJobWizard = () => {
     const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false)
     const [aiSuggestionsShown, setAiSuggestionsShown] = useState(false)
     const [aiSuggestionsSource, setAiSuggestionsSource] = useState('deterministic')
+
+    // Market trend (green panel) and supply counts (badge on chips)
+    const [marketTrendSkills, setMarketTrendSkills] = useState([])
+    const [skillSupplyCounts, setSkillSupplyCounts] = useState(new Map())
 
     // Preferred skills input (plain tag input)
     const [preferredSkillInput, setPreferredSkillInput] = useState('')
@@ -286,6 +292,11 @@ const PostJobWizard = () => {
         try { localStorage.setItem(DRAFT_KEY, JSON.stringify(jobData)) } catch { /* ignore */ }
     }, [jobData])
 
+    // Reset suggestions flag when title changes so step 3 re-computes with the latest title
+    useEffect(() => {
+        setAiSuggestionsShown(false)
+    }, [jobData.title])
+
     // Deterministic AI suggestions when entering step 3
     useEffect(() => {
         if (currentStep !== 3) return
@@ -304,6 +315,21 @@ const PostJobWizard = () => {
         setAiSuggestionsShown(true)
         setAiSuggestionsSource('deterministic')
     }, [currentStep])
+
+    // Load market trend + supply counts when entering step 3
+    useEffect(() => {
+        if (currentStep !== 3 || !jobData.category) return
+        let cancelled = false
+        Promise.all([
+            getMarketTrendSkills(jobData.category, 12),
+            getSkillSupplyCounts(jobData.category),
+        ]).then(([trend, supply]) => {
+            if (cancelled) return
+            setMarketTrendSkills(trend)
+            setSkillSupplyCounts(supply)
+        })
+        return () => { cancelled = true }
+    }, [currentStep, jobData.category])
 
     const updateJobData = (field, value) => {
         setJobData(prev => ({ ...prev, [field]: value }))
@@ -1131,21 +1157,32 @@ const PostJobWizard = () => {
 
                                 {jobData.requiredSkills.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3">
-                                        {jobData.requiredSkills.map(skill => (
-                                            <span
-                                                key={skill}
-                                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
-                                            >
-                                                {skill}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeSkill(skill)}
-                                                    className="hover:text-primary-900 ml-1"
+                                        {jobData.requiredSkills.map(skill => {
+                                            const supplyCount = skillSupplyCounts.get(skill.toLowerCase())
+                                            return (
+                                                <span
+                                                    key={skill}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
                                                 >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </span>
-                                        ))}
+                                                    {skill}
+                                                    {supplyCount > 0 && (
+                                                        <span
+                                                            className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold leading-none"
+                                                            title={`${supplyCount} jobseeker${supplyCount !== 1 ? 's' : ''} in San Carlos have this skill`}
+                                                        >
+                                                            {supplyCount}
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeSkill(skill)}
+                                                        className="hover:text-primary-900 ml-1"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </span>
+                                            )
+                                        })}
                                     </div>
                                 )}
 
@@ -1215,6 +1252,46 @@ const PostJobWizard = () => {
                                     )}
                                 </div>
                             </div>
+
+                                {/* 🌱 Market Trending Skills panel */}
+                                {marketTrendSkills.length > 0 && (() => {
+                                    const fresh = marketTrendSkills.filter(d => !jobData.requiredSkills.includes(d.requirement))
+                                    if (fresh.length === 0) return null
+                                    return (
+                                        <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                                <p className="text-sm font-medium text-emerald-800">
+                                                    Trending in San Carlos — add skills jobseekers already have
+                                                </p>
+                                            </div>
+                                            <p className="text-xs text-emerald-700 mb-3">
+                                                These skills are commonly listed by local jobseekers. Using them maximises your applicant pool.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {fresh.map(d => {
+                                                    const supplyCount = skillSupplyCounts.get(d.requirement.toLowerCase())
+                                                    return (
+                                                        <button
+                                                            key={d.requirement}
+                                                            type="button"
+                                                            onClick={() => addSkill(d.requirement)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 rounded-full text-xs font-medium text-emerald-700 hover:bg-emerald-100 hover:border-emerald-500 transition-colors"
+                                                            title={`Requested in ${d.demand_count} open job${d.demand_count !== 1 ? 's' : ''}`}
+                                                        >
+                                                            + {d.requirement}
+                                                            {supplyCount > 0 && (
+                                                                <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold leading-none border border-emerald-300">
+                                                                    {supplyCount} seekers
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
 
                             {/* Preferred Skills */}
                             <div>
