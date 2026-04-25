@@ -40,7 +40,19 @@ describe('isTechnicalJob', () => {
     expect(isTechnicalJob({ category: '', title: 'UX Designer', required_skills: [] })).toBe(true)
   })
 
+  it('returns true for DB-stored IT category key "it"', () => {
+    expect(isTechnicalJob({ category: 'it', title: '', required_skills: [] })).toBe(true)
+  })
+
   // --- Negative title cases (compound-only rule) ---
+  it('returns false for "Security Guard" (bare security is NOT a trigger)', () => {
+    expect(isTechnicalJob({ category: '', title: 'Security Guard', required_skills: [] })).toBe(false)
+  })
+
+  it('returns false for "Real Estate Developer"', () => {
+    expect(isTechnicalJob({ category: '', title: 'Real Estate Developer', required_skills: [] })).toBe(false)
+  })
+
   it('returns false for "Sales Engineer" (bare engineer is NOT a trigger)', () => {
     expect(isTechnicalJob({ category: '', title: 'Sales Engineer', required_skills: [] })).toBe(false)
   })

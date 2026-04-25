@@ -1,6 +1,9 @@
 import { HIGH_TIER_SKILL_PATTERNS } from './deterministicScore'
 
 const TECHNICAL_CATEGORIES = new Set([
+  // Short-form keys stored by PostJob UI
+  'it',
+  // Long-form names (legacy/admin rows)
   'information technology',
   'it support',
   'software development',
@@ -16,7 +19,7 @@ const TECHNICAL_CATEGORIES = new Set([
 const TITLE_PATTERNS = [
   /\b(?:software|data|systems?|network|cloud|security|devops|qa|test|hardware|firmware|embedded|backend|frontend|full[\s-]?stack|mobile|ios|android|web|machine\s*learning|ml|ai)\s+engineer\b/i,
   /\b(?:software|systems?|cloud|solutions?|data|enterprise|security)\s+architect\b/i,
-  /\bdeveloper\b/i,
+  /\b(?:software|web|app|application|mobile|ios|android|frontend|backend|full[\s-]?stack|react|vue|angular|node|python|java|php|game|embedded)\s+developer\b/i,
   /\bprogrammer\b/i,
   /\bcoder\b/i,
   /\bit\s*support\b/i,
@@ -30,8 +33,9 @@ const TITLE_PATTERNS = [
   /\bqa\b/i,
   /\btester\b/i,
   /\bdata\s*(scientist|analyst|engineer)\b/i,
-  /\b(?:cyber)?security\b/i,
-  /\b(?:web|frontend|backend|full[\s-]?stack|mobile|ios|android)\s*(?:dev|developer|engineer)?\b/i,
+  /\bcybersecurity\b/i,
+  /\b(?:cyber|it|information|network|application|cloud|web)\s+security\b/i,
+  /\b(?:web|frontend|backend|full[\s-]?stack|mobile|ios|android)\s+(?:dev|developer|engineer)\b/i,
   /\b(?:ui|ux)\s+designer\b/i,
   /\b(?:product|web|graphic)\s+designer\b/i,
 ]
