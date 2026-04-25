@@ -174,4 +174,9 @@ describe('computeEducationScore — field-of-study penalty', () => {
   it('does NOT apply penalty for non-technical job + empty field', () => {
     expect(computeEducationScore(nonTechnicalJob, userWithEmptyField)).toBe(100)
   })
+
+  it('does NOT apply penalty when job has no education_level requirement', () => {
+    const technicalJobNoEduReq = { title: 'React Developer', category: '', required_skills: [], education_level: '' }
+    expect(computeEducationScore(technicalJobNoEduReq, userWithUnrelatedField)).toBe(100)
+  })
 })

@@ -474,9 +474,12 @@ const TECHNICAL_FIELD_PATTERNS = [
   /\belectronics?\s*(?:and\s*communications?\s*)?engineering\b/i,
   /\bcomputer\s*technology\b/i,
   /\bcybersecurity\b|\binformation\s*security\b/i,
-  /\b(?:bs|bachelor)\s*(?:in|of)?\s*(?:it|cs|ict|cpe|ece)\b/i,
+  /\b(?:bs|bachelor)\s*(?:in|of)?\s*(?:it|cs|ict|cpe|ece|ce)\b/i,
   /\bgame\s*development\b/i,
   /\bdigital\s*(arts?|design|media)\b/i,
+  /\bcomputer\s*hardware\s*servicing\b/i,
+  /\bcomputer\s*programming\b/i,
+  /\bnc\s*ii?\s*(?:computer|programming|ict)\b/i,
 ]
 
 const OVERQUALIFICATION_MESSAGE = 'Technical background exceeds the role\'s detail requirements and signals high accuracy for precision-based tasks.'
@@ -1090,7 +1093,7 @@ export const computeEducationScore = (job, userData) => {
     // Field-of-study penalty: technical jobs only grant full education credit
     // when the candidate's degree is in a relevant technical field.
     // Empty or null course_or_field is treated as unrelated (no positive evidence).
-    if (isTechnicalJob(job) && educationScore >= 90) {
+    if (isTechnicalJob(job) && jobOrdinal >= 0 && educationScore === 100) {
         const field = String(userData.course_or_field || '')
         const fieldIsTechnical = field.length > 0 && TECHNICAL_FIELD_PATTERNS.some((p) => p.test(field))
         if (!fieldIsTechnical) {
