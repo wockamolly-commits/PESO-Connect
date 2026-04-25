@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
     calculateDeterministicScore,
     computeEducationScore,
+    computeExperienceScore,
     deduplicateSkills,
     matchRequirementToSkillSet,
     normalizeSkillKey,
@@ -178,5 +179,44 @@ describe('computeEducationScore — field-of-study penalty', () => {
   it('does NOT apply penalty when job has no education_level requirement', () => {
     const technicalJobNoEduReq = { title: 'React Developer', category: '', required_skills: [], education_level: '' }
     expect(computeEducationScore(technicalJobNoEduReq, userWithUnrelatedField)).toBe(100)
+  })
+})
+
+describe('computeExperienceScore — tiered adjacent bonus', () => {
+  // Real adjacent pairs from ADJACENT_CATEGORIES:
+  // 'it': ['retail', 'energy'] — Information Technology is adjacent to Retail
+  // 'hospitality': ['retail'] — Hospitality is adjacent to Retail
+  const technicalJob = { title: 'IT Support Specialist', category: 'Information Technology', required_skills: [], experience_level: '' }
+  // nonTechnicalJob uses Hospitality, which is adjacent to Retail (user's category)
+  const nonTechnicalJob = { title: 'Hotel Staff', category: 'Hospitality', required_skills: [], experience_level: '' }
+
+  const userAdjacentCategory = { experience_categories: ['Retail'], work_experiences: [] }
+  const userExactCategory = { experience_categories: ['Information Technology'], work_experiences: [] }
+  const userNoCategory = { experience_categories: [], work_experiences: [] }
+
+  it('grants 100 for exact category match (any job type)', () => {
+    expect(computeExperienceScore(technicalJob, userExactCategory, { isTechnical: true, hasCoreTechnicalSkill: false })).toBe(100)
+  })
+
+  it('grants 50 for adjacent + technical + has core skill rule-hit', () => {
+    expect(computeExperienceScore(technicalJob, userAdjacentCategory, { isTechnical: true, hasCoreTechnicalSkill: true })).toBe(50)
+  })
+
+  it('grants 25 for adjacent + technical + NO core skill rule-hit', () => {
+    expect(computeExperienceScore(technicalJob, userAdjacentCategory, { isTechnical: true, hasCoreTechnicalSkill: false })).toBe(25)
+  })
+
+  it('grants 50 for adjacent + non-technical (unchanged behavior)', () => {
+    expect(computeExperienceScore(nonTechnicalJob, userAdjacentCategory, { isTechnical: false, hasCoreTechnicalSkill: false })).toBe(50)
+  })
+
+  it('grants 20 for no category match', () => {
+    expect(computeExperienceScore(technicalJob, userNoCategory, { isTechnical: true, hasCoreTechnicalSkill: false })).toBe(20)
+  })
+
+  it('accepts no opts argument (backward compatible)', () => {
+    const score = computeExperienceScore(nonTechnicalJob, userAdjacentCategory)
+    expect(typeof score).toBe('number')
+    expect(score).toBe(50)
   })
 })

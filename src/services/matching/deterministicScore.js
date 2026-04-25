@@ -1039,7 +1039,8 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
     }
 }
 
-export const computeExperienceScore = (job, userData) => {
+export const computeExperienceScore = (job, userData, opts = {}) => {
+    const { isTechnical = false, hasCoreTechnicalSkill = false } = opts
     const userCategories = (userData.experience_categories || []).map(c => normalizeCategoryKey(c))
     const jobCategory = normalizeCategoryKey(job.category || '')
 
@@ -1050,7 +1051,17 @@ export const computeExperienceScore = (job, userData) => {
         } else {
             const adjacent = ADJACENT_CATEGORIES[jobCategory] || []
             const hasAdjacent = userCategories.some(c => adjacent.includes(c))
-            experienceScore = hasAdjacent ? 50 : 20
+            if (hasAdjacent) {
+                if (isTechnical) {
+                    // Adjacent bonus halved when no rule-level technical skill hit exists.
+                    // Prevents "IT background" from masking a hard skill mismatch.
+                    experienceScore = hasCoreTechnicalSkill ? 50 : 25
+                } else {
+                    experienceScore = 50
+                }
+            } else {
+                experienceScore = 20
+            }
         }
     }
 
@@ -1117,7 +1128,11 @@ export const calculateDeterministicScore = (job, userData) => {
     const requirements = (job.requirements || job.required_skills || []).filter(Boolean)
 
     const classified = classifyRequirements(requirements, skills, aliases, userData, job)
-    const experienceScore = computeExperienceScore(job, userData)
+
+    const isTechnical = isTechnicalJob(job)
+    const hasCoreTechnicalSkill = classified.matchingSkills.length > 0
+
+    const experienceScore = computeExperienceScore(job, userData, { isTechnical, hasCoreTechnicalSkill })
     const educationScore = computeEducationScore(job, userData)
     const technicalCompetencyScore = classified.technicalRequirementScore > 0
         ? Math.round(classified.technicalRequirementScore * 0.75 + experienceScore * 0.25)
