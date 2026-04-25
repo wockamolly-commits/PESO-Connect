@@ -145,56 +145,70 @@ const normalizeRequirements = (job: Record<string, unknown>) => {
 }
 
 export const buildJobText = (job: Record<string, unknown>) => {
-  const requirements = normalizeRequirements(job)
   const str = (key: string, fallback = 'Not specified') => {
     const v = job[key]
     return typeof v === 'string' && v.trim() ? v.trim() : fallback
   }
 
+  const title = str('title', '')
+  const category = str('category')
+  const requiredSkillsText = normalizeRequirements(job).join(', ') || 'None specified'
+  const preferredSkillsText = stringifyList(job.preferred_skills, 'None')
+
+  // Title × 3 and required skills × 2: repetition shifts the pooled
+  // embedding toward high-signal fields, suppressing IT-context noise
+  // from descriptions that mention computers without being technical roles.
   return [
-    `Job title: ${str('title', '')}`,
-    `Category: ${str('category')}`,
+    title && `Job title: ${title}`,
+    title && `Job title: ${title}`,
+    title && `Job title: ${title}`,
+    `Category: ${category}`,
+    `Requirements: ${requiredSkillsText}`,
+    `Requirements: ${requiredSkillsText}`,
+    `Preferred skills: ${preferredSkillsText}`,
     `Job summary: ${str('job_summary', str('description', 'Not provided'))}`,
     `Key responsibilities: ${str('key_responsibilities', 'Not specified')}`,
-    `Requirements: ${requirements.length > 0 ? requirements.join(', ') : 'None specified'}`,
-    `Preferred skills: ${stringifyList(job.preferred_skills, 'None')}`,
     `Required languages: ${stringifyList(job.required_languages, 'Not specified')}`,
     `Licenses & certifications: ${str('licenses_certifications', 'None')}`,
-    `Benefits: ${stringifyList(job.benefits, 'Not specified')}`,
     `Experience level: ${str('experience_level', 'Any')}`,
     `Education level: ${str('education_level', 'None')}`,
-    `Course/strand: ${str('course_strand', 'Not specified')}`,
     `Employment type: ${str('type')}`,
     `Work arrangement: ${str('work_arrangement')}`,
     `Location: ${str('location')}`,
-    `Accepts PWD: ${job.accepts_pwd ? `Yes (${stringifyList(job.pwd_disabilities, 'unspecified')})` : 'No'}`,
-    `Accepts returning OFWs: ${job.accepts_ofw ? 'Yes' : 'No'}`,
-    `Other qualifications: ${str('other_qualifications', 'None')}`,
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 }
 
 export const buildProfileText = (profile: Record<string, unknown>) => {
   const predefinedSkills = Array.isArray(profile.predefined_skills) ? profile.predefined_skills : []
   const customSkills = Array.isArray(profile.skills) ? profile.skills : []
   const mergedSkills = [...predefinedSkills, ...customSkills]
+  const skillsText = stringifyList(mergedSkills, 'Not specified')
 
+  const courseField = typeof profile.course_or_field === 'string' && profile.course_or_field.trim()
+    ? profile.course_or_field.trim()
+    : null
+
+  const experienceTitles = stringifyExperiences(profile.work_experiences)
+
+  // Mirror the job-side shaping: skills × 2 and course_or_field × 2
+  // ensure the profile vector is pulled toward domain-specific features,
+  // not diluted by location/salary metadata.
   return [
+    `Skills: ${skillsText}`,
+    `Skills: ${skillsText}`,
+    `Work experience: ${experienceTitles}`,
+    `Work experience: ${experienceTitles}`,
+    courseField && `Course or field: ${courseField}`,
+    courseField && `Course or field: ${courseField}`,
     `Preferred occupations: ${stringifyList(profile.preferred_occupations, 'Not specified')}`,
     `Preferred job types: ${stringifyList(profile.preferred_job_type, 'Not specified')}`,
-    `Skills: ${stringifyList(mergedSkills, 'Not specified')}`,
-    `Work experience: ${stringifyExperiences(profile.work_experiences)}`,
+    `Experience categories: ${stringifyList(profile.experience_categories, 'Not specified')}`,
     `Employment status: ${typeof profile.employment_status === 'string' ? profile.employment_status.trim() : 'Not specified'}`,
     `Education: ${typeof profile.highest_education === 'string' ? profile.highest_education.trim() : 'Not specified'}`,
-    `Course or field: ${typeof profile.course_or_field === 'string' ? profile.course_or_field.trim() : 'Not specified'}`,
     `Languages: ${stringifyLanguages(profile.languages)}`,
     `Certifications: ${stringifyList(profile.certifications, 'None')}`,
     `Professional licenses: ${stringifyLicenses(profile.professional_licenses)}`,
     `Vocational training: ${stringifyTraining(profile.vocational_training)}`,
     `Portfolio: ${typeof profile.portfolio_url === 'string' && profile.portfolio_url.trim() ? profile.portfolio_url.trim() : 'None'}`,
-    `Experience categories: ${stringifyList(profile.experience_categories, 'Not specified')}`,
-    `Preferred local locations: ${stringifyLocations(profile.preferred_local_locations)}`,
-    `Preferred overseas locations: ${stringifyLocations(profile.preferred_overseas_locations)}`,
-    `Willing to relocate: ${typeof profile.willing_to_relocate === 'string' ? profile.willing_to_relocate.trim() : 'Not specified'}`,
-    // Expected salary omitted — salary is a hard pre-filter, not a semantic signal
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 }
