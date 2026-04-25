@@ -1,3 +1,5 @@
+import { isTechnicalJob } from './technicalRole'
+
 // Deterministic scoring logic extracted from geminiService.js
 // This module is the single source of truth for rule-based job matching.
 // It can be used from both frontend and backend (edge functions).
@@ -463,6 +465,19 @@ const BASELINE_REQUIREMENT_PATTERNS = [/\btyping\b/i, /\btyping speed\b/i, /\bda
 const LOW_TIER_ROLE_PATTERNS = [/\bdata entry\b/i, /\bdata encoder\b/i, /\bencoder\b/i, /\badmin assistant\b/i, /\badministrative assistant\b/i, /\bclerical\b/i, /\boffice assistant\b/i, /\bback office\b/i, /\bdocumentation\b/i]
 const OVERQUALIFICATION_TRANSFER_PATTERNS = [/\btyping\b/i, /\btyping speed\b/i, /\bdata entry\b/i, /\bdata encoding\b/i, /\battention to detail\b/i, /\banalytical thinking\b/i, /\banalytical skills\b/i, /\baccuracy\b/i, /\bprecision\b/i, /\bcomputer literacy\b/i, /\bbasic computer\b/i, /\bms office\b/i, /\bmicrosoft office\b/i]
 export const HIGH_TIER_SKILL_PATTERNS = [/\bprogramming\b/i, /\bcoding\b/i, /\bsoftware\b/i, /\bweb development\b/i, /\bfrontend\b/i, /\bbackend\b/i, /\bfull stack\b/i, /\bgraphic design\b/i, /\bvisual design\b/i, /\bui\b/i, /\bux\b/i, /\bphotoshop\b/i, /\billustrator\b/i, /\bfigma\b/i]
+
+const TECHNICAL_FIELD_PATTERNS = [
+  /\bcomputer\s*(science|engineering|studies)\b/i,
+  /\binformation\s*(technology|systems?|management)\b/i,
+  /\bsoftware\s*engineering\b/i,
+  /\bdata\s*science\b/i,
+  /\belectronics?\s*(?:and\s*communications?\s*)?engineering\b/i,
+  /\bcomputer\s*technology\b/i,
+  /\bcybersecurity\b|\binformation\s*security\b/i,
+  /\b(?:bs|bachelor)\s*(?:in|of)?\s*(?:it|cs|ict|cpe|ece)\b/i,
+  /\bgame\s*development\b/i,
+  /\bdigital\s*(arts?|design|media)\b/i,
+]
 
 const OVERQUALIFICATION_MESSAGE = 'Technical background exceeds the role\'s detail requirements and signals high accuracy for precision-based tasks.'
 
@@ -1071,6 +1086,18 @@ export const computeEducationScore = (job, userData) => {
         else if (diff <= 2) educationScore = 35
         else educationScore = 15
     }
+
+    // Field-of-study penalty: technical jobs only grant full education credit
+    // when the candidate's degree is in a relevant technical field.
+    // Empty or null course_or_field is treated as unrelated (no positive evidence).
+    if (isTechnicalJob(job) && educationScore >= 90) {
+        const field = String(userData.course_or_field || '')
+        const fieldIsTechnical = field.length > 0 && TECHNICAL_FIELD_PATTERNS.some((p) => p.test(field))
+        if (!fieldIsTechnical) {
+            educationScore = Math.round(educationScore * 0.7)
+        }
+    }
+
     return educationScore
 }
 
