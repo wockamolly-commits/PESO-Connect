@@ -180,6 +180,17 @@ describe('computeEducationScore — field-of-study penalty', () => {
     const technicalJobNoEduReq = { title: 'React Developer', category: '', required_skills: [], education_level: '' }
     expect(computeEducationScore(technicalJobNoEduReq, userWithUnrelatedField)).toBe(100)
   })
+
+  it('does NOT apply penalty when educationScore is 80 (slight underqualification)', () => {
+    // Job requires College Graduate, user has two-year course — diff ≈ 0.5 → educationScore = 80
+    // The === 100 guard means the penalty must not fire here.
+    const slightlyUnderqualifiedUser = {
+      highest_education: 'College Undergraduate',
+      course_or_field: 'Tourism Management',
+    }
+    const score = computeEducationScore(technicalJob, slightlyUnderqualifiedUser)
+    expect(score).toBe(80) // No penalty — guard protects this case
+  })
 })
 
 describe('computeExperienceScore — tiered adjacent bonus', () => {

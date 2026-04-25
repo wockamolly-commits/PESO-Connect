@@ -3,6 +3,8 @@ import { HIGH_TIER_SKILL_PATTERNS } from './deterministicScore.ts'
 const TECHNICAL_CATEGORIES = new Set([
   // Short-form keys stored by PostJob UI
   'it',
+  // 'it' is the only key currently emitted by PostJob.jsx.
+  // Long-form names below are for admin-inserted rows and future PostJob options.
   // Long-form names (legacy/admin rows)
   'information technology',
   'it support',
@@ -31,7 +33,7 @@ const TITLE_PATTERNS = [
   /\bdevops\b/i,
   /\bsre\b/i,
   /\bqa\b/i,
-  /\btester\b/i,
+  /\b(?:software|automation|manual|performance|security|qa|ui|ux|regression)\s+tester\b/i,
   /\bdata\s*(scientist|analyst|engineer)\b/i,
   /\bcybersecurity\b/i,
   /\b(?:cyber|it|information|network|application|cloud|web)\s+security\b/i,
