@@ -1,0 +1,66 @@
+<mxfile host="65bd71144e">
+    <diagram id="diagram1" name="Page-1">
+        <mxGraphModel dx="364" dy="213" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="e_j_s" value="Profile Data, Job Apps,\nTelemetry\n-&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="jobseeker" target="system" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_s_j" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;dashed=1;jumpStyle=arc;" parent="1" source="system" target="jobseeker" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_e_s" value="Company Info, Job Postings, Applicant Reviews\n-&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="employer" target="system" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_i_s" value="Service Requests-&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="individual" target="system" edge="1">
+                    <mxGeometry x="-0.493" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_s_i" value="&amp;lt;- Matched Workers, Messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;dashed=1;jumpStyle=arc;" parent="1" source="system" target="individual" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_a_s" value="Verification Decisions, User Management-&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="admin" target="system" edge="1">
+                    <mxGeometry x="-0.1549" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_s_a" value="&amp;lt;- Pending Registrations, Telemetry Stats" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;dashed=1;jumpStyle=arc;" parent="1" source="system" target="admin" edge="1">
+                    <mxGeometry x="-0.5315" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="880" y="325"/>
+                            <mxPoint x="880" y="530"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="system" value="PESO-Connect Platform" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontStyle=1;opaque=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="250" width="150" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="jobseeker" value="Jobseeker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="50" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="employer" value="Employer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="50" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="individual" value="Individual (Homeowner)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="500" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="admin" value="PESO Administrator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="500" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_s_e" value="&amp;lt;- AI Skill Recs, Applicant Scores, Emails" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;dashed=1;jumpStyle=arc;" parent="1" source="system" target="employer" edge="1">
+                    <mxGeometry x="0.2542" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="880" y="325"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
