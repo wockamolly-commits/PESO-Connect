@@ -32,6 +32,8 @@ import { sendApplicationReceivedEmail, sendNewApplicantEmail } from '../services
 import { XCircle } from 'lucide-react'
 import { getEmployerDisplayName } from '../utils/employerBranding'
 
+const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
+
 const getAllSkills = (userData) => [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
 const isStubExplanationResponse = (response) =>
     response?.status === 'stub' ||
@@ -76,6 +78,14 @@ const JobDetail = () => {
         const deterministicScore = calculateDeterministicScore(job, userData)
         setLoadingMatchScore(true)
 
+        if (!HYBRID_MATCHING_ENABLED) {
+            setMatchData(deterministicScore)
+            setLoadingMatchScore(false)
+            return () => {
+                isCancelled = true
+            }
+        }
+
         const loadHybridMatch = async () => {
             try {
                 const hybridScore = await getSingleJobMatch({
@@ -117,20 +127,22 @@ const JobDetail = () => {
             const scoreContext = matchData || calculateDeterministicScore(job, userData)
             let aiDetail = null
 
-            try {
-                const backendDetail = await generateMatchExplanation({
-                    userId: currentUser.uid,
-                    jobId: job.id,
-                    scores: scoreContext,
-                    matchingSkills: scoreContext.matchingSkills || [],
-                    missingSkills: scoreContext.missingSkills || [],
-                })
+            if (HYBRID_MATCHING_ENABLED) {
+                try {
+                    const backendDetail = await generateMatchExplanation({
+                        userId: currentUser.uid,
+                        jobId: job.id,
+                        scores: scoreContext,
+                        matchingSkills: scoreContext.matchingSkills || [],
+                        missingSkills: scoreContext.missingSkills || [],
+                    })
 
-                if (backendDetail?.explanation && !isStubExplanationResponse(backendDetail)) {
-                    aiDetail = backendDetail
+                    if (backendDetail?.explanation && !isStubExplanationResponse(backendDetail)) {
+                        aiDetail = backendDetail
+                    }
+                } catch (backendError) {
+                    console.warn('Backend match explanation failed, falling back to frontend AI:', backendError.message)
                 }
-            } catch (backendError) {
-                console.warn('Backend match explanation failed, falling back to frontend AI:', backendError.message)
             }
 
             if (!aiDetail) {

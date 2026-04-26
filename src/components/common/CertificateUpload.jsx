@@ -10,7 +10,6 @@ import {
     getCertificateSource,
     normalizeCertificateRecords,
     validateCertificateFile,
-    buildCertificateFingerprint,
 } from '../../utils/certificateUtils'
 
 const toUploadMessage = (error) => {

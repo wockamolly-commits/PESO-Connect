@@ -19,6 +19,8 @@ import { getJobMatchesForUser } from '../services/matchingService'
 import { calculateCompletion } from '../utils/profileCompletion'
 import { getEmployerDisplayName } from '../utils/employerBranding'
 
+const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
+
 const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
     const [jobs, setJobs] = useState([])
@@ -153,6 +155,12 @@ const JobListings = () => {
             fallbackScores[job.id] = calculateDeterministicScore(job, userData)
         }
         setLoadingMatchScores(true)
+
+        if (!HYBRID_MATCHING_ENABLED) {
+            setMatchScores(fallbackScores)
+            setLoadingMatchScores(false)
+            return
+        }
 
         const loadHybridScores = async () => {
             try {

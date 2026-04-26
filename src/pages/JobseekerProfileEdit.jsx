@@ -5,10 +5,10 @@ import { supabase } from '../config/supabase'
 import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
     Plus, X, CheckCircle, GraduationCap,
-    Award, Calendar, Save, Sparkles,
-    Ruler, Shield, Globe, Languages
+    Award, Calendar, Save, Sparkles, TrendingUp,
+    Ruler, Shield, Globe, Languages, RotateCw, Check, Brain
 } from 'lucide-react'
-import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores } from '../services/geminiService'
+import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores, deepAnalyzeProfileSkills } from '../services/geminiService'
 import { refreshProfileEmbedding } from '../services/matchingService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
@@ -22,6 +22,9 @@ import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
 import { countTrainingCertificates, getTrainingCertificateRecord } from '../utils/reverification'
 import { buildCertificateFingerprint } from '../utils/certificateUtils'
+import { generateSuggestedSkills, getSkillsForPosition } from '../utils/skillRecommender'
+import { inferCategoryFromProfile, getTopDemandSkills } from '../services/skillDemandService'
+import { logSkillAcceptance } from '../services/telemetryService'
 
 // --- Helpers ---
 // Unwrap values that were mistakenly saved as single-element arrays
@@ -229,6 +232,13 @@ const JobseekerProfileEdit = () => {
     const [aiInputText, setAiInputText] = useState('')
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [analysisError, setAnalysisError] = useState('')
+    const [dismissedSuggestions, setDismissedSuggestions] = useState(false)
+    const [refreshNonce, setRefreshNonce] = useState(0)
+    const [isRefreshing, setIsRefreshing] = useState(false)
+    const [isDeepScanning, setIsDeepScanning] = useState(false)
+    const [deepScanSkills, setDeepScanSkills] = useState([])
+    const [deepScanError, setDeepScanError] = useState('')
+    const [demandSkills, setDemandSkills] = useState([])
 
     // Overseas locations toggle
     const [showOverseas, setShowOverseas] = useState(false)
@@ -262,6 +272,27 @@ const JobseekerProfileEdit = () => {
     const showDidNotGraduate = !isCurrentlyInSchool && !!formData.highest_education
     const showUndergraduateFields = !isCurrentlyInSchool && formData.did_not_graduate === true
     const showYearGraduated = !!formData.highest_education && !showUndergraduateFields
+    const predefinedSkills = formData.predefined_skills || []
+    const customSkills = formData.skills || []
+
+    const { suggestions, predefinedToCheck, reasons, groups } = useMemo(
+        () => generateSuggestedSkills(formData),
+        [formData.course_or_field, formData.vocational_training, formData.work_experiences, formData.preferred_occupations, refreshNonce]
+    )
+
+    const inferredCategory = useMemo(
+        () => inferCategoryFromProfile(formData),
+        [formData.course_or_field, formData.work_experiences, formData.preferred_occupations]
+    )
+
+    useEffect(() => {
+        if (!inferredCategory) { setDemandSkills([]); return }
+        let cancelled = false
+        getTopDemandSkills(inferredCategory, 10).then(rows => {
+            if (!cancelled) setDemandSkills(rows)
+        })
+        return () => { cancelled = true }
+    }, [inferredCategory])
 
     // Warn user about unsaved changes (browser close/refresh)
     useEffect(() => {
@@ -498,6 +529,78 @@ const JobseekerProfileEdit = () => {
         const updated = current.includes(skill) ? current.filter(s => s !== skill) : [...current, skill]
         setFormData(prev => ({ ...prev, predefined_skills: updated }))
     }
+
+    const isSkillSelected = (skill) =>
+        predefinedSkills.includes(skill) || customSkills.includes(skill)
+
+    const addSuggestedSkill = (skill) => {
+        if (PREDEFINED_SKILLS.includes(skill)) {
+            if (!predefinedSkills.includes(skill)) {
+                setFormData(prev => ({ ...prev, predefined_skills: [...(prev.predefined_skills || []), skill] }))
+            }
+            return
+        }
+        if (!customSkills.includes(skill)) {
+            setFormData(prev => ({ ...prev, skills: [...(prev.skills || []), skill] }))
+        }
+    }
+
+    const removeSuggestedSkill = (skill) => {
+        if (PREDEFINED_SKILLS.includes(skill)) {
+            setFormData(prev => ({ ...prev, predefined_skills: (prev.predefined_skills || []).filter(s => s !== skill) }))
+        } else {
+            setFormData(prev => ({ ...prev, skills: (prev.skills || []).filter(s => s !== skill) }))
+        }
+    }
+
+    const toggleSuggestedSkill = (skill) =>
+        isSkillSelected(skill) ? removeSuggestedSkill(skill) : addSuggestedSkill(skill)
+
+    const handleSuggestedSkillClick = (skill, source) => {
+        if (!isSkillSelected(skill)) {
+            logSkillAcceptance(skill, source, inferredCategory || null, currentUser?.uid || null)
+        }
+        toggleSuggestedSkill(skill)
+    }
+
+    const handleRefreshSuggestions = () => {
+        setIsRefreshing(true)
+        setRefreshNonce(n => n + 1)
+        setDismissedSuggestions(false)
+        setTimeout(() => setIsRefreshing(false), 600)
+    }
+
+    const handleDeepScan = async () => {
+        setIsDeepScanning(true)
+        setDeepScanError('')
+        setDeepScanSkills([])
+        try {
+            const results = await deepAnalyzeProfileSkills(formData)
+            const fresh = results.filter(skill => !isSkillSelected(skill))
+            setDeepScanSkills(fresh)
+            if (fresh.length === 0) setDeepScanError('No new skills found. Try adding more work experience details.')
+        } catch {
+            setDeepScanError('AI scan failed. Please try again.')
+        } finally {
+            setIsDeepScanning(false)
+        }
+    }
+
+    const addAllSuggestions = () => {
+        const newPredefined = [...predefinedSkills]
+        predefinedToCheck.forEach(skill => { if (!newPredefined.includes(skill)) newPredefined.push(skill) })
+        const newCustom = [...customSkills]
+        suggestions.forEach(skill => { if (!newCustom.includes(skill)) newCustom.push(skill) })
+        setFormData(prev => ({ ...prev, predefined_skills: newPredefined, skills: newCustom }))
+    }
+
+    const allSuggested = [...predefinedToCheck, ...suggestions]
+    const showSuggestions = !dismissedSuggestions && allSuggested.length > 0
+    const groupedSections = [
+        { key: 'core', label: 'Core (from your course)', skills: [...predefinedToCheck, ...(groups?.core || [])] },
+        { key: 'practical', label: 'Job-aligned (likely roles)', skills: groups?.practical || [] },
+        { key: 'soft', label: 'Transferable / Soft skills', skills: groups?.soft || [] },
+    ].filter(group => group.skills.length > 0)
 
     // --- Disability toggle ---
     const handleDisabilityToggle = (type) => {
@@ -1218,11 +1321,158 @@ const JobseekerProfileEdit = () => {
 
                         {/* Predefined Skills */}
                         <div className="space-y-4">
+                            {showSuggestions && (
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl animate-scale-in">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles className="w-4 h-4 text-blue-600" />
+                                            <span className="text-sm font-semibold text-blue-800">Suggested skills based on your profile</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={handleDeepScan}
+                                                disabled={isDeepScanning}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60 text-xs font-semibold"
+                                                title="Use AI to deep-scan your full profile for specialized skills"
+                                            >
+                                                {isDeepScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
+                                                {isDeepScanning ? 'Scanning...' : 'Re-analyze'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleRefreshSuggestions}
+                                                disabled={isRefreshing}
+                                                className="p-1 text-blue-500 hover:text-blue-700 transition-colors disabled:opacity-60"
+                                                aria-label="Refresh suggestions"
+                                                title="Refresh suggestions"
+                                            >
+                                                <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDismissedSuggestions(true)}
+                                                className="p-1 text-blue-400 hover:text-blue-600 transition-colors"
+                                                aria-label="Dismiss suggestions"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {reasons.length > 0 && (
+                                        <p className="text-xs text-blue-600 mb-3">
+                                            Based on: {reasons.slice(0, 3).join(' | ')}. Click to add or remove.
+                                        </p>
+                                    )}
+                                    <div className="space-y-3">
+                                        {groupedSections.map(section => (
+                                            <div key={section.key}>
+                                                <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">{section.label}</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {section.skills.map(skill => {
+                                                        const selected = isSkillSelected(skill)
+                                                        const source = section.key === 'practical' ? 'ai_enrichment' : 'deterministic'
+                                                        return (
+                                                            <button
+                                                                key={`${section.key}-${skill}`}
+                                                                type="button"
+                                                                onClick={() => handleSuggestedSkillClick(skill, source)}
+                                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                                    selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                                                                }`}
+                                                            >
+                                                                {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                                <span>{skill}</span>
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {isDeepScanning && (
+                                        <div className="mt-3 flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-pulse">
+                                            <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
+                                            <p className="text-xs text-violet-700 font-medium">Scanning your profile for specialized skills...</p>
+                                        </div>
+                                    )}
+                                    {deepScanSkills.length > 0 && (
+                                        <div className="mt-3 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-scale-in">
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <Brain className="w-3.5 h-3.5 text-violet-600" />
+                                                <span className="text-xs font-semibold text-violet-700">AI Deep Scan - freshly discovered skills</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {deepScanSkills.filter(skill => !isSkillSelected(skill)).map(skill => (
+                                                    <button
+                                                        key={skill}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            logSkillAcceptance(skill, 'ai_deep_scan', inferredCategory || null, currentUser?.uid || null)
+                                                            addSuggestedSkill(skill)
+                                                            setDeepScanSkills(prev => prev.filter(item => item !== skill))
+                                                        }}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
+                                                    >
+                                                        <span className="text-[11px] leading-none">+</span>
+                                                        <span>{skill}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {deepScanError && !isDeepScanning && (
+                                        <p className="mt-2 text-xs text-violet-500 italic">{deepScanError}</p>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={addAllSuggestions}
+                                        className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                        Add all {allSuggested.length} suggestions
+                                    </button>
+                                </div>
+                            )}
+
+                            {inferredCategory && demandSkills.length > 0 && (() => {
+                                const allSuggestedLower = new Set(allSuggested.map(skill => skill.toLowerCase()))
+                                const demandFiltered = demandSkills.filter(item => !allSuggestedLower.has(item.requirement.toLowerCase()))
+                                if (demandFiltered.length === 0) return null
+                                return (
+                                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                            <span className="text-sm font-semibold text-emerald-800">Commonly requested by employers in {inferredCategory}</span>
+                                        </div>
+                                        <p className="text-xs text-emerald-700 mb-3">Skills currently listed in open job postings. Click to add or remove:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {demandFiltered.map(item => {
+                                                const selected = isSkillSelected(item.requirement)
+                                                return (
+                                                    <button
+                                                        key={item.requirement}
+                                                        type="button"
+                                                        onClick={() => handleSuggestedSkillClick(item.requirement, 'demand_side')}
+                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                            selected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                                        }`}
+                                                        title={`Requested in ${item.demand_count} open job${item.demand_count > 1 ? 's' : ''}`}
+                                                    >
+                                                        {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                        {item.requirement}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )
+                            })()}
+
                             <div>
                                 <label className="label">Common Skills</label>
                                 <p className="text-sm text-gray-500 mb-2">Select skills you have or add your own below.</p>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                    {PREDEFINED_SKILLS.map(skill => (
+                                    {PREDEFINED_SKILLS.filter(skill => !new Set(allSuggested.map(item => item.toLowerCase())).has(skill.toLowerCase())).map(skill => (
                                         <label key={skill} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                                             <input type="checkbox" checked={(formData.predefined_skills || []).includes(skill)} onChange={() => togglePredefinedSkill(skill)}
                                                 className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
@@ -1314,6 +1564,31 @@ const JobseekerProfileEdit = () => {
                                             <FloatingLabelInput label="Company Name" name={`exp_company_${index}`} value={exp.company} onChange={(e) => updateExperience(index, 'company', e.target.value)} icon={Briefcase} required />
                                             <FloatingLabelInput label="Address (City/Municipality)" name={`exp_address_${index}`} value={exp.address} onChange={(e) => updateExperience(index, 'address', e.target.value)} />
                                             <FloatingLabelInput label="Position" name={`exp_position_${index}`} value={exp.position} onChange={(e) => updateExperience(index, 'position', e.target.value)} required />
+                                            {(() => {
+                                                const positionSkills = getSkillsForPosition(exp.position).filter(skill => !isSkillSelected(skill))
+                                                if (positionSkills.length === 0) return null
+                                                return (
+                                                    <div className="flex flex-wrap gap-1.5 -mt-1">
+                                                        <span className="inline-flex items-center text-xs text-gray-500 mr-1">
+                                                            <Sparkles className="w-3 h-3 mr-1 text-blue-500" />
+                                                            Add skills:
+                                                        </span>
+                                                        {positionSkills.map(skill => (
+                                                            <button
+                                                                key={skill}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    logSkillAcceptance(skill, 'ai_enrichment', inferredCategory || null, currentUser?.uid || null)
+                                                                    addSuggestedSkill(skill)
+                                                                }}
+                                                                className="px-2 py-0.5 rounded-full text-xs font-medium bg-white text-blue-700 border border-blue-300 hover:bg-blue-50 transition-colors"
+                                                            >
+                                                                + {skill}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )
+                                            })()}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <FloatingLabelInput label="Year Started" name={`exp_year_started_${index}`} value={exp.year_started} onChange={(e) => updateExperience(index, 'year_started', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2020" />
                                                 <FloatingLabelInput label="Year Ended" name={`exp_year_ended_${index}`} value={exp.year_ended} onChange={(e) => updateExperience(index, 'year_ended', e.target.value)} type="number" inputMode="numeric" min="1950" max={new Date().getFullYear()} placeholder="e.g. 2023" />
