@@ -6,7 +6,7 @@ import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
     Plus, X, CheckCircle, GraduationCap,
     Award, Calendar, Save, Sparkles, TrendingUp,
-    Ruler, Shield, Globe, Languages, Check, Brain
+    Ruler, Shield, Globe, Languages, Check, Brain, Lightbulb
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores, deepAnalyzeProfileSkills } from '../services/geminiService'
 import { refreshProfileEmbedding } from '../services/matchingService'
@@ -233,10 +233,15 @@ const JobseekerProfileEdit = () => {
     const [aiInputText, setAiInputText] = useState('')
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [analysisError, setAnalysisError] = useState('')
-    const [isDeepScanning, setIsDeepScanning] = useState(false)
-    const [deepScanSkills, setDeepScanSkills] = useState([])
-    const [deepScanError, setDeepScanError] = useState('')
     const [demandSkills, setDemandSkills] = useState([])
+    // AI skill suggestions panel
+    const [aiLoading, setAiLoading] = useState(false)
+    const [aiGenerated, setAiGenerated] = useState(false)
+    const [aiProfileSkills, setAiProfileSkills] = useState([])
+    const [aiGrowthSkills, setAiGrowthSkills] = useState([])
+    const [aiWarnings, setAiWarnings] = useState([])
+    const [aiSource, setAiSource] = useState('ai')
+    const [aiError, setAiError] = useState('')
 
     // Overseas locations toggle
     const [showOverseas, setShowOverseas] = useState(false)
@@ -578,21 +583,63 @@ const JobseekerProfileEdit = () => {
         toggleSuggestedSkill(skill)
     }
 
-    const handleDeepScan = async () => {
-        setIsDeepScanning(true)
-        setDeepScanError('')
-        setDeepScanSkills([])
+    const buildDeterministicFallback = () => {
+        const { suggestions, predefinedToCheck } = generateSuggestedSkills(formData)
+        const selected = new Set([
+            ...predefinedSkills.map(s => s.toLowerCase()),
+            ...customSkills.map(s => s.toLowerCase()),
+        ])
+        const combined = [...predefinedToCheck, ...suggestions]
+        const seen = new Set()
+        return combined.filter(s => {
+            const key = s.toLowerCase()
+            if (seen.has(key)) return false
+            if (selected.has(key)) return false
+            seen.add(key)
+            return true
+        })
+    }
+
+    const handleGenerateAiSuggestions = async () => {
+        setAiLoading(true)
+        setAiError('')
         try {
-            const results = await deepAnalyzeProfileSkills(formData)
-            const fresh = results.filter(skill => !isSkillSelected(skill))
-            setDeepScanSkills(fresh)
-            if (fresh.length === 0) setDeepScanError('No new skills found. Try adding more work experience details.')
+            const result = await deepAnalyzeProfileSkills(formData)
+            const selectedLower = new Set([
+                ...predefinedSkills.map(s => s.toLowerCase()),
+                ...customSkills.map(s => s.toLowerCase()),
+            ])
+            const profile = (result.profileSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
+            const growth = (result.growthSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
+
+            if (profile.length === 0 && growth.length === 0) {
+                const fallback = buildDeterministicFallback()
+                setAiProfileSkills(fallback)
+                setAiGrowthSkills([])
+                setAiWarnings([])
+                setAiSource('fallback')
+            } else {
+                setAiProfileSkills(profile)
+                setAiGrowthSkills(growth)
+                setAiWarnings(result.warnings || [])
+                setAiSource('ai')
+            }
+            setAiGenerated(true)
         } catch {
-            setDeepScanError('AI scan failed. Please try again.')
+            const fallback = buildDeterministicFallback()
+            setAiProfileSkills(fallback)
+            setAiGrowthSkills([])
+            setAiWarnings([])
+            setAiSource('fallback')
+            setAiGenerated(true)
+            setAiError('AI suggestions were unavailable, so we used your profile details instead.')
         } finally {
-            setIsDeepScanning(false)
+            setAiLoading(false)
         }
     }
+
+    const visibleAiProfileSkills = aiProfileSkills.filter(s => !isSkillSelected(s))
+    const visibleAiGrowthSkills = aiGrowthSkills.filter(s => !isSkillSelected(s))
 
     const addAllSuggestions = () => {
         const newCustom = [...customSkills]
@@ -1322,21 +1369,9 @@ const JobseekerProfileEdit = () => {
                         <div className="space-y-4">
                             {showSuggestions && (
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl animate-scale-in">
-                                    <div className="flex items-start justify-between gap-2 mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <Sparkles className="w-4 h-4 text-blue-600" />
-                                            <span className="text-sm font-semibold text-blue-800">Skills that go with yours</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleDeepScan}
-                                            disabled={isDeepScanning}
-                                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60 text-xs font-semibold"
-                                            title="Use AI to deep-scan your full profile for specialized skills"
-                                        >
-                                            {isDeepScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
-                                            {isDeepScanning ? 'Scanning...' : '✨ Re-analyze'}
-                                        </button>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Sparkles className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-semibold text-blue-800">Skills that go with yours</span>
                                     </div>
 
                                     {companionRequired.length > 0 && (
@@ -1388,48 +1423,11 @@ const JobseekerProfileEdit = () => {
                                         </div>
                                     )}
 
-                                    {isDeepScanning && (
-                                        <div className="mt-3 flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-pulse">
-                                            <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
-                                            <p className="text-xs text-violet-700 font-medium">Scanning your profile for specialized skills…</p>
-                                        </div>
-                                    )}
-
-                                    {deepScanSkills.length > 0 && (
-                                        <div className="mt-3 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-scale-in">
-                                            <div className="flex items-center gap-1.5 mb-2">
-                                                <Brain className="w-3.5 h-3.5 text-violet-600" />
-                                                <span className="text-xs font-semibold text-violet-700">AI Deep Scan — freshly discovered skills</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {deepScanSkills.filter(skill => !isSkillSelected(skill)).map(skill => (
-                                                    <button
-                                                        key={skill}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            logSkillAcceptance(skill, 'ai_deep_scan', inferredCategory || null, currentUser?.uid || null)
-                                                            addSuggestedSkill(skill)
-                                                            setDeepScanSkills(prev => prev.filter(s => s !== skill))
-                                                        }}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
-                                                    >
-                                                        <span className="text-[11px] leading-none">+</span>
-                                                        <span>{skill}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {deepScanError && !isDeepScanning && (
-                                        <p className="mt-2 text-xs text-violet-500 italic">{deepScanError}</p>
-                                    )}
-
                                     {(companionRequired.length + companionPreferred.length) > 1 && (
                                         <button
                                             type="button"
                                             onClick={addAllSuggestions}
-                                            className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                            className="mt-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
                                         >
                                             Add all {companionRequired.length + companionPreferred.length} suggestions
                                         </button>
@@ -1437,43 +1435,168 @@ const JobseekerProfileEdit = () => {
                                 </div>
                             )}
 
-                            {inferredCategory && demandSkills.length > 0 && (() => {
-                                const alreadySuggestedLower = new Set([
-                                    ...companionRequired.map(s => s.toLowerCase()),
-                                    ...companionPreferred.map(({ skill }) => skill.toLowerCase()),
-                                    ...currentSkills.map(s => s.toLowerCase()),
-                                ])
-                                const demandFiltered = demandSkills.filter(item => !alreadySuggestedLower.has(item.requirement.toLowerCase()))
-                                if (demandFiltered.length === 0) return null
-                                return (
-                                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <TrendingUp className="w-4 h-4 text-emerald-600" />
-                                            <span className="text-sm font-semibold text-emerald-800">Commonly requested by employers in {inferredCategory}</span>
-                                        </div>
-                                        <p className="text-xs text-emerald-700 mb-3">Skills currently listed in open job postings. Click to add or remove:</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {demandFiltered.map(item => {
-                                                const selected = isSkillSelected(item.requirement)
-                                                return (
-                                                    <button
-                                                        key={item.requirement}
-                                                        type="button"
-                                                        onClick={() => handleSuggestedSkillClick(item.requirement, 'demand_side')}
-                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                                                            selected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                                        }`}
-                                                        title={`Requested in ${item.demand_count} open job${item.demand_count > 1 ? 's' : ''}`}
-                                                    >
-                                                        {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
-                                                        {item.requirement}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
+                            {/* AI skill suggestions — user-triggered, review-only */}
+                            <div className="p-4 bg-violet-50 border border-violet-200 rounded-xl">
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Brain className="w-4 h-4 text-violet-600" />
+                                        <span className="text-sm font-semibold text-violet-800">AI Skill Suggestions</span>
                                     </div>
-                                )
-                            })()}
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateAiSuggestions}
+                                        disabled={aiLoading}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-60 text-xs font-semibold"
+                                    >
+                                        {aiLoading
+                                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            : <Sparkles className="w-3.5 h-3.5" />}
+                                        {aiLoading ? 'Analyzing...' : (aiGenerated ? 'Regenerate AI suggestions' : 'Generate AI skill suggestions')}
+                                    </button>
+                                </div>
+
+                                {!aiGenerated && !aiLoading && (
+                                    <p className="text-xs text-violet-700">
+                                        Click the button to let AI review your education, training, and experience for skill suggestions. Nothing will be added automatically — you choose what to include.
+                                    </p>
+                                )}
+
+                                {aiLoading && (
+                                    <div className="mt-2 flex items-center gap-2 p-3 bg-white/70 border border-violet-200 rounded-lg animate-pulse">
+                                        <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
+                                        <p className="text-xs text-violet-700 font-medium">Analyzing your profile…</p>
+                                    </div>
+                                )}
+
+                                {aiGenerated && !aiLoading && aiSource === 'ai' && (
+                                    <div className="mt-3 space-y-4">
+                                        {visibleAiProfileSkills.length > 0 && (
+                                            <div>
+                                                <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
+                                                    AI Suggested Profile Skills
+                                                </p>
+                                                <p className="text-xs text-violet-700/80 mb-2">
+                                                    These are skills the AI found evidence for in your education, training, or work experience. Review before adding.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {visibleAiProfileSkills.map(skill => (
+                                                        <button
+                                                            key={`ai-profile-${skill}`}
+                                                            type="button"
+                                                            onClick={() => handleSuggestedSkillClick(skill, 'ai_profile')}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
+                                                        >
+                                                            <span className="text-[11px] leading-none">+</span>
+                                                            <span>{skill}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {visibleAiGrowthSkills.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                                                    <p className="text-[11px] uppercase tracking-wide font-semibold text-amber-700">
+                                                        Skills To Consider Learning
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-amber-700/90 mb-2">
+                                                    These are commonly useful for your target roles, but only add them to your profile if you already have them.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {visibleAiGrowthSkills.map(skill => (
+                                                        <button
+                                                            key={`ai-growth-${skill}`}
+                                                            type="button"
+                                                            onClick={() => handleSuggestedSkillClick(skill, 'ai_growth')}
+                                                            title="Only add if you already have this skill"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-amber-700 border-amber-300 hover:bg-amber-100 transition-all"
+                                                        >
+                                                            <span className="text-[11px] leading-none">+</span>
+                                                            <span>{skill}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {visibleAiProfileSkills.length === 0 && visibleAiGrowthSkills.length === 0 && (
+                                            <p className="text-xs text-violet-600 italic">
+                                                No new suggestions. Add more education or work experience details and try again.
+                                            </p>
+                                        )}
+
+                                        {aiWarnings.length > 0 && (
+                                            <p className="text-[11px] text-violet-600/80 italic">
+                                                Notes: {aiWarnings.join(' | ')}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {aiGenerated && !aiLoading && aiSource === 'fallback' && (
+                                    <div className="mt-3">
+                                        <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
+                                            Suggested Skills From Your Profile
+                                        </p>
+                                        <p className="text-xs text-violet-700/80 mb-2">
+                                            AI suggestions were unavailable, so we used your course, training, and work experience to suggest possible skills. Review before adding.
+                                        </p>
+                                        {aiError && <p className="text-[11px] text-violet-500 italic mb-2">{aiError}</p>}
+                                        {visibleAiProfileSkills.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {visibleAiProfileSkills.map(skill => (
+                                                    <button
+                                                        key={`det-${skill}`}
+                                                        type="button"
+                                                        onClick={() => handleSuggestedSkillClick(skill, 'deterministic_fallback')}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
+                                                    >
+                                                        <span className="text-[11px] leading-none">+</span>
+                                                        <span>{skill}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-violet-600 italic">
+                                                No suggestions available. Add more education or work experience details and try again.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Employer-demand panel — kept separate from "skills you have" */}
+                            {inferredCategory && demandSkills.length > 0 && (
+                                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                        <span className="text-sm font-semibold text-emerald-800">Commonly requested by employers in {inferredCategory}</span>
+                                    </div>
+                                    <p className="text-xs text-emerald-700 mb-3">Based on currently open job postings. Only add these if you actually have them.</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {demandSkills.map(item => {
+                                            const selected = isSkillSelected(item.requirement)
+                                            return (
+                                                <button
+                                                    key={item.requirement}
+                                                    type="button"
+                                                    onClick={() => handleSuggestedSkillClick(item.requirement, 'demand_side')}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                        selected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                                    }`}
+                                                    title={`Requested in ${item.demand_count} open job${item.demand_count > 1 ? 's' : ''}`}
+                                                >
+                                                    {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                    {item.requirement}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="label">Common Skills</label>

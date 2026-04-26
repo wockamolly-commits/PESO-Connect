@@ -115,8 +115,6 @@ describe('Step5SkillsExperience — AI skill suggestions', () => {
     const aiPanel = aiPanelHeader.closest('div')
     expect(aiPanel).toBeTruthy()
     expect(aiPanel.textContent).toContain('Patient Care')
-    // 'Cooking' is already selected so it must NOT appear as an AI suggestion chip
-    // inside the AI panel (it remains in the TagInput selected list elsewhere).
     expect(aiPanel.textContent).not.toContain('Cooking')
   })
 
@@ -173,7 +171,6 @@ describe('Step5SkillsExperience — employer-demand panel', () => {
       ).toBeInTheDocument()
     })
     expect(screen.getByText('Food Safety')).toBeInTheDocument()
-    // Copy should make clear these are NOT the user's own skills
     expect(
       screen.getByText(/Based on currently open job postings\. Only add these if you actually have them\./i)
     ).toBeInTheDocument()

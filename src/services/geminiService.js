@@ -434,59 +434,97 @@ export {
 }
 
 /**
- * Deep-scans a jobseeker's full profile context (course, vocational training,
- * work experience) with an LLM and returns up to 15 specialized skills that
- * the deterministic rules may have missed.
+ * Deep-scans a jobseeker's full profile context (education, vocational
+ * training, work experience, preferred occupations) with an LLM and returns
+ * two structured lists:
+ *   - profileSkills: skills the jobseeker likely already has (evidence-based)
+ *   - growthSkills: marketable skills worth learning (NOT claimed as held)
  *
- * Returns [] on any error so the UI can degrade gracefully.
+ * Returns { profileSkills: [], growthSkills: [], warnings: [] } on any error
+ * so the UI can fall back to deterministic suggestions.
  *
- * @param {object} formData - Registration form state (Step 4 + Step 5 data)
- * @returns {Promise<string[]>}
+ * @param {object} formData - Registration or profile-edit form state
+ * @returns {Promise<{ profileSkills: string[], growthSkills: string[], warnings: string[] }>}
  */
 export const deepAnalyzeProfileSkills = async (formData = {}) => {
+    const EMPTY = { profileSkills: [], growthSkills: [], warnings: [] }
+
     const course = formData.course_or_field || ''
+    const highestEducation = formData.highest_education || ''
     const vocational = (formData.vocational_training || [])
         .map(t => [t.course_name, t.skills_acquired].filter(Boolean).join(': '))
         .filter(Boolean)
         .join('; ')
     const experiences = (formData.work_experiences || [])
-        .map(e => {
-            const parts = [e.position, e.company].filter(Boolean).join(' at ')
-            return parts
-        })
+        .map(e => [e.position, e.company].filter(Boolean).join(' at '))
         .filter(Boolean)
         .join(', ')
+    const preferred = (formData.preferred_occupations || [])
+        .map(o => (typeof o === 'string' ? o : o?.name || ''))
+        .filter(Boolean)
+        .join(', ')
+    const currentSkills = [
+        ...(formData.predefined_skills || []),
+        ...(formData.skills || []),
+    ].filter(Boolean).join(', ')
 
-    if (!course && !vocational && !experiences) return []
+    if (!course && !vocational && !experiences && !highestEducation && !preferred) {
+        return EMPTY
+    }
 
     const contextLines = []
+    if (highestEducation) contextLines.push(`Highest Education: ${highestEducation}`)
     if (course) contextLines.push(`Course/Field of Study: ${course}`)
     if (vocational) contextLines.push(`Vocational/Technical Training: ${vocational}`)
     if (experiences) contextLines.push(`Work Experience: ${experiences}`)
+    if (preferred) contextLines.push(`Preferred Occupations / Target Roles: ${preferred}`)
+    if (currentSkills) contextLines.push(`Already Listed Skills: ${currentSkills}`)
 
-    const prompt = `You are a professional career analyst. Based on the following jobseeker background, extract up to 15 specialized technical and soft skills that are most relevant for employment in the Philippines.
+    const prompt = `You are a careful career analyst helping a Philippine jobseeker build an honest profile. Analyze their background and produce TWO separate lists.
 
 ${contextLines.join('\n')}
 
-Rules:
-- Return ONLY a JSON object with a single key "skills" containing an array of strings.
-- Each skill should be a short, normalized phrase (2-4 words max).
-- Prioritize technical/vocational skills over generic ones.
-- Do not repeat obvious skills like "Communication" unless clearly specialized.
-- Example output: {"skills": ["Preventative Maintenance", "Safety Compliance", "Tool Calibration"]}`
+You must distinguish between:
+1. "profileSkills": Skills the jobseeker VERY LIKELY ALREADY HAS, based on clear evidence in their education, vocational training, work experience, or already-listed skills. Only include a skill if the evidence is explicit or strongly implied by the role/training/course.
+2. "growthSkills": Skills that would be MARKETABLE for their target roles or commonly requested by employers, but for which there is NO direct evidence they currently possess. These are suggestions to consider LEARNING, not skills to claim.
+
+SAFETY RULES (very important):
+- Never encourage the jobseeker to claim skills they do not actually have.
+- If evidence is ambiguous, place the skill in growthSkills, not profileSkills.
+- Cover the correct industry — this may be healthcare, hospitality, trades, retail, agriculture, admin, education, IT, construction, logistics, manufacturing, beauty/personal care, or any other sector. Do NOT assume IT.
+- Each skill must be a short normalized phrase (1-4 words).
+- Do not duplicate a skill across profileSkills and growthSkills.
+- Do not repeat skills already in "Already Listed Skills".
+- Keep profileSkills to 0-12 items and growthSkills to 0-10 items.
+
+Return ONLY a JSON object in this exact shape:
+{"profileSkills":["..."], "growthSkills":["..."], "warnings":["optional notes about ambiguous evidence"]}`
 
     try {
-        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 512 })
+        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 768 })
         const parsed = safeParseAIJSON(raw)
-        if (!parsed.ok) return []
-        const skills = parsed.data?.skills
-        if (!Array.isArray(skills)) return []
-        return skills
-            .map(s => (typeof s === 'string' ? s.trim() : ''))
-            .filter(s => s.length > 0 && s.length < 60)
-            .slice(0, 15)
+        if (!parsed.ok) return EMPTY
+
+        const normalizeList = (values, limit) => {
+            if (!Array.isArray(values)) return []
+            const seen = new Set()
+            return values
+                .map(s => (typeof s === 'string' ? s.trim() : ''))
+                .filter(s => s.length > 0 && s.length < 60)
+                .filter(s => { const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+                .slice(0, limit)
+        }
+
+        // Support legacy response shape ({skills: [...]}) as profileSkills
+        const rawProfile = parsed.data?.profileSkills ?? parsed.data?.skills
+        const profileSkills = normalizeList(rawProfile, 12)
+        const growthSkills = normalizeList(parsed.data?.growthSkills, 10)
+            .filter(s => !profileSkills.some(p => p.toLowerCase() === s.toLowerCase()))
+        const warnings = normalizeList(parsed.data?.warnings, 5)
+
+        return { profileSkills, growthSkills, warnings }
     } catch {
-        return []
+        return EMPTY
     }
 }
 

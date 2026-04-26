@@ -43,8 +43,8 @@ function timeAgo(dateString) {
 }
 
 const AdminNotificationBell = ({
-    notifications,
-    unreadCount,
+    notifications = [],
+    unreadCount = 0,
     loading,
     onMarkAsRead,
     onMarkAllAsRead,

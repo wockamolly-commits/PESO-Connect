@@ -4,6 +4,7 @@ import {
     Briefcase, GraduationCap, Award, ChevronRight
 } from 'lucide-react'
 import PendingReverificationBadge from '../common/PendingReverificationBadge'
+import { getCertificateSignedUrl } from '../../utils/certificateUtils'
 
 const JobseekerCard = ({
     jobseeker,
@@ -18,6 +19,16 @@ const JobseekerCard = ({
 }) => {
     const isExpanded = expandedId === jobseeker.id
     const status = jobseeker.jobseeker_status || 'pending'
+
+    const handleCertPathClick = async (e, path, title) => {
+        e.stopPropagation()
+        try {
+            const url = await getCertificateSignedUrl(path)
+            if (url) onViewDocument(url, title)
+        } catch {
+            // path may be stale or bucket policy missing — silently ignore
+        }
+    }
 
     return (
         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors">
@@ -35,7 +46,7 @@ const JobseekerCard = ({
                             {jobseeker.display_name || jobseeker.full_name || jobseeker.name || 'Unnamed User'}
                         </h3>
                         <p className="text-sm text-slate-500 truncate">
-                            {jobseeker.email} &bull; {jobseeker.skills?.length || 0} skill(s)
+                            {jobseeker.email} &bull; {((jobseeker.predefined_skills?.length || 0) + (jobseeker.skills?.length || 0))} skill(s)
                         </p>
                     </div>
                 </div>
@@ -139,28 +150,60 @@ const JobseekerCard = ({
                                 Skills & Certifications
                             </h4>
                             <div className="space-y-3">
-                                {jobseeker.skills && jobseeker.skills.length > 0 ? (
+                                {(() => {
+                                    const predefined = jobseeker.predefined_skills || []
+                                    const custom = jobseeker.skills || []
+                                    const allSkills = [...predefined, ...custom]
+                                    return allSkills.length > 0 ? (
+                                        <div>
+                                            <p className="text-xs text-slate-500 mb-2">Skills:</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {allSkills.map((skill, i) => (
+                                                    <span key={i} className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded text-xs">
+                                                        {skill}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-slate-500">No skills listed</p>
+                                    )
+                                })()}
+                                {jobseeker.professional_licenses && jobseeker.professional_licenses.length > 0 && (
                                     <div>
-                                        <p className="text-xs text-slate-500 mb-2">Skills:</p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {jobseeker.skills.map((skill, i) => (
-                                                <span key={i} className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded text-xs">
-                                                    {skill}
-                                                </span>
+                                        <p className="text-xs text-slate-500 mb-2">Professional Licenses:</p>
+                                        <div className="space-y-1.5">
+                                            {jobseeker.professional_licenses.map((lic, i) => (
+                                                <div key={i} className="px-2.5 py-1.5 bg-violet-500/10 border border-violet-500/20 rounded text-xs text-violet-300">
+                                                    <span className="font-medium">{lic.name}</span>
+                                                    {lic.number && <span className="text-violet-400/70 ml-1.5">#{lic.number}</span>}
+                                                    {lic.valid_until && <span className="text-slate-500 ml-1.5">· valid until {lic.valid_until}</span>}
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
-                                ) : (
-                                    <p className="text-sm text-slate-500">No skills listed</p>
                                 )}
-                                {jobseeker.certifications && jobseeker.certifications.length > 0 && (
+                                {jobseeker.civil_service_eligibility && (
                                     <div>
-                                        <p className="text-xs text-slate-500 mb-2">Certifications:</p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {jobseeker.certifications.map((cert, i) => (
-                                                <span key={i} className="px-2 py-1 bg-green-500/15 text-green-400 rounded text-xs">
-                                                    {cert}
-                                                </span>
+                                        <p className="text-xs text-slate-500 mb-2">Civil Service Eligibility:</p>
+                                        <div className="px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-300">
+                                            {jobseeker.civil_service_eligibility}
+                                            {jobseeker.civil_service_date && (
+                                                <span className="text-slate-500 ml-1.5">· {jobseeker.civil_service_date}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {jobseeker.vocational_training && jobseeker.vocational_training.length > 0 && (
+                                    <div>
+                                        <p className="text-xs text-slate-500 mb-2">Vocational / TESDA Training:</p>
+                                        <div className="space-y-1.5">
+                                            {jobseeker.vocational_training.map((t, i) => (
+                                                <div key={i} className="px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-300">
+                                                    <span className="font-medium">{t.course}</span>
+                                                    {t.institution && <span className="text-slate-400 ml-1.5">· {t.institution}</span>}
+                                                    {t.certificate_level && <span className="text-green-400/70 ml-1.5">({t.certificate_level})</span>}
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -232,25 +275,45 @@ const JobseekerCard = ({
                                 </div>
                             )}
 
-                            {/* Certificates */}
-                            {jobseeker.certificate_urls && jobseeker.certificate_urls.length > 0 && (
+                            {/* Vocational / TESDA training certificates */}
+                            {(jobseeker.vocational_training || []).filter(t => t.certificate_path).length > 0 && (
                                 <div className="p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
                                         <FileText className="w-4 h-4 text-green-400" />
-                                        <span className="text-sm text-slate-300 font-medium">Certificates ({jobseeker.certificate_urls.length})</span>
+                                        <span className="text-sm text-slate-300 font-medium">
+                                            Training Certificates ({(jobseeker.vocational_training || []).filter(t => t.certificate_path).length})
+                                        </span>
                                     </div>
                                     <div className="space-y-1">
-                                        {jobseeker.certificate_urls.map((cert, i) => (
+                                        {(jobseeker.vocational_training || []).filter(t => t.certificate_path).map((t, i) => (
                                             <button
                                                 key={i}
-                                                onClick={(e) => { e.stopPropagation(); onViewDocument(cert.data, cert.name || `Certificate ${i + 1}`) }}
+                                                onClick={(e) => handleCertPathClick(e, t.certificate_path, t.course || `Training Certificate ${i + 1}`)}
                                                 className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline block"
                                             >
-                                                {cert.name || `Certificate ${i + 1}`}
+                                                {t.course || `Training Certificate ${i + 1}`}
+                                                {t.certificate_level && <span className="text-slate-500 ml-1">({t.certificate_level})</span>}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Civil service eligibility certificate */}
+                            {jobseeker.civil_service_cert_path && (
+                                <button
+                                    onClick={(e) => handleCertPathClick(e, jobseeker.civil_service_cert_path, `Civil Service Certificate — ${jobseeker.civil_service_eligibility || ''}`)}
+                                    className="group p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl hover:border-amber-500/30 hover:bg-slate-800 transition-all text-left w-full"
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-amber-400" />
+                                            <span className="text-sm text-slate-300 font-medium">Civil Service Certificate</span>
+                                        </div>
+                                        <Maximize2 className="w-4 h-4 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <p className="text-xs text-slate-500">Click to view</p>
+                                </button>
                             )}
                         </div>
                     </div>

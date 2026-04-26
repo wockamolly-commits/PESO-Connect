@@ -123,7 +123,7 @@ export const useJobDetailMatch = ({
         }
 
         if (!HYBRID_MATCHING_ENABLED) {
-            setMatchData(null)
+            setMatchData(buildDeterministicMatch(job, userData))
             setLoading(false)
             setError(null)
             return

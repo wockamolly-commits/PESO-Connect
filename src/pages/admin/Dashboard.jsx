@@ -38,6 +38,7 @@ import {
     fetchAdminDirectoryPage,
 } from '../../services/adminUserDirectoryService'
 import { getVerificationMetadata } from '../../utils/verificationUtils'
+import { useAdminNotifications } from '../../hooks/useAdminNotifications'
 
 const getNotificationTargetUserId = (notification) => {
     if (notification?.metadata?.user_id) return notification.metadata.user_id
@@ -155,6 +156,14 @@ const SetupPasswordModal = ({ onClose }) => {
 const AdminDashboard = ({ initialSection = 'overview' }) => {
     const { currentUser, userData, adminAccess, logout } = useAuth()
     const navigate = useNavigate()
+
+    const {
+        notifications,
+        unreadCount,
+        loading: notificationsLoading,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+    } = useAdminNotifications()
 
     const [dismissSetup, setDismissSetup] = useState(false)
     const showSetupPassword = currentUser?.user_metadata?.needs_password_setup && !dismissSetup
@@ -766,6 +775,11 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                 <AdminTopbar
                     userData={userData}
                     adminAccess={adminAccess}
+                    notifications={notifications}
+                    unreadCount={unreadCount}
+                    notificationsLoading={notificationsLoading}
+                    onMarkAsRead={markNotificationAsRead}
+                    onMarkAllAsRead={markAllNotificationsAsRead}
                     onNotificationNavigate={handleNotificationNavigate}
                 />
                 <div className="p-6 lg:p-8 max-w-7xl">
