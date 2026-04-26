@@ -8,7 +8,7 @@ import {
     Award, Calendar, Save, Sparkles, TrendingUp,
     Ruler, Shield, Globe, Languages, Check, Brain, Lightbulb
 } from 'lucide-react'
-import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores, deepAnalyzeProfileSkills } from '../services/geminiService'
+import { deduplicateSkills, expandProfileAliases, clearSessionScores, deepAnalyzeProfileSkills } from '../services/geminiService'
 import { refreshProfileEmbedding } from '../services/matchingService'
 import ProfilePhotoUpload from '../components/profile/ProfilePhotoUpload'
 import ResumeUpload from '../components/common/ResumeUpload'
@@ -22,7 +22,7 @@ import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
 import { countTrainingCertificates, getTrainingCertificateRecord } from '../utils/reverification'
 import { buildCertificateFingerprint } from '../utils/certificateUtils'
-import { getSkillsForPosition } from '../utils/skillRecommender'
+import { getSkillsForPosition, generateSuggestedSkills } from '../utils/skillRecommender'
 import { getCompanionSuggestions, getSmartPreferredSuggestions } from '../utils/skillIntelligence'
 import { inferCategoryFromProfile, getTopDemandSkills } from '../services/skillDemandService'
 import { logSkillAcceptance } from '../services/telemetryService'
@@ -228,11 +228,6 @@ const JobseekerProfileEdit = () => {
     const [isDirty, setIsDirty] = useState(false)
     const initialFormDataRef = useRef(null)
 
-    // AI Analysis State
-    const [showAIModal, setShowAIModal] = useState(false)
-    const [aiInputText, setAiInputText] = useState('')
-    const [isAnalyzing, setIsAnalyzing] = useState(false)
-    const [analysisError, setAnalysisError] = useState('')
     const [demandSkills, setDemandSkills] = useState([])
     // AI skill suggestions panel
     const [aiLoading, setAiLoading] = useState(false)
@@ -955,67 +950,6 @@ const JobseekerProfileEdit = () => {
         }
     }
 
-    // --- AI Resume Analysis ---
-    const handleAnalyzeResume = async () => {
-        if (!aiInputText.trim()) {
-            setAnalysisError('Please paste your resume text first.')
-            return
-        }
-
-        setIsAnalyzing(true)
-        setAnalysisError('')
-
-        try {
-            const result = await analyzeResume(aiInputText)
-
-            setFormData(prev => {
-                const newData = { ...prev }
-
-                // 1. Skills (Merge with existing, normalized & deduplicated)
-                if (result.skills && Array.isArray(result.skills)) {
-                    const aiSkills = result.skills.map(s => normalizeSkillName(s.name || s)).filter(Boolean)
-                    const merged = [...prev.skills, ...aiSkills]
-                    newData.skills = deduplicateSkills(merged)
-                }
-
-                // 2. Work Experience (Append, cleaned — use registration shape)
-                if (result.experience && Array.isArray(result.experience)) {
-                    const newExp = result.experience.map(exp => ({
-                        company: (exp.company || '').trim() || 'Unknown',
-                        address: '',
-                        position: (exp.title || '').trim() || 'Unknown',
-                        year_started: '',
-                        year_ended: '',
-                        employment_status: ''
-                    })).filter(exp => exp.company !== 'Unknown' || exp.position !== 'Unknown')
-                    newData.work_experiences = [...prev.work_experiences, ...newExp]
-                }
-
-                // 3. Education (Use pre-normalized level from geminiService)
-                if (result.education && Array.isArray(result.education) && result.education.length > 0) {
-                    const edu = result.education[0]
-                    if (!prev.highest_education && edu.normalizedLevel) {
-                        newData.highest_education = edu.normalizedLevel
-                    }
-                    if (!prev.school_name && edu.school) newData.school_name = edu.school.trim()
-                    if (!prev.course_or_field && edu.degree) newData.course_or_field = edu.degree.trim()
-                    if (!prev.year_graduated && edu.year) newData.year_graduated = edu.year.toString().trim()
-                }
-
-                return newData
-            })
-
-            setShowAIModal(false)
-            setSuccess('Profile updated with AI analysis! Please review the changes.')
-            setTimeout(() => setSuccess(''), 5000)
-        } catch (err) {
-            console.error(err)
-            setAnalysisError(err.message || 'Failed to analyze resume.')
-        } finally {
-            setIsAnalyzing(false)
-        }
-    }
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 py-12 px-4">
             <div className="max-w-4xl mx-auto">
@@ -1032,13 +966,6 @@ const JobseekerProfileEdit = () => {
                         />
                     </div>
 
-                    <button
-                        onClick={() => setShowAIModal(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-primary-600 text-white rounded-full font-medium shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Auto-fill from Resume with AI
-                    </button>
                 </div>
 
                 {/* Error/Success Messages */}
@@ -1968,71 +1895,6 @@ const JobseekerProfileEdit = () => {
                 </form>
             </div>
 
-            {/* AI Analysis Modal */}
-            {showAIModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-primary-50 to-white">
-                        <div className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-primary-600" />
-                            <h3 className="font-semibold text-gray-900">Auto-fill with AI</h3>
-                        </div>
-                        <button
-                            onClick={() => setShowAIModal(false)}
-                            className="text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    <div className="p-6">
-                        <p className="text-sm text-gray-600 mb-4">
-                            Paste your resume text below. Our AI will analyze it and extract your skills, education, and work experience to fill out your profile automatically.
-                        </p>
-
-                        <textarea
-                            value={aiInputText}
-                            onChange={(e) => setAiInputText(e.target.value)}
-                            className="w-full h-48 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-sm"
-                            placeholder="Paste your resume content here..."
-                        />
-
-                        {analysisError && (
-                            <div className="mt-3 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4" />
-                                {analysisError}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-                        <button
-                            onClick={() => setShowAIModal(false)}
-                            className="btn-secondary text-sm"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleAnalyzeResume}
-                            disabled={isAnalyzing || !aiInputText.trim()}
-                            className="btn-primary flex items-center gap-2 text-sm"
-                        >
-                            {isAnalyzing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Analyzing...
-                                </>
-                            ) : (
-                                <>
-                                    <Sparkles className="w-4 h-4" />
-                                    Analyze & Auto-fill
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-            )}
         </div>
     )
 }
