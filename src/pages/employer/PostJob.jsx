@@ -1210,39 +1210,49 @@ const PostJobWizard = () => {
 
                                 {/* AI skill suggestions panel */}
                                 <div className="mt-4 p-4 bg-violet-50 border border-violet-200 rounded-xl">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <p className="text-sm font-medium text-violet-700 flex items-center gap-1.5">
-                                            <Brain className="w-4 h-4" />
-                                            AI Skill Suggestions
-                                        </p>
-                                        {aiSuggestionsLoading && (
-                                            <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
-                                        )}
-                                    </div>
-
-                                    {!aiSuggestionsGenerated && !aiSuggestionsLoading && (
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Brain className="w-4 h-4 text-violet-600" />
+                                            <span className="text-sm font-semibold text-violet-800">AI Skill Suggestions</span>
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={handleGenerateAiSuggestions}
-                                            aria-label="Generate AI skill suggestions"
-                                            className="mt-1 inline-flex items-center gap-1.5 px-4 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-full hover:bg-violet-700 transition-colors"
+                                            disabled={aiSuggestionsLoading}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-60 text-xs font-semibold shrink-0"
                                         >
-                                            <Brain className="w-3.5 h-3.5" />
-                                            Generate AI skill suggestions
+                                            {aiSuggestionsLoading
+                                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                : <Sparkles className="w-3.5 h-3.5" />}
+                                            {aiSuggestionsLoading ? 'Analyzing...' : (aiSuggestionsGenerated ? 'Regenerate AI suggestions' : 'Generate AI skill suggestions')}
                                         </button>
+                                    </div>
+
+                                    {!aiSuggestionsGenerated && !aiSuggestionsLoading && (
+                                        <p className="text-xs text-violet-700">
+                                            Click the button to let AI review your job title, category, and description for skill suggestions. Nothing will be added automatically — you choose what to include.
+                                        </p>
                                     )}
 
                                     {aiSuggestionsLoading && (
-                                        <p className="text-xs text-violet-500 italic mt-1">Analyzing your job title and description…</p>
+                                        <div className="mt-2 flex items-center gap-2 p-3 bg-white/70 border border-violet-200 rounded-lg animate-pulse">
+                                            <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
+                                            <p className="text-xs text-violet-700 font-medium">Analyzing your job details…</p>
+                                        </div>
                                     )}
 
                                     {aiSuggestionsGenerated && !aiSuggestionsLoading && (
-                                        <>
+                                        <div className="mt-3 space-y-4">
                                             {aiSuggestionsSource === 'llm' ? (
-                                                <div className="space-y-4 mt-2">
-                                                    {aiRequiredSkillSuggestions.length > 0 && (
+                                                <>
+                                                    {aiRequiredSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s)).length > 0 && (
                                                         <div>
-                                                            <p className="text-xs font-semibold text-violet-700 mb-1.5">AI Suggested Required Skills</p>
+                                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
+                                                                AI Suggested Required Skills
+                                                            </p>
+                                                            <p className="text-xs text-violet-700/80 mb-2">
+                                                                Skills the AI identified as essential for this role. Review before adding.
+                                                            </p>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {aiRequiredSkillSuggestions
                                                                     .filter(s => !jobData.requiredSkills.includes(s))
@@ -1254,9 +1264,10 @@ const PostJobWizard = () => {
                                                                                 addSkill(skill)
                                                                                 setAiRequiredSkillSuggestions(prev => prev.filter(s => s !== skill))
                                                                             }}
-                                                                            className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-violet-200 rounded-full text-sm text-violet-700 hover:bg-violet-100 hover:border-violet-400 transition-colors"
+                                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
                                                                         >
-                                                                            + {skill}
+                                                                            <span className="text-[11px] leading-none">+</span>
+                                                                            <span>{skill}</span>
                                                                         </button>
                                                                     ))
                                                                 }
@@ -1264,13 +1275,19 @@ const PostJobWizard = () => {
                                                         </div>
                                                     )}
                                                     {aiRequiredSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s)).length === 0 && (
-                                                        <p className="text-xs text-violet-400 italic">All suggestions have been added.</p>
+                                                        <p className="text-xs text-violet-600 italic">
+                                                            No new suggestions. Try adding more job description details and regenerate.
+                                                        </p>
                                                     )}
-                                                </div>
+                                                </>
                                             ) : (
-                                                <div className="mt-2">
-                                                    <p className="text-xs font-semibold text-violet-700 mb-1">Suggested Skills From Job Description</p>
-                                                    <p className="text-xs text-violet-500 mb-2">AI suggestions were unavailable, so we used your job title, description, and vocabulary.</p>
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
+                                                        Suggested Skills From Job Description
+                                                    </p>
+                                                    <p className="text-xs text-violet-700/80 mb-2">
+                                                        AI suggestions were unavailable, so we used your job title, description, and vocabulary.
+                                                    </p>
                                                     <div className="flex flex-wrap gap-2">
                                                         {aiRequiredSkillSuggestions
                                                             .filter(s => !jobData.requiredSkills.includes(s))
@@ -1282,26 +1299,20 @@ const PostJobWizard = () => {
                                                                         addSkill(skill)
                                                                         setAiRequiredSkillSuggestions(prev => prev.filter(s => s !== skill))
                                                                     }}
-                                                                    className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-violet-200 rounded-full text-sm text-violet-700 hover:bg-violet-100 hover:border-violet-400 transition-colors"
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
                                                                 >
-                                                                    + {skill}
+                                                                    <span className="text-[11px] leading-none">+</span>
+                                                                    <span>{skill}</span>
                                                                 </button>
                                                             ))
                                                         }
                                                     </div>
                                                     {aiRequiredSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s)).length === 0 && (
-                                                        <p className="text-xs text-violet-400 italic">All suggestions have been added, or none were found.</p>
+                                                        <p className="text-xs text-violet-600 italic">All suggestions have been added, or none were found.</p>
                                                     )}
                                                 </div>
                                             )}
-                                            <button
-                                                type="button"
-                                                onClick={handleGenerateAiSuggestions}
-                                                className="mt-3 text-xs text-violet-500 hover:text-violet-700 underline underline-offset-2 transition-colors"
-                                            >
-                                                Regenerate suggestions
-                                            </button>
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -1352,9 +1363,17 @@ const PostJobWizard = () => {
                                 <p className="text-xs text-gray-500 mb-2">Nice-to-have skills for AI bonus scoring.</p>
                                 {renderTagInput('preferredSkills', preferredSkillInput, setPreferredSkillInput, 'Add a preferred skill and press Enter')}
                                 {aiSuggestionsGenerated && aiSoftSkillSuggestions.filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s)).length > 0 && (
-                                    <div className="mt-2">
-                                        <p className="text-[11px] text-violet-600 font-medium mb-1.5">Suggested soft skills — click to add:</p>
-                                        <div className="flex flex-wrap gap-1.5">
+                                    <div className="mt-3">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-sky-700">
+                                                Nice-to-have Skills
+                                            </p>
+                                        </div>
+                                        <p className="text-xs text-sky-700/80 mb-2">
+                                            Soft skills relevant to this role. Add any that apply.
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
                                             {aiSoftSkillSuggestions
                                                 .filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s))
                                                 .map(skill => (
@@ -1365,9 +1384,10 @@ const PostJobWizard = () => {
                                                             updateJobData('preferredSkills', [...jobData.preferredSkills, skill])
                                                             setAiSoftSkillSuggestions(prev => prev.filter(s => s !== skill))
                                                         }}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-50 border border-violet-200 rounded-full text-xs text-violet-700 hover:bg-violet-100 hover:border-violet-400 transition-colors"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-sky-700 border-sky-300 hover:bg-sky-100 transition-all"
                                                     >
-                                                        + {skill}
+                                                        <span className="text-[11px] leading-none">+</span>
+                                                        <span>{skill}</span>
                                                     </button>
                                                 ))
                                             }
