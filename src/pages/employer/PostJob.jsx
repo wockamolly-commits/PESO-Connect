@@ -155,7 +155,6 @@ const PostJobWizard = () => {
     const [aiSuggestionsLoading, setAiSuggestionsLoading] = useState(false)
     const [aiSuggestionsGenerated, setAiSuggestionsGenerated] = useState(false)
     const [aiRequiredSkillSuggestions, setAiRequiredSkillSuggestions] = useState([])
-    const [aiPreferredSkillSuggestions, setAiPreferredSkillSuggestions] = useState([])
     const [aiSoftSkillSuggestions, setAiSoftSkillSuggestions] = useState([])
     const [aiSuggestionsSource, setAiSuggestionsSource] = useState('llm')
 
@@ -301,7 +300,7 @@ const PostJobWizard = () => {
         if (currentStep !== 3) {
             setAiSuggestionsGenerated(false)
             setAiRequiredSkillSuggestions([])
-            setAiPreferredSkillSuggestions([])
+            // removed
         }
     }, [currentStep])
 
@@ -393,19 +392,19 @@ const PostJobWizard = () => {
 
             if (nextRequired.length === 0 && nextPreferred.length === 0) {
                 setAiRequiredSkillSuggestions(buildDeterministicFallback())
-                setAiPreferredSkillSuggestions([])
+                // removed
                 setAiSoftSkillSuggestions([])
                 setAiSuggestionsSource('fallback')
             } else {
                 setAiRequiredSkillSuggestions(nextRequired)
-                setAiPreferredSkillSuggestions(nextPreferred)
+                // removed
                 setAiSoftSkillSuggestions(nextSoft)
                 setAiSuggestionsSource('llm')
             }
             setAiSuggestionsGenerated(true)
         } catch {
             setAiRequiredSkillSuggestions(buildDeterministicFallback())
-            setAiPreferredSkillSuggestions([])
+            // removed
             setAiSoftSkillSuggestions([])
             setAiSuggestionsSource('fallback')
             setAiSuggestionsGenerated(true)
@@ -1264,32 +1263,7 @@ const PostJobWizard = () => {
                                                             </div>
                                                         </div>
                                                     )}
-                                                    {aiPreferredSkillSuggestions.length > 0 && (
-                                                        <div>
-                                                            <p className="text-xs font-semibold text-violet-700 mb-1.5">AI Suggested Preferred Skills</p>
-                                                            <p className="text-xs text-violet-500 mb-1.5">Nice-to-have skills — consider adding these to the Preferred Skills field below.</p>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {aiPreferredSkillSuggestions
-                                                                    .filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s))
-                                                                    .map(skill => (
-                                                                        <button
-                                                                            key={skill}
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                updateJobData('preferredSkills', [...jobData.preferredSkills, skill])
-                                                                                setAiPreferredSkillSuggestions(prev => prev.filter(s => s !== skill))
-                                                                            }}
-                                                                            className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-violet-200 rounded-full text-sm text-violet-600 hover:bg-violet-100 hover:border-violet-400 transition-colors"
-                                                                        >
-                                                                            + {skill}
-                                                                        </button>
-                                                                    ))
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {aiRequiredSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s)).length === 0 &&
-                                                     aiPreferredSkillSuggestions.filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s)).length === 0 && (
+                                                    {aiRequiredSkillSuggestions.filter(s => !jobData.requiredSkills.includes(s)).length === 0 && (
                                                         <p className="text-xs text-violet-400 italic">All suggestions have been added.</p>
                                                     )}
                                                 </div>
