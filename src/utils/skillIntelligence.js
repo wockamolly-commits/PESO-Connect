@@ -215,6 +215,59 @@ export const SKILL_COMPANIONS = {
         required: ['Food Safety', 'Pastry Making'],
         preferred: ['Cake Decorating', 'Food Cost Control', 'HACCP Compliance'],
     },
+    // Creative / Multimedia
+    'Graphic Design': {
+        required: ['Layout Design', 'Photo Manipulation'],
+        preferred: ['Typography', 'Branding', 'Print Production'],
+    },
+    'Layout Design': {
+        required: ['Graphic Design', 'Typography'],
+        preferred: ['Photo Manipulation', 'Print Production', 'Branding'],
+    },
+    'Photo Manipulation': {
+        required: ['Graphic Design', 'Photo Editing'],
+        preferred: ['Layout Design', 'Retouching', 'Color Grading'],
+    },
+    'Vector Illustration': {
+        required: ['Graphic Design', 'Layout Design'],
+        preferred: ['Typography', 'Branding', 'Icon Design'],
+    },
+    'Video Editing': {
+        required: ['Video Production', 'Color Grading'],
+        preferred: ['Motion Graphics', 'Audio Editing', 'Storyboarding'],
+    },
+    'Multimedia Production': {
+        required: ['Video Editing', 'Audio Editing'],
+        preferred: ['Motion Graphics', 'Storyboarding', 'Color Grading'],
+    },
+    'Storyboarding': {
+        required: ['Video Production', 'Character Design'],
+        preferred: ['Keyframe Animation', 'Concept Art', 'Scriptwriting'],
+    },
+    'Keyframe Animation': {
+        required: ['Storyboarding', 'Character Rigging'],
+        preferred: ['Motion Graphics', 'VFX', '3D Modeling'],
+    },
+    'Character Rigging': {
+        required: ['Keyframe Animation', '3D Modeling'],
+        preferred: ['Character Design', 'VFX', 'Sculpting'],
+    },
+    'Motion Graphics': {
+        required: ['Video Editing', 'Keyframe Animation'],
+        preferred: ['VFX', 'Typography', 'Color Grading'],
+    },
+    'Pc Assembly': {
+        required: ['Hardware Troubleshooting', 'Operating System Installation'],
+        preferred: ['Network Cabling', 'Basic Electronics', 'TESDA NC II'],
+    },
+    'Hardware Troubleshooting': {
+        required: ['Pc Assembly', 'Operating System Installation'],
+        preferred: ['Network Cabling', 'IT Support', 'Basic Electronics'],
+    },
+    'Network Cabling': {
+        required: ['Hardware Troubleshooting', 'Network Setup'],
+        preferred: ['Pc Assembly', 'IT Support', 'Fiber Optics'],
+    },
 }
 
 // Skills tagged mid or senior — untagged defaults to entry behavior
