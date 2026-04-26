@@ -447,7 +447,7 @@ export {
  * @returns {Promise<{ profileSkills: string[], growthSkills: string[], warnings: string[] }>}
  */
 export const deepAnalyzeProfileSkills = async (formData = {}) => {
-    const EMPTY = { profileSkills: [], growthSkills: [], warnings: [] }
+    const EMPTY = { profileSkills: [], growthSkills: [], softSkills: [], warnings: [] }
 
     const course = formData.course_or_field || ''
     const highestEducation = formData.highest_education || ''
@@ -480,25 +480,27 @@ export const deepAnalyzeProfileSkills = async (formData = {}) => {
     if (preferred) contextLines.push(`Preferred Occupations / Target Roles: ${preferred}`)
     if (currentSkills) contextLines.push(`Already Listed Skills: ${currentSkills}`)
 
-    const prompt = `You are a careful career analyst helping a Philippine jobseeker build an honest profile. Analyze their background and produce TWO separate lists.
+    const prompt = `You are a careful career analyst helping a Philippine jobseeker build an honest profile. Analyze their background and produce THREE separate lists.
 
 ${contextLines.join('\n')}
 
 You must distinguish between:
-1. "profileSkills": Skills the jobseeker VERY LIKELY ALREADY HAS, based on clear evidence in their education, vocational training, work experience, or already-listed skills. Only include a skill if the evidence is explicit or strongly implied by the role/training/course.
-2. "growthSkills": Skills that would be MARKETABLE for their target roles or commonly requested by employers, but for which there is NO direct evidence they currently possess. These are suggestions to consider LEARNING, not skills to claim.
+1. "profileSkills": Technical or hard skills the jobseeker VERY LIKELY ALREADY HAS, based on clear evidence in their education, vocational training, work experience, or already-listed skills. Only include if the evidence is explicit or strongly implied.
+2. "growthSkills": Technical/hard skills that are MARKETABLE for their target roles but for which there is NO direct evidence they currently possess. These are skills to consider LEARNING, not skills to claim.
+3. "softSkills": Transferable soft skills and interpersonal abilities that are nice-to-have and commonly expected for their target roles or industry (e.g. Communication, Teamwork, Time Management, Customer Service, Problem Solving). Include only skills genuinely relevant to their background — do not pad with generic buzzwords.
 
 SAFETY RULES (very important):
 - Never encourage the jobseeker to claim skills they do not actually have.
-- If evidence is ambiguous, place the skill in growthSkills, not profileSkills.
+- If technical evidence is ambiguous, place in growthSkills not profileSkills.
+- softSkills are general enough that most people can reasonably claim them if relevant to their work — use judgment.
 - Cover the correct industry — this may be healthcare, hospitality, trades, retail, agriculture, admin, education, IT, construction, logistics, manufacturing, beauty/personal care, or any other sector. Do NOT assume IT.
 - Each skill must be a short normalized phrase (1-4 words).
-- Do not duplicate a skill across profileSkills and growthSkills.
+- Do not duplicate a skill across any of the three lists.
 - Do not repeat skills already in "Already Listed Skills".
-- Keep profileSkills to 0-12 items and growthSkills to 0-10 items.
+- Keep profileSkills to 0-12 items, growthSkills to 0-8 items, softSkills to 0-6 items.
 
 Return ONLY a JSON object in this exact shape:
-{"profileSkills":["..."], "growthSkills":["..."], "warnings":["optional notes about ambiguous evidence"]}`
+{"profileSkills":["..."], "growthSkills":["..."], "softSkills":["..."], "warnings":["optional notes about ambiguous evidence"]}`
 
     try {
         const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 768 })
@@ -518,11 +520,15 @@ Return ONLY a JSON object in this exact shape:
         // Support legacy response shape ({skills: [...]}) as profileSkills
         const rawProfile = parsed.data?.profileSkills ?? parsed.data?.skills
         const profileSkills = normalizeList(rawProfile, 12)
-        const growthSkills = normalizeList(parsed.data?.growthSkills, 10)
-            .filter(s => !profileSkills.some(p => p.toLowerCase() === s.toLowerCase()))
+        const profileLower = new Set(profileSkills.map(s => s.toLowerCase()))
+        const growthSkills = normalizeList(parsed.data?.growthSkills, 8)
+            .filter(s => !profileLower.has(s.toLowerCase()))
+        const growthLower = new Set(growthSkills.map(s => s.toLowerCase()))
+        const softSkills = normalizeList(parsed.data?.softSkills, 6)
+            .filter(s => !profileLower.has(s.toLowerCase()) && !growthLower.has(s.toLowerCase()))
         const warnings = normalizeList(parsed.data?.warnings, 5)
 
-        return { profileSkills, growthSkills, warnings }
+        return { profileSkills, growthSkills, softSkills, warnings }
     } catch {
         return EMPTY
     }

@@ -234,6 +234,7 @@ const JobseekerProfileEdit = () => {
     const [aiGenerated, setAiGenerated] = useState(false)
     const [aiProfileSkills, setAiProfileSkills] = useState([])
     const [aiGrowthSkills, setAiGrowthSkills] = useState([])
+    const [aiSoftSkills, setAiSoftSkills] = useState([])
     const [aiWarnings, setAiWarnings] = useState([])
     const [aiSource, setAiSource] = useState('ai')
     const [aiError, setAiError] = useState('')
@@ -606,16 +607,19 @@ const JobseekerProfileEdit = () => {
             ])
             const profile = (result.profileSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
             const growth = (result.growthSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
+            const soft = (result.softSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
 
-            if (profile.length === 0 && growth.length === 0) {
+            if (profile.length === 0 && growth.length === 0 && soft.length === 0) {
                 const fallback = buildDeterministicFallback()
                 setAiProfileSkills(fallback)
                 setAiGrowthSkills([])
+                setAiSoftSkills([])
                 setAiWarnings([])
                 setAiSource('fallback')
             } else {
                 setAiProfileSkills(profile)
                 setAiGrowthSkills(growth)
+                setAiSoftSkills(soft)
                 setAiWarnings(result.warnings || [])
                 setAiSource('ai')
             }
@@ -624,6 +628,7 @@ const JobseekerProfileEdit = () => {
             const fallback = buildDeterministicFallback()
             setAiProfileSkills(fallback)
             setAiGrowthSkills([])
+            setAiSoftSkills([])
             setAiWarnings([])
             setAiSource('fallback')
             setAiGenerated(true)
@@ -635,6 +640,7 @@ const JobseekerProfileEdit = () => {
 
     const visibleAiProfileSkills = aiProfileSkills.filter(s => !isSkillSelected(s))
     const visibleAiGrowthSkills = aiGrowthSkills.filter(s => !isSkillSelected(s))
+    const visibleAiSoftSkills = aiSoftSkills.filter(s => !isSkillSelected(s))
 
     const addAllSuggestions = () => {
         const newCustom = [...customSkills]
@@ -1294,116 +1300,43 @@ const JobseekerProfileEdit = () => {
 
                         {/* Predefined Skills */}
                         <div className="space-y-4">
-                            {showSuggestions && (
-                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl animate-scale-in">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <Sparkles className="w-4 h-4 text-blue-600" />
-                                        <span className="text-sm font-semibold text-blue-800">Skills that go with yours</span>
-                                    </div>
-
-                                    {companionRequired.length > 0 && (
-                                        <div className="mb-3">
-                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">Typically go together</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {companionRequired.map(skill => {
-                                                    const selected = isSkillSelected(skill)
-                                                    return (
-                                                        <button
-                                                            key={skill}
-                                                            type="button"
-                                                            onClick={() => handleSuggestedSkillClick(skill, 'deterministic')}
-                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                                                                selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
-                                                            }`}
-                                                        >
-                                                            {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
-                                                            <span>{skill}</span>
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {companionPreferred.length > 0 && (
-                                        <div className="mb-3">
-                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">Nice to have</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {companionPreferred.map(({ skill, reason }) => {
-                                                    const selected = isSkillSelected(skill)
-                                                    return (
-                                                        <button
-                                                            key={skill}
-                                                            type="button"
-                                                            onClick={() => handleSuggestedSkillClick(skill, 'ai_enrichment')}
-                                                            title={reason}
-                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                                                                selected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
-                                                            }`}
-                                                        >
-                                                            {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
-                                                            <span>{skill}</span>
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {(companionRequired.length + companionPreferred.length) > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={addAllSuggestions}
-                                            className="mt-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                                        >
-                                            Add all {companionRequired.length + companionPreferred.length} suggestions
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* AI skill suggestions — user-triggered, review-only */}
+                            {/* Unified skill suggestions card — companion by default, AI when generated */}
                             <div className="p-4 bg-violet-50 border border-violet-200 rounded-xl">
-                                <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-start justify-between gap-3 mb-3">
                                     <div className="flex items-center gap-2">
                                         <Brain className="w-4 h-4 text-violet-600" />
-                                        <span className="text-sm font-semibold text-violet-800">AI Skill Suggestions</span>
+                                        <span className="text-sm font-semibold text-violet-800">Skill Suggestions</span>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={handleGenerateAiSuggestions}
                                         disabled={aiLoading}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-60 text-xs font-semibold"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-60 text-xs font-semibold shrink-0"
                                     >
                                         {aiLoading
                                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                             : <Sparkles className="w-3.5 h-3.5" />}
-                                        {aiLoading ? 'Analyzing...' : (aiGenerated ? 'Regenerate AI suggestions' : 'Generate AI skill suggestions')}
+                                        {aiLoading ? 'Analyzing...' : (aiGenerated ? 'Regenerate with AI' : 'Generate AI skill suggestions')}
                                     </button>
                                 </div>
 
-                                {!aiGenerated && !aiLoading && (
-                                    <p className="text-xs text-violet-700">
-                                        Click the button to let AI review your education, training, and experience for skill suggestions. Nothing will be added automatically — you choose what to include.
-                                    </p>
-                                )}
-
                                 {aiLoading && (
-                                    <div className="mt-2 flex items-center gap-2 p-3 bg-white/70 border border-violet-200 rounded-lg animate-pulse">
+                                    <div className="flex items-center gap-2 p-3 bg-white/70 border border-violet-200 rounded-lg animate-pulse">
                                         <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
                                         <p className="text-xs text-violet-700 font-medium">Analyzing your profile…</p>
                                     </div>
                                 )}
 
-                                {aiGenerated && !aiLoading && aiSource === 'ai' && (
-                                    <div className="mt-3 space-y-4">
+                                {/* AI succeeded — show AI sections, companion hidden */}
+                                {!aiLoading && aiGenerated && aiSource === 'ai' && (
+                                    <div className="space-y-4">
                                         {visibleAiProfileSkills.length > 0 && (
                                             <div>
                                                 <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
                                                     AI Suggested Profile Skills
                                                 </p>
                                                 <p className="text-xs text-violet-700/80 mb-2">
-                                                    These are skills the AI found evidence for in your education, training, or work experience. Review before adding.
+                                                    Skills the AI found evidence for in your education, training, or work experience. Review before adding.
                                                 </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {visibleAiProfileSkills.map(skill => (
@@ -1430,7 +1363,7 @@ const JobseekerProfileEdit = () => {
                                                     </p>
                                                 </div>
                                                 <p className="text-xs text-amber-700/90 mb-2">
-                                                    These are commonly useful for your target roles, but only add them to your profile if you already have them.
+                                                    Commonly useful for your target roles — only add if you already have them.
                                                 </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {visibleAiGrowthSkills.map(skill => (
@@ -1449,7 +1382,34 @@ const JobseekerProfileEdit = () => {
                                             </div>
                                         )}
 
-                                        {visibleAiProfileSkills.length === 0 && visibleAiGrowthSkills.length === 0 && (
+                                        {visibleAiSoftSkills.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                                                    <p className="text-[11px] uppercase tracking-wide font-semibold text-sky-700">
+                                                        Nice-to-have Skills
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-sky-700/80 mb-2">
+                                                    Soft skills commonly expected for your target roles. Add any you genuinely have.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {visibleAiSoftSkills.map(skill => (
+                                                        <button
+                                                            key={`ai-soft-${skill}`}
+                                                            type="button"
+                                                            onClick={() => handleSuggestedSkillClick(skill, 'ai_soft')}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-sky-700 border-sky-300 hover:bg-sky-100 transition-all"
+                                                        >
+                                                            <span className="text-[11px] leading-none">+</span>
+                                                            <span>{skill}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {visibleAiProfileSkills.length === 0 && visibleAiGrowthSkills.length === 0 && visibleAiSoftSkills.length === 0 && (
                                             <p className="text-xs text-violet-600 italic">
                                                 No new suggestions. Add more education or work experience details and try again.
                                             </p>
@@ -1463,33 +1423,104 @@ const JobseekerProfileEdit = () => {
                                     </div>
                                 )}
 
-                                {aiGenerated && !aiLoading && aiSource === 'fallback' && (
-                                    <div className="mt-3">
-                                        <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
-                                            Suggested Skills From Your Profile
-                                        </p>
-                                        <p className="text-xs text-violet-700/80 mb-2">
-                                            AI suggestions were unavailable, so we used your course, training, and work experience to suggest possible skills. Review before adding.
-                                        </p>
-                                        {aiError && <p className="text-[11px] text-violet-500 italic mb-2">{aiError}</p>}
-                                        {visibleAiProfileSkills.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {visibleAiProfileSkills.map(skill => (
-                                                    <button
-                                                        key={`det-${skill}`}
-                                                        type="button"
-                                                        onClick={() => handleSuggestedSkillClick(skill, 'deterministic_fallback')}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
-                                                    >
-                                                        <span className="text-[11px] leading-none">+</span>
-                                                        <span>{skill}</span>
-                                                    </button>
-                                                ))}
+                                {/* AI not yet generated or failed — show companion + fallback */}
+                                {!aiLoading && (!aiGenerated || aiSource === 'fallback') && (
+                                    <div>
+                                        {aiGenerated && aiSource === 'fallback' && (
+                                            <div className="mb-3">
+                                                <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 mb-1">
+                                                    Suggested Skills From Your Profile
+                                                </p>
+                                                <p className="text-xs text-violet-700/80 mb-2">
+                                                    AI suggestions were unavailable — showing suggestions based on your course, training, and work experience.
+                                                </p>
+                                                {visibleAiProfileSkills.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-2 mb-3">
+                                                        {visibleAiProfileSkills.map(skill => (
+                                                            <button
+                                                                key={`det-${skill}`}
+                                                                type="button"
+                                                                onClick={() => handleSuggestedSkillClick(skill, 'deterministic_fallback')}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
+                                                            >
+                                                                <span className="text-[11px] leading-none">+</span>
+                                                                <span>{skill}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-violet-600 italic mb-3">
+                                                        No suggestions available. Add more education or work experience details and try again.
+                                                    </p>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <p className="text-xs text-violet-600 italic">
-                                                No suggestions available. Add more education or work experience details and try again.
+                                        )}
+
+                                        {!aiGenerated && (
+                                            <p className="text-xs text-violet-700">
+                                                Click the button to let AI review your education, training, and experience for skill suggestions. Nothing will be added automatically — you choose what to include.
                                             </p>
+                                        )}
+
+                                        {aiGenerated && aiSource === 'fallback' && showSuggestions && (
+                                            <div>
+                                                {companionRequired.length > 0 && (
+                                                    <div className="mb-3">
+                                                        <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700/60 mb-1.5">Typically go together</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {companionRequired.map(skill => {
+                                                                const selected = isSkillSelected(skill)
+                                                                return (
+                                                                    <button
+                                                                        key={skill}
+                                                                        type="button"
+                                                                        onClick={() => handleSuggestedSkillClick(skill, 'deterministic')}
+                                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                                            selected ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-50'
+                                                                        }`}
+                                                                    >
+                                                                        {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                                        <span>{skill}</span>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {companionPreferred.length > 0 && (
+                                                    <div className="mb-3">
+                                                        <p className="text-[11px] uppercase tracking-wide font-semibold text-violet-700/60 mb-1.5">Nice to have</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {companionPreferred.map(({ skill, reason }) => {
+                                                                const selected = isSkillSelected(skill)
+                                                                return (
+                                                                    <button
+                                                                        key={skill}
+                                                                        type="button"
+                                                                        onClick={() => handleSuggestedSkillClick(skill, 'ai_enrichment')}
+                                                                        title={reason}
+                                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                                            selected ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-violet-600 border-violet-200 hover:bg-violet-50'
+                                                                        }`}
+                                                                    >
+                                                                        {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                                        <span>{skill}</span>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {(companionRequired.length + companionPreferred.length) > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={addAllSuggestions}
+                                                        className="mt-1 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline"
+                                                    >
+                                                        Add all {companionRequired.length + companionPreferred.length} suggestions
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}

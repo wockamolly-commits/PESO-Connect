@@ -27,6 +27,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
   const [aiGenerated, setAiGenerated] = useState(false)
   const [aiProfileSkills, setAiProfileSkills] = useState([])
   const [aiGrowthSkills, setAiGrowthSkills] = useState([])
+  const [aiSoftSkills, setAiSoftSkills] = useState([])
   const [aiWarnings, setAiWarnings] = useState([])
   const [aiSource, setAiSource] = useState('ai')
   const [aiError, setAiError] = useState('')
@@ -142,16 +143,19 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       ])
       const profile = (result.profileSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
       const growth = (result.growthSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
+      const soft = (result.softSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
 
-      if (profile.length === 0 && growth.length === 0) {
+      if (profile.length === 0 && growth.length === 0 && soft.length === 0) {
         const fallback = buildDeterministicFallback()
         setAiProfileSkills(fallback)
         setAiGrowthSkills([])
+        setAiSoftSkills([])
         setAiWarnings([])
         setAiSource('fallback')
       } else {
         setAiProfileSkills(profile)
         setAiGrowthSkills(growth)
+        setAiSoftSkills(soft)
         setAiWarnings(result.warnings || [])
         setAiSource('ai')
       }
@@ -160,6 +164,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       const fallback = buildDeterministicFallback()
       setAiProfileSkills(fallback)
       setAiGrowthSkills([])
+      setAiSoftSkills([])
       setAiWarnings([])
       setAiSource('fallback')
       setAiGenerated(true)
@@ -171,6 +176,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
 
   const visibleAiProfileSkills = aiProfileSkills.filter(s => !isSkillSelected(s))
   const visibleAiGrowthSkills = aiGrowthSkills.filter(s => !isSkillSelected(s))
+  const visibleAiSoftSkills = aiSoftSkills.filter(s => !isSkillSelected(s))
 
   const experiences = formData.work_experiences || []
   const addExperience = () => {
@@ -336,7 +342,34 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
                 </div>
               )}
 
-              {visibleAiProfileSkills.length === 0 && visibleAiGrowthSkills.length === 0 && (
+              {visibleAiSoftSkills.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                    <p className="text-[11px] uppercase tracking-wide font-semibold text-sky-700">
+                      Nice-to-have Skills
+                    </p>
+                  </div>
+                  <p className="text-xs text-sky-700/80 mb-2">
+                    Soft skills commonly expected for your target roles. Add any you genuinely have.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {visibleAiSoftSkills.map(skill => (
+                      <button
+                        key={`ai-soft-${skill}`}
+                        type="button"
+                        onClick={() => handleSuggestedSkillClick(skill, 'ai_soft')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-sky-700 border-sky-300 hover:bg-sky-100 transition-all"
+                      >
+                        <span className="text-[11px] leading-none">+</span>
+                        <span>{skill}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {visibleAiProfileSkills.length === 0 && visibleAiGrowthSkills.length === 0 && visibleAiSoftSkills.length === 0 && (
                 <p className="text-xs text-violet-600 italic">
                   No new suggestions. Add more education or work experience details and try again.
                 </p>

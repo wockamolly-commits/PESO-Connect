@@ -1369,6 +1369,29 @@ const PostJobWizard = () => {
                                 <label className="label">Preferred Skills (Optional)</label>
                                 <p className="text-xs text-gray-500 mb-2">Nice-to-have skills for AI bonus scoring.</p>
                                 {renderTagInput('preferredSkills', preferredSkillInput, setPreferredSkillInput, 'Add a preferred skill and press Enter')}
+                                {aiSuggestionsGenerated && aiPreferredSkillSuggestions.filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s)).length > 0 && (
+                                    <div className="mt-2">
+                                        <p className="text-[11px] text-violet-600 font-medium mb-1.5">AI suggestions — click to add:</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {aiPreferredSkillSuggestions
+                                                .filter(s => !jobData.preferredSkills.includes(s) && !jobData.requiredSkills.includes(s))
+                                                .map(skill => (
+                                                    <button
+                                                        key={skill}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            updateJobData('preferredSkills', [...jobData.preferredSkills, skill])
+                                                            setAiPreferredSkillSuggestions(prev => prev.filter(s => s !== skill))
+                                                        }}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-50 border border-violet-200 rounded-full text-xs text-violet-700 hover:bg-violet-100 hover:border-violet-400 transition-colors"
+                                                    >
+                                                        + {skill}
+                                                    </button>
+                                                ))
+                                            }
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Required Languages */}
