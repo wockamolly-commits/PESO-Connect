@@ -1,0 +1,118 @@
+<mxfile host="65bd71144e">
+    <diagram id="diagram1" name="Page-1">
+        <mxGraphModel dx="546" dy="319" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="start" target="role_sel" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="role_sel" target="jobseeker_reg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="role_sel" target="employer_reg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="role_sel" target="individual_reg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="jobseeker_reg" target="jobseeker_dash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="employer_reg" target="employer_dash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="individual_reg" target="individual_dash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="jobseeker_dash" target="js_browse" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="js_browse" target="js_apply" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="employer_dash" target="emp_post" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="employer_dash" target="emp_review" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="individual_dash" target="ind_diag" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="ind_diag" target="ind_view" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="admin_dash" target="admin_ver" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="admin_dash" target="admin_stats" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="js_apply" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="emp_review" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;" parent="1" source="ind_view" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="start" value="Landing Page&amp;nbsp; Login / Register" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="50" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="role_sel" value="Select Role" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="150" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="jobseeker_reg" value="Jobseeker Registration&lt;br&gt;(6 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="250" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="employer_reg" value="Employer Registration&lt;br&gt;&amp;nbsp;(4 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="250" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="individual_reg" value="Individual Registration&lt;br&gt;(2 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="250" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="jobseeker_dash" value="Jobseeker Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="350" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="employer_dash" value="Employer Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="350" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="individual_dash" value="Individual Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="350" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="admin_dash" value="Admin Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="350" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="js_browse" value="Browse Jobs (Hybrid AI Match &amp;amp; Breakdown)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="450" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="js_apply" value="Apply to Job" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="550" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="emp_post" value="Post Job (AI Skill Recs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="450" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="emp_review" value="Review Applicants&amp;nbsp; (inferential-v9 scores)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="550" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ind_diag" value="Diagnostic Search&lt;br&gt;(Service Needs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="450" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ind_view" value="View Matched Workers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="550" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="admin_ver" value="Verify Users&lt;br&gt;(Approve/Reject &amp;amp; Email)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="450" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="admin_stats" value="View Platform Stats &lt;br&gt;&amp;amp; Telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="550" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="messaging" value="Real-Time Messaging System&lt;br&gt;&amp;nbsp;(All Users)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="700" width="200" height="60" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

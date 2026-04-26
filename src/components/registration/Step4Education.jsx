@@ -37,7 +37,7 @@ const EDUCATION_CARDS = [
   { value: 'Graduate Studies / Post-graduate', description: "Master's or Doctoral program" }
 ]
 
-const LEVELS_WITH_COURSE = ['Senior High School (Grades 11-12)', 'Tertiary', 'Graduate Studies / Post-graduate']
+export const LEVELS_WITH_COURSE = ['Senior High School (Grades 11-12)', 'Tertiary', 'Graduate Studies / Post-graduate']
 
 function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
   const isCurrentlyInSchool = formData.currently_in_school === true

@@ -1,0 +1,91 @@
+<mxfile host="65bd71144e">
+    <diagram id="diagram1" name="Page-1">
+        <mxGraphModel dx="1560" dy="911" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="eu1" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_js" target="uc1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu2" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_js" target="uc2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu3" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_js" target="uc3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu4" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_js" target="uc7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu5" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_emp" target="uc1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu6" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_emp" target="uc4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu7" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_emp" target="uc5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu8" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_emp" target="uc7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu9" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_ind" target="uc1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu10" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_ind" target="uc6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu11" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_ind" target="uc7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu12" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_adm" target="uc8" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eu13" value="" style="edgeStyle=none;html=1;endArrow=none;strokeColor=#000000;jumpStyle=arc;strokeWidth=1.2;" parent="1" source="a_adm" target="uc9" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a_js" value="JOBSEEKER" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="150" width="40" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="a_emp" value="EMPLOYER" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="350" width="40" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="a_ind" value="INDIVIDUAL" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="550" width="40" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="a_adm" value="PESO ADMIN" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="750" y="350" width="40" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="sys_bound" value="PESO-CONNECT PLATFORM" style="swimlane;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;fontColor=#000000;startSize=30;opaque=1;strokeWidth=2;shadow=0;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="50" width="500" height="690" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc1" value="REGISTER ACCOUNT" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="100" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc2" value="BROWSE JOBS &amp; SCORES" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="190" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc3" value="APPLY FOR JOBS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="280" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc4" value="POST JOBS (AI RECS)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="370" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc5" value="REVIEW APPLICANTS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="460" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc6" value="DIAGNOSTIC SEARCH" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="550" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc7" value="REAL-TIME MESSAGING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="640" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc8" value="VERIFY USERS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="300" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="uc9" value="VIEW ANALYTICS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;shadow=1;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="400" width="140" height="60" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

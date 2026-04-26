@@ -1,0 +1,31 @@
+-- ============================================================
+-- Add skill_breakdown to match_scores_cache
+--
+-- The hybrid scorer now emits a per-requirement breakdown (the same
+-- numbers that feed the aggregate hybridSkillScore). We cache the
+-- breakdown alongside the aggregate so the JobDetail UI can render
+-- per-skill check / partial / gap states without recomputing
+-- embeddings on a cache hit.
+--
+-- Shape of each entry (camelCase, application-defined):
+--   { label: string, tier: 'required'|'preferred',
+--     kind: 'skill'|'education'|'language',
+--     score: number in [0,1],
+--     status: 'match'|'partial'|'gap',
+--     // Enrichment fields (present only when the LLM semantic judge
+--     // has run — i.e. single-job JobDetail fetches. Listings path
+--     // populates entries WITHOUT these; JobDetail later backfills
+--     // them in-place and upserts the row.)
+--     reason?: string,
+--     matchedSkill?: string,
+--     supportingSkills?: string[],
+--     matchType?: 'exact'|'partial'|'related'|'gap' }
+--
+-- MATCHER_VERSION bumps to invalidate older cache rows that lack this
+-- column's data — they will be re-scored and rewritten on next read.
+--
+-- Idempotent - safe to re-run.
+-- ============================================================
+
+ALTER TABLE public.match_scores_cache
+  ADD COLUMN IF NOT EXISTS skill_breakdown jsonb NOT NULL DEFAULT '[]'::jsonb;

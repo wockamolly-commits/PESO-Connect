@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" modified="2026-04-24T12:00:00.000Z" agent="Mozilla/5.0" version="21.2.8" type="device">
+  <diagram id="diagram1" name="Page-1">
+    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="er1" value="1:1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;startArrow=plus;startFill=0;endArrow=classic;endFill=1;strokeWidth=1;" edge="1" parent="1" source="t_users" target="t_jp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er2" value="1:1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;startArrow=plus;startFill=0;endArrow=classic;endFill=1;strokeWidth=1;" edge="1" parent="1" source="t_users" target="t_ep">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er3" value="1:1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;startArrow=plus;startFill=0;endArrow=classic;endFill=1;strokeWidth=1;" edge="1" parent="1" source="t_users" target="t_ip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er4" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_ep" target="t_jobs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er5" value="1:1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_jobs" target="t_embed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er6" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_jobs" target="t_cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er7" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_jp" target="t_cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er8" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_jobs" target="t_app">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="er9" value="1:N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;fontColor=#000000;startArrow=none;endArrow=classic;endFill=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="t_jp" target="t_app">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t_users" value="users" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="50" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t_users_a0" value="UUID | id (PK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_users">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_users_a1" value="string | email (UK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_users">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_users_a2" value="string | role" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_users">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_users_a3" value="boolean | is_verified" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_users">
+          <mxGeometry y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jp" value="jobseeker_profiles" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="300" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jp_a0" value="UUID | id (PK, FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jp">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jp_a1" value="string | full_name" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jp">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jp_a2" value="string[] | skills" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jp">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jp_a3" value="string | resume_url" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jp">
+          <mxGeometry y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ep" value="employer_profiles" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="300" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ep_a0" value="UUID | id (PK, FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ep">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ep_a1" value="string | company_name" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ep">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ep_a2" value="string | business_reg_number" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ep">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ep_a3" value="string | gov_id_url" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ep">
+          <mxGeometry y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ip" value="individual_profiles" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="300" width="200" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ip_a0" value="UUID | id (PK, FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ip">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ip_a1" value="string | full_name" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ip">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ip_a2" value="string[] | service_preferences" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_ip">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jobs" value="job_postings" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="550" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jobs_a0" value="UUID | id (PK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jobs">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jobs_a1" value="UUID | employer_id (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jobs">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jobs_a2" value="string | title" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jobs">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_jobs_a3" value="string[] | req_skills" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_jobs">
+          <mxGeometry y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_embed" value="req_embeddings" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="550" width="200" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="t_embed_a0" value="UUID | job_id (PK, FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_embed">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_embed_a1" value="vector | embedding" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_embed">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_embed_a2" value="string | version" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_embed">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_app" value="applications" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="550" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t_app_a0" value="UUID | id (PK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_app">
+          <mxGeometry y="30" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_app_a1" value="UUID | job_id (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_app">
+          <mxGeometry y="55" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_app_a2" value="UUID | jobseeker_id (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_app">
+          <mxGeometry y="80" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_app_a3" value="int | match_score" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_app">
+          <mxGeometry y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache" value="match_cache" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#ffffff;fontColor=#000000;opaque=1;strokeWidth=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="300" width="220" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache_a0" value="UUID | id (PK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_cache">
+          <mxGeometry y="30" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache_a1" value="UUID | job_id (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_cache">
+          <mxGeometry y="55" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache_a2" value="UUID | jobseeker_id (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_cache">
+          <mxGeometry y="80" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache_a3" value="int | score" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_cache">
+          <mxGeometry y="105" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cache_a4" value="jsonb | breakdown" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontColor=#000000;" vertex="1" parent="t_cache">
+          <mxGeometry y="130" width="220" height="25" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

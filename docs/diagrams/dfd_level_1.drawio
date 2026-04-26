@@ -1,0 +1,108 @@
+<mxfile host="65bd71144e">
+    <diagram id="diagram1" name="Page-1">
+        <mxGraphModel dx="546" dy="319" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="df1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="j" target="p1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="j" target="p2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" target="p6" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="570" y="180" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="df5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="e" target="p3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="i" target="p5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p1" target="ds1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p2" target="ds1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p3" target="ds2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p4" target="ds3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p4" target="ds4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p5" target="ds1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p6" target="ds5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="ds2" target="p4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="a" target="p7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p7" target="ds1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="df18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;fontColor=#000000;jumpStyle=arc;strokeWidth=1.5;" parent="1" source="p7" target="ds4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1" value="1.0 AUTHENTICATION" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="50" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2" value="2.0 PROFILE MGMT" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="170" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3" value="3.0 JOB POSTINGS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="290" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4" value="4.0 AI MATCHING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="410" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5" value="5.0 DIAGNOSTIC" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="530" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p6" value="6.0 MESSAGING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="530" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7" value="7.0 TELEMETRY" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="290" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="j" value="JOBSEEKER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="125" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e" value="EMPLOYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="245" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="i" value="INDIVIDUAL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="365" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="a" value="ADMINISTRATOR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="515" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ds1" value="D1: USERS DB" style="shape=partialRectangle;right=0;left=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="140" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ds2" value="D2: JOBS DB" style="shape=partialRectangle;right=0;left=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="260" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ds3" value="D3: CACHE DB" style="shape=partialRectangle;right=0;left=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="380" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ds4" value="D4: ANALYTICS" style="shape=partialRectangle;right=0;left=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="140" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ds5" value="D5: CHAT DB" style="shape=partialRectangle;right=0;left=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;opaque=1;strokeWidth=2;fontStyle=1;backgroundOutline=1;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="480" width="140" height="40" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
