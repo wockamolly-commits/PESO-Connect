@@ -535,7 +535,7 @@ Return ONLY a JSON object in this exact shape:
 }
 
 export const deepAnalyzeJobRequirements = async (jobData = {}) => {
-    const EMPTY = { requiredSkills: [], preferredSkills: [] }
+    const EMPTY = { requiredSkills: [], preferredSkills: [], softSkills: [] }
 
     const { title = '', category = '', jobSummary = '', keyResponsibilities = '', experienceLevel = '' } = jobData
     const existingRequired = (jobData.requiredSkills || []).join(', ')
@@ -552,26 +552,27 @@ export const deepAnalyzeJobRequirements = async (jobData = {}) => {
     if (existingRequired) contextLines.push(`Already Listed Required Skills: ${existingRequired}`)
     if (existingPreferred) contextLines.push(`Already Listed Preferred Skills: ${existingPreferred}`)
 
-    const prompt = `You are a hiring specialist helping a Philippine employer write a job posting. Analyze the job details and suggest TWO separate skill lists.
+    const prompt = `You are a hiring specialist helping a Philippine employer write a job posting. Analyze the job details and suggest THREE separate skill lists.
 
 ${contextLines.join('\n')}
 
 Produce:
-1. "requiredSkills": Skills that are clearly essential for this role based on the title, responsibilities, and category. Only include skills that the job cannot function without.
-2. "preferredSkills": Bonus or nice-to-have skills relevant to the role but not strictly required.
+1. "requiredSkills": Technical or hard skills that are clearly essential for this role. Only include skills the job cannot function without.
+2. "preferredSkills": Bonus technical/hard skills that are nice-to-have but not strictly required for this role.
+3. "softSkills": Interpersonal and transferable soft skills relevant to this role and industry (e.g. Communication, Teamwork, Attention to Detail, Time Management, Customer Service). Suggest only skills that genuinely fit the role — do not pad with generic buzzwords.
 
 RULES:
 - Each skill must be a short normalized phrase (1-4 words).
 - Do not repeat skills already in "Already Listed Required Skills" or "Already Listed Preferred Skills".
-- Do not duplicate a skill across both lists.
-- Keep requiredSkills to 0-8 items and preferredSkills to 0-6 items.
+- Do not duplicate a skill across any of the three lists.
+- Keep requiredSkills to 0-8 items, preferredSkills to 0-6 items, softSkills to 0-6 items.
 - Cover the correct industry — do NOT assume IT.
 
 Return ONLY a JSON object:
-{"requiredSkills":["..."], "preferredSkills":["..."]}`
+{"requiredSkills":["..."], "preferredSkills":["..."], "softSkills":["..."]}`
 
     try {
-        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 512 })
+        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 600 })
         const parsed = safeParseAIJSON(raw)
         if (!parsed.ok) return EMPTY
 
@@ -585,10 +586,14 @@ Return ONLY a JSON object:
                 .slice(0, limit)
         }
 
-        return {
-            requiredSkills: normalizeList(parsed.data?.requiredSkills, 8),
-            preferredSkills: normalizeList(parsed.data?.preferredSkills, 6),
-        }
+        const requiredSkills = normalizeList(parsed.data?.requiredSkills, 8)
+        const preferredSkills = normalizeList(parsed.data?.preferredSkills, 6)
+        const requiredLower = new Set(requiredSkills.map(s => s.toLowerCase()))
+        const preferredLower = new Set(preferredSkills.map(s => s.toLowerCase()))
+        const softSkills = normalizeList(parsed.data?.softSkills, 6)
+            .filter(s => !requiredLower.has(s.toLowerCase()) && !preferredLower.has(s.toLowerCase()))
+
+        return { requiredSkills, preferredSkills, softSkills }
     } catch {
         return EMPTY
     }
