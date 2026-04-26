@@ -14,12 +14,9 @@ import { JobListingSkeleton } from '../components/LoadingSkeletons'
 import EmployerAvatar from '../components/EmployerAvatar'
 import Select from '../components/common/Select'
 import { useAuth } from '../contexts/AuthContext'
-import { calculateDeterministicScore } from '../services/geminiService'
-import { getJobMatchesForUser } from '../services/matchingService'
+import { useJobListingsMatches } from '../hooks/useJobMatching'
 import { calculateCompletion } from '../utils/profileCompletion'
 import { getEmployerDisplayName } from '../utils/employerBranding'
-
-const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
 
 const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
@@ -27,7 +24,6 @@ const JobListings = () => {
     const [loading, setLoading] = useState(true)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(true)
-    const [matchScores, setMatchScores] = useState({})
     const [searchTerm, setSearchTerm] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
     const [typeFilter, setTypeFilter] = useState('')
@@ -37,8 +33,21 @@ const JobListings = () => {
     const [salaryMin, setSalaryMin] = useState('')
     const [salaryMax, setSalaryMax] = useState('')
     const [savedJobIds, setSavedJobIds] = useState(new Set())
-    const [loadingMatchScores, setLoadingMatchScores] = useState(false)
     const PAGE_SIZE = 20
+
+    const { matchScores, loadingMatchScores } = useJobListingsMatches({
+        jobs,
+        currentUser,
+        userData,
+        isJobseeker,
+        filters: {
+            category: categoryFilter || undefined,
+            location: locationFilter || undefined,
+            type: typeFilter || undefined,
+            salaryMin: salaryMin || undefined,
+            salaryMax: salaryMax || undefined,
+        },
+    })
 
     // Calculate profile completeness for jobseekers (shared utility)
     const profileCompleteness = (() => {
@@ -141,71 +150,6 @@ const JobListings = () => {
         setLoadingMore(true)
         fetchJobs(true)
     }
-
-    // Use backend hybrid matching when available, with deterministic fallback.
-    useEffect(() => {
-        if (!jobs.length || !currentUser || !isJobseeker() || ![...(userData?.predefined_skills || []), ...(userData?.skills || [])].length) {
-            return
-        }
-
-        let isCancelled = false
-
-        const fallbackScores = {}
-        for (const job of jobs) {
-            fallbackScores[job.id] = calculateDeterministicScore(job, userData)
-        }
-        setLoadingMatchScores(true)
-
-        if (!HYBRID_MATCHING_ENABLED) {
-            setMatchScores(fallbackScores)
-            setLoadingMatchScores(false)
-            return
-        }
-
-        const loadHybridScores = async () => {
-            try {
-                const { results } = await getJobMatchesForUser({
-                    userId: currentUser.uid,
-                    filters: {
-                        category: categoryFilter || undefined,
-                        location: locationFilter || undefined,
-                        type: typeFilter || undefined,
-                        salaryMin: salaryMin || undefined,
-                        salaryMax: salaryMax || undefined,
-                    },
-                    limit: Math.max(jobs.length, 20),
-                })
-
-                if (isCancelled) return
-
-                const hybridById = {}
-                for (const result of results) {
-                    if (!result?.jobId) continue
-                    hybridById[result.jobId] = result.normalized || result
-                }
-
-                const mergedScores = {}
-                for (const job of jobs) {
-                    mergedScores[job.id] = hybridById[job.id] || fallbackScores[job.id]
-                }
-
-                setMatchScores(mergedScores)
-                setLoadingMatchScores(false)
-            } catch (hybridError) {
-                console.warn('Hybrid job match fetch failed, using deterministic fallback:', hybridError.message)
-                if (!isCancelled) {
-                    setMatchScores(fallbackScores)
-                    setLoadingMatchScores(false)
-                }
-            }
-        }
-
-        loadHybridScores()
-
-        return () => {
-            isCancelled = true
-        }
-    }, [jobs, currentUser, userData, categoryFilter, typeFilter, locationFilter, salaryMin, salaryMax, isJobseeker])
 
     const locations = [...new Set(jobs.map(j => j.location).filter(Boolean))].sort()
 
@@ -469,7 +413,7 @@ const JobListings = () => {
                                                         matchScores[job.id].matchScore >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                                             matchScores[job.id].matchScore >= 40 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                                                                 'bg-gray-50 text-gray-700 border-gray-200'
-                                                    }`} title={`Skills: ${matchScores[job.id].matchingSkills.join(', ') || 'None'}`}>
+                                                    }`} title={`Skills: ${(matchScores[job.id]?.matchingSkills || []).join(', ') || 'None'}`}>
                                                     <Sparkles className="w-3 h-3" />
                                                     {matchScores[job.id].matchScore}% Match
                                                 </div>

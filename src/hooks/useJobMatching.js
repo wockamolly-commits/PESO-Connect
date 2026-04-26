@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     generateMatchExplanation,
     getJobMatchesForUser,
-    getSingleJobMatch,
 } from '../services/matchingService'
 import { fetchJobDetailMatch } from '../services/matching/jobDetailMatch'
 import {
@@ -10,6 +9,8 @@ import {
     getProfileSkills,
     mergeMatchResult,
 } from '../services/matching/uiMatcher'
+
+const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
 
 const isGlueExplanation = (text) => {
     if (typeof text !== 'string') return false
@@ -52,6 +53,12 @@ export const useJobListingsMatches = ({
         )
         setMatchScores({})
         setLoadingMatchScores(true)
+
+        if (!HYBRID_MATCHING_ENABLED) {
+            setMatchScores(fallbackScores)
+            setLoadingMatchScores(false)
+            return
+        }
 
         const loadHybridScores = async () => {
             try {
@@ -109,6 +116,13 @@ export const useJobDetailMatch = ({
 
     const load = useCallback(async () => {
         if (!job || !canLoadMatches({ currentUser, userData, isJobseeker })) {
+            setMatchData(null)
+            setLoading(false)
+            setError(null)
+            return
+        }
+
+        if (!HYBRID_MATCHING_ENABLED) {
             setMatchData(null)
             setLoading(false)
             setError(null)

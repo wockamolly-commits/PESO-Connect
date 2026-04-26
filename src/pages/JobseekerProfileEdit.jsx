@@ -6,7 +6,7 @@ import {
     User, Briefcase, MapPin, Phone, FileText, Loader2, AlertCircle,
     Plus, X, CheckCircle, GraduationCap,
     Award, Calendar, Save, Sparkles, TrendingUp,
-    Ruler, Shield, Globe, Languages, RotateCw, Check, Brain
+    Ruler, Shield, Globe, Languages, Check, Brain
 } from 'lucide-react'
 import { analyzeResume, normalizeSkillName, deduplicateSkills, expandProfileAliases, clearSessionScores, deepAnalyzeProfileSkills } from '../services/geminiService'
 import { refreshProfileEmbedding } from '../services/matchingService'
@@ -22,7 +22,8 @@ import psgcData from '../data/psgc.json'
 import coursesData from '../data/courses.json'
 import { countTrainingCertificates, getTrainingCertificateRecord } from '../utils/reverification'
 import { buildCertificateFingerprint } from '../utils/certificateUtils'
-import { generateSuggestedSkills, getSkillsForPosition } from '../utils/skillRecommender'
+import { getSkillsForPosition } from '../utils/skillRecommender'
+import { getCompanionSuggestions, getSmartPreferredSuggestions } from '../utils/skillIntelligence'
 import { inferCategoryFromProfile, getTopDemandSkills } from '../services/skillDemandService'
 import { logSkillAcceptance } from '../services/telemetryService'
 
@@ -232,9 +233,6 @@ const JobseekerProfileEdit = () => {
     const [aiInputText, setAiInputText] = useState('')
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [analysisError, setAnalysisError] = useState('')
-    const [dismissedSuggestions, setDismissedSuggestions] = useState(false)
-    const [refreshNonce, setRefreshNonce] = useState(0)
-    const [isRefreshing, setIsRefreshing] = useState(false)
     const [isDeepScanning, setIsDeepScanning] = useState(false)
     const [deepScanSkills, setDeepScanSkills] = useState([])
     const [deepScanError, setDeepScanError] = useState('')
@@ -275,15 +273,32 @@ const JobseekerProfileEdit = () => {
     const predefinedSkills = formData.predefined_skills || []
     const customSkills = formData.skills || []
 
-    const { suggestions, predefinedToCheck, reasons, groups } = useMemo(
-        () => generateSuggestedSkills(formData),
-        [formData.course_or_field, formData.vocational_training, formData.work_experiences, formData.preferred_occupations, refreshNonce]
-    )
-
     const inferredCategory = useMemo(
         () => inferCategoryFromProfile(formData),
         [formData.course_or_field, formData.work_experiences, formData.preferred_occupations]
     )
+
+    const currentSkills = useMemo(
+        () => [...(formData.predefined_skills || []), ...(formData.skills || [])],
+        [formData.predefined_skills, formData.skills]
+    )
+
+    const companionRequired = useMemo(() => {
+        if (currentSkills.length === 0) return []
+        const currentSet = new Set(currentSkills.map(s => s.toLowerCase()))
+        return getCompanionSuggestions(currentSkills).filter(s => !currentSet.has(s.toLowerCase()))
+    }, [currentSkills])
+
+    const companionPreferred = useMemo(() => {
+        if (currentSkills.length === 0) return []
+        const currentSet = new Set(currentSkills.map(s => s.toLowerCase()))
+        return getSmartPreferredSuggestions(currentSkills, {
+            category: inferredCategory,
+            existingPreferred: currentSkills,
+        }).filter(item => !currentSet.has(item.skill.toLowerCase()))
+    }, [currentSkills, inferredCategory])
+
+    const showSuggestions = companionRequired.length > 0 || companionPreferred.length > 0
 
     useEffect(() => {
         if (!inferredCategory) { setDemandSkills([]); return }
@@ -563,13 +578,6 @@ const JobseekerProfileEdit = () => {
         toggleSuggestedSkill(skill)
     }
 
-    const handleRefreshSuggestions = () => {
-        setIsRefreshing(true)
-        setRefreshNonce(n => n + 1)
-        setDismissedSuggestions(false)
-        setTimeout(() => setIsRefreshing(false), 600)
-    }
-
     const handleDeepScan = async () => {
         setIsDeepScanning(true)
         setDeepScanError('')
@@ -587,20 +595,11 @@ const JobseekerProfileEdit = () => {
     }
 
     const addAllSuggestions = () => {
-        const newPredefined = [...predefinedSkills]
-        predefinedToCheck.forEach(skill => { if (!newPredefined.includes(skill)) newPredefined.push(skill) })
         const newCustom = [...customSkills]
-        suggestions.forEach(skill => { if (!newCustom.includes(skill)) newCustom.push(skill) })
-        setFormData(prev => ({ ...prev, predefined_skills: newPredefined, skills: newCustom }))
+        companionRequired.forEach(skill => { if (!newCustom.includes(skill)) newCustom.push(skill) })
+        companionPreferred.forEach(({ skill }) => { if (!newCustom.includes(skill)) newCustom.push(skill) })
+        setFormData(prev => ({ ...prev, skills: newCustom }))
     }
-
-    const allSuggested = [...predefinedToCheck, ...suggestions]
-    const showSuggestions = !dismissedSuggestions && allSuggested.length > 0
-    const groupedSections = [
-        { key: 'core', label: 'Core (from your course)', skills: [...predefinedToCheck, ...(groups?.core || [])] },
-        { key: 'practical', label: 'Job-aligned (likely roles)', skills: groups?.practical || [] },
-        { key: 'soft', label: 'Transferable / Soft skills', skills: groups?.soft || [] },
-    ].filter(group => group.skills.length > 0)
 
     // --- Disability toggle ---
     const handleDisabilityToggle = (type) => {
@@ -1323,84 +1322,84 @@ const JobseekerProfileEdit = () => {
                         <div className="space-y-4">
                             {showSuggestions && (
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl animate-scale-in">
-                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                    <div className="flex items-start justify-between gap-2 mb-3">
                                         <div className="flex items-center gap-2">
                                             <Sparkles className="w-4 h-4 text-blue-600" />
-                                            <span className="text-sm font-semibold text-blue-800">Suggested skills based on your profile</span>
+                                            <span className="text-sm font-semibold text-blue-800">Skills that go with yours</span>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={handleDeepScan}
-                                                disabled={isDeepScanning}
-                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60 text-xs font-semibold"
-                                                title="Use AI to deep-scan your full profile for specialized skills"
-                                            >
-                                                {isDeepScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
-                                                {isDeepScanning ? 'Scanning...' : 'Re-analyze'}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleRefreshSuggestions}
-                                                disabled={isRefreshing}
-                                                className="p-1 text-blue-500 hover:text-blue-700 transition-colors disabled:opacity-60"
-                                                aria-label="Refresh suggestions"
-                                                title="Refresh suggestions"
-                                            >
-                                                <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setDismissedSuggestions(true)}
-                                                className="p-1 text-blue-400 hover:text-blue-600 transition-colors"
-                                                aria-label="Dismiss suggestions"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeepScan}
+                                            disabled={isDeepScanning}
+                                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60 text-xs font-semibold"
+                                            title="Use AI to deep-scan your full profile for specialized skills"
+                                        >
+                                            {isDeepScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
+                                            {isDeepScanning ? 'Scanning...' : '✨ Re-analyze'}
+                                        </button>
                                     </div>
-                                    {reasons.length > 0 && (
-                                        <p className="text-xs text-blue-600 mb-3">
-                                            Based on: {reasons.slice(0, 3).join(' | ')}. Click to add or remove.
-                                        </p>
-                                    )}
-                                    <div className="space-y-3">
-                                        {groupedSections.map(section => (
-                                            <div key={section.key}>
-                                                <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">{section.label}</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {section.skills.map(skill => {
-                                                        const selected = isSkillSelected(skill)
-                                                        const source = section.key === 'practical' ? 'ai_enrichment' : 'deterministic'
-                                                        return (
-                                                            <button
-                                                                key={`${section.key}-${skill}`}
-                                                                type="button"
-                                                                onClick={() => handleSuggestedSkillClick(skill, source)}
-                                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                                                                    selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
-                                                                }`}
-                                                            >
-                                                                {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
-                                                                <span>{skill}</span>
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
+
+                                    {companionRequired.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">Typically go together</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {companionRequired.map(skill => {
+                                                    const selected = isSkillSelected(skill)
+                                                    return (
+                                                        <button
+                                                            key={skill}
+                                                            type="button"
+                                                            onClick={() => handleSuggestedSkillClick(skill, 'deterministic')}
+                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                                selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                                                            }`}
+                                                        >
+                                                            {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                            <span>{skill}</span>
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    )}
+
+                                    {companionPreferred.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-[11px] uppercase tracking-wide font-semibold text-blue-700/70 mb-1.5">Nice to have</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {companionPreferred.map(({ skill, reason }) => {
+                                                    const selected = isSkillSelected(skill)
+                                                    return (
+                                                        <button
+                                                            key={skill}
+                                                            type="button"
+                                                            onClick={() => handleSuggestedSkillClick(skill, 'ai_enrichment')}
+                                                            title={reason}
+                                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                                                selected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+                                                            }`}
+                                                        >
+                                                            {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
+                                                            <span>{skill}</span>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {isDeepScanning && (
                                         <div className="mt-3 flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-pulse">
                                             <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
-                                            <p className="text-xs text-violet-700 font-medium">Scanning your profile for specialized skills...</p>
+                                            <p className="text-xs text-violet-700 font-medium">Scanning your profile for specialized skills…</p>
                                         </div>
                                     )}
+
                                     {deepScanSkills.length > 0 && (
                                         <div className="mt-3 p-3 bg-violet-50 border border-violet-200 rounded-lg animate-scale-in">
                                             <div className="flex items-center gap-1.5 mb-2">
                                                 <Brain className="w-3.5 h-3.5 text-violet-600" />
-                                                <span className="text-xs font-semibold text-violet-700">AI Deep Scan - freshly discovered skills</span>
+                                                <span className="text-xs font-semibold text-violet-700">AI Deep Scan — freshly discovered skills</span>
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 {deepScanSkills.filter(skill => !isSkillSelected(skill)).map(skill => (
@@ -1410,7 +1409,7 @@ const JobseekerProfileEdit = () => {
                                                         onClick={() => {
                                                             logSkillAcceptance(skill, 'ai_deep_scan', inferredCategory || null, currentUser?.uid || null)
                                                             addSuggestedSkill(skill)
-                                                            setDeepScanSkills(prev => prev.filter(item => item !== skill))
+                                                            setDeepScanSkills(prev => prev.filter(s => s !== skill))
                                                         }}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-violet-700 border-violet-300 hover:bg-violet-100 transition-all"
                                                     >
@@ -1421,22 +1420,30 @@ const JobseekerProfileEdit = () => {
                                             </div>
                                         </div>
                                     )}
+
                                     {deepScanError && !isDeepScanning && (
                                         <p className="mt-2 text-xs text-violet-500 italic">{deepScanError}</p>
                                     )}
-                                    <button
-                                        type="button"
-                                        onClick={addAllSuggestions}
-                                        className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                                    >
-                                        Add all {allSuggested.length} suggestions
-                                    </button>
+
+                                    {(companionRequired.length + companionPreferred.length) > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={addAllSuggestions}
+                                            className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                            Add all {companionRequired.length + companionPreferred.length} suggestions
+                                        </button>
+                                    )}
                                 </div>
                             )}
 
                             {inferredCategory && demandSkills.length > 0 && (() => {
-                                const allSuggestedLower = new Set(allSuggested.map(skill => skill.toLowerCase()))
-                                const demandFiltered = demandSkills.filter(item => !allSuggestedLower.has(item.requirement.toLowerCase()))
+                                const alreadySuggestedLower = new Set([
+                                    ...companionRequired.map(s => s.toLowerCase()),
+                                    ...companionPreferred.map(({ skill }) => skill.toLowerCase()),
+                                    ...currentSkills.map(s => s.toLowerCase()),
+                                ])
+                                const demandFiltered = demandSkills.filter(item => !alreadySuggestedLower.has(item.requirement.toLowerCase()))
                                 if (demandFiltered.length === 0) return null
                                 return (
                                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -1472,7 +1479,7 @@ const JobseekerProfileEdit = () => {
                                 <label className="label">Common Skills</label>
                                 <p className="text-sm text-gray-500 mb-2">Select skills you have or add your own below.</p>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                    {PREDEFINED_SKILLS.filter(skill => !new Set(allSuggested.map(item => item.toLowerCase())).has(skill.toLowerCase())).map(skill => (
+                                    {PREDEFINED_SKILLS.filter(skill => !new Set([...companionRequired, ...companionPreferred.map(p => p.skill)].map(s => s.toLowerCase())).has(skill.toLowerCase())).map(skill => (
                                         <label key={skill} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                                             <input type="checkbox" checked={(formData.predefined_skills || []).includes(skill)} onChange={() => togglePredefinedSkill(skill)}
                                                 className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />

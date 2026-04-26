@@ -278,4 +278,4 @@ function Step4Education({ formData, handleChange, setFormData, errors = {} }) {
   )
 }
 
-export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS, LEVELS_WITH_COURSE }
+export { Step4Education, EDUCATION_LEVELS, CERTIFICATE_LEVELS }

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useJobDetailMatch } from '../hooks/useJobMatching'
 import {
-    Briefcase,
     MapPin,
     Clock,
     ArrowLeft,
@@ -15,16 +15,8 @@ import {
     User,
     MessageSquare,
     Sparkles,
-    ShieldCheck,
-    TrendingUp,
-    Target,
-    BookOpen,
-    Award,
-    ArrowUpRight,
     Bookmark
 } from 'lucide-react'
-import geminiService, { calculateDeterministicScore } from '../services/geminiService'
-import { generateMatchExplanation, getSingleJobMatch } from '../services/matchingService'
 import ResumeUpload from '../components/common/ResumeUpload'
 import EmployerAvatar from '../components/EmployerAvatar'
 import { insertNotification } from '../services/notificationService'
@@ -32,13 +24,7 @@ import { sendApplicationReceivedEmail, sendNewApplicantEmail } from '../services
 import { XCircle } from 'lucide-react'
 import { getEmployerDisplayName } from '../utils/employerBranding'
 
-const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
-
 const getAllSkills = (userData) => [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
-const isStubExplanationResponse = (response) =>
-    response?.status === 'stub' ||
-    response?.source === 'stub' ||
-    response?.explanation === 'This is a placeholder explanation response. Replace this function with a backend Cohere prompt that uses finalized scores only.'
 
 const JobDetail = () => {
     const { id } = useParams()
@@ -56,11 +42,22 @@ const JobDetail = () => {
     const [useProfileResume, setUseProfileResume] = useState(true)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
-    const [matchData, setMatchData] = useState(null)
-    const [calculatingMatch, setCalculatingMatch] = useState(false)
-    const [loadingMatchScore, setLoadingMatchScore] = useState(false)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [isSaved, setIsSaved] = useState(false)
+
+    const {
+        matchData,
+        loading: loadingMatchScore,
+        error: matchError,
+        refetch,
+        loadingExplanation,
+        loadExplanation,
+    } = useJobDetailMatch({ job, currentUser, userData, isJobseeker })
+
+    const matchingSkills = matchData?.skillBreakdown?.filter(sb => sb.tier === 'required' && sb.status === 'match').map(sb => sb.label) || []
+    const missingSkills = matchData?.skillBreakdown?.filter(sb => sb.tier === 'required' && sb.status === 'gap').map(sb => sb.label) || []
+    const relatedPartials = matchData?.skillBreakdown?.filter(sb => sb.status === 'partial' && sb.matchType === 'related') || []
+    const preferredMatches = matchData?.skillBreakdown?.filter(sb => sb.tier === 'preferred' && sb.status === 'match') || []
 
     useEffect(() => {
         fetchJob()
@@ -69,101 +66,6 @@ const JobDetail = () => {
             checkSavedStatus()
         }
     }, [id, currentUser])
-
-    // Show deterministic score immediately, then overlay hybrid score when available.
-    useEffect(() => {
-        if (!job || !currentUser || !isJobseeker() || !getAllSkills(userData).length) return
-
-        let isCancelled = false
-        const deterministicScore = calculateDeterministicScore(job, userData)
-        setLoadingMatchScore(true)
-
-        if (!HYBRID_MATCHING_ENABLED) {
-            setMatchData(deterministicScore)
-            setLoadingMatchScore(false)
-            return () => {
-                isCancelled = true
-            }
-        }
-
-        const loadHybridMatch = async () => {
-            try {
-                const hybridScore = await getSingleJobMatch({
-                    userId: currentUser.uid,
-                    jobId: job.id,
-                })
-
-                if (!hybridScore || isCancelled) return
-
-                setMatchData(prev => ({
-                    ...(prev || deterministicScore),
-                    ...hybridScore,
-                    explanation: prev?.explanation || hybridScore.explanation || '',
-                    skillBreakdown: prev?.skillBreakdown || [],
-                    actionItems: prev?.actionItems || [],
-                    improvementTips: prev?.improvementTips || [],
-                }))
-                setLoadingMatchScore(false)
-            } catch (hybridError) {
-                console.warn('Hybrid job match fetch failed, using deterministic fallback:', hybridError.message)
-                if (!isCancelled) {
-                    setMatchData(prev => prev ? { ...prev, ...deterministicScore } : deterministicScore)
-                    setLoadingMatchScore(false)
-                }
-            }
-        }
-
-        loadHybridMatch()
-
-        return () => {
-            isCancelled = true
-        }
-    }, [job, currentUser, userData, isJobseeker])
-
-    const calculateMatch = async () => {
-        if (!job || !userData || !currentUser) return
-        setCalculatingMatch(true)
-        try {
-            const scoreContext = matchData || calculateDeterministicScore(job, userData)
-            let aiDetail = null
-
-            if (HYBRID_MATCHING_ENABLED) {
-                try {
-                    const backendDetail = await generateMatchExplanation({
-                        userId: currentUser.uid,
-                        jobId: job.id,
-                        scores: scoreContext,
-                        matchingSkills: scoreContext.matchingSkills || [],
-                        missingSkills: scoreContext.missingSkills || [],
-                    })
-
-                    if (backendDetail?.explanation && !isStubExplanationResponse(backendDetail)) {
-                        aiDetail = backendDetail
-                    }
-                } catch (backendError) {
-                    console.warn('Backend match explanation failed, falling back to frontend AI:', backendError.message)
-                }
-            }
-
-            if (!aiDetail) {
-                aiDetail = await geminiService.calculateJobMatch(job, userData, scoreContext)
-            }
-
-            // Keep the visible score, overlay AI qualitative data only.
-            setMatchData(prev => ({
-                ...prev,
-                explanation: aiDetail.explanation,
-                skillBreakdown: aiDetail.skillBreakdown,
-                actionItems: aiDetail.actionItems,
-                improvementTips: aiDetail.improvementTips,
-            }))
-        } catch {
-            // Score is still shown, just no detail text.
-            setMatchData(prev => ({ ...prev, detailError: true }))
-        } finally {
-            setCalculatingMatch(false)
-        }
-    }
 
     const fetchJob = async () => {
         try {
@@ -572,25 +474,44 @@ const JobDetail = () => {
                         <div className="card">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Requirements</h2>
                             <div className="flex flex-wrap gap-2">
-                                {job.requirements?.map((req, i) => (
-                                    <span
-                                        key={i}
-                                        className={`px-3 py-1 rounded-full text-sm font-medium ${matchData?.matchingSkills?.some(ms =>
-                                            ms.toLowerCase().includes(req.toLowerCase()) || req.toLowerCase().includes(ms.toLowerCase())
-                                        )
+                                {job.requirements?.map((req, i) => {
+                                    const breakdown = matchData?.skillBreakdown?.find(sb =>
+                                        sb.label.toLowerCase() === req.toLowerCase() && sb.tier === 'required'
+                                    )
+                                    const pillClass = !breakdown || !matchData
+                                        ? 'bg-gray-100 text-gray-700'
+                                        : breakdown.status === 'match'
                                             ? 'bg-green-100 text-green-700'
-                                            : 'bg-gray-100 text-gray-700'
-                                            }`}
-                                    >
-                                        {req}
-                                    </span>
-                                ))}
+                                            : breakdown.status === 'partial'
+                                                ? 'bg-yellow-100 text-yellow-700'
+                                                : 'bg-gray-100 text-gray-700'
+                                    return (
+                                        <span
+                                            key={i}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium ${pillClass}`}
+                                            title={breakdown?.reason}
+                                        >
+                                            {req}
+                                        </span>
+                                    )
+                                })}
                             </div>
                             {currentUser && getAllSkills(userData).length > 0 && (
                                 <p className="text-sm text-gray-500 mt-4">
                                     <span className="inline-block w-3 h-3 bg-green-100 rounded-full mr-2"></span>
                                     Skills highlighted in green match your profile
                                 </p>
+                            )}
+
+                            {relatedPartials.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Related Skills That Count</p>
+                                    <div className="space-y-1.5">
+                                        {relatedPartials.map((sb, i) => (
+                                            <p key={i} className="text-xs text-gray-600 leading-relaxed">{sb.reason}</p>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
 
                             {job.preferred_skills?.length > 0 && (
@@ -628,7 +549,7 @@ const JobDetail = () => {
 
                     {/* Sidebar */}
                     <div className="space-y-6">
-                        {/* AI Match Analysis - Premium */}
+                        {/* AI Match Analysis */}
                         {isJobseeker() && (
                             <div className="card overflow-hidden border-indigo-100 bg-gradient-to-br from-indigo-50/30 via-white to-purple-50/20 p-0">
                                 {/* Header */}
@@ -645,25 +566,29 @@ const JobDetail = () => {
                                 </div>
 
                                 <div className="px-5 pb-5">
-                                    {!matchData && !loadingMatchScore ? (
+                                    {matchError ? (
+                                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm">
+                                            <p className="text-red-700">We couldn't compute a match right now.</p>
+                                            <button
+                                                onClick={refetch}
+                                                className="text-red-600 font-medium mt-1 hover:text-red-800"
+                                            >
+                                                Retry
+                                            </button>
+                                        </div>
+                                    ) : !matchData && !loadingMatchScore ? (
                                         <div className="text-center py-4">
                                             <p className="text-xs text-gray-500">Log in as a jobseeker with skills to see your match score</p>
                                         </div>
-                                    ) : (loadingMatchScore || calculatingMatch) ? (
-
+                                    ) : loadingMatchScore ? (
                                         <div className="space-y-4 animate-pulse py-2">
                                             <div className="flex justify-center">
                                                 <div className="w-20 h-20 bg-gray-200 rounded-full" />
                                             </div>
                                             <div className="h-3 bg-gray-200 rounded w-full" />
                                             <div className="h-3 bg-gray-200 rounded w-5/6" />
-                                            <div className="space-y-2">
-                                                <div className="h-2 bg-gray-200 rounded w-full" />
-                                                <div className="h-2 bg-gray-200 rounded w-4/5" />
-                                                <div className="h-2 bg-gray-200 rounded w-3/5" />
-                                            </div>
                                         </div>
-                                    ) : matchData && !matchData.error ? (
+                                    ) : matchData ? (
                                         <div className="space-y-4">
                                             {/* Score Ring */}
                                             <div className="flex flex-col items-center py-2">
@@ -688,11 +613,12 @@ const JobDetail = () => {
                                                         <span className="text-xs text-gray-400 font-medium -mt-0.5">/ 100</span>
                                                     </div>
                                                 </div>
-                                                <span className={`mt-2 text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full ${matchData.matchScore >= 80 ? 'bg-green-100 text-green-700' :
-                                                    matchData.matchScore >= 60 ? 'bg-blue-100 text-blue-700' :
-                                                        matchData.matchScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-gray-100 text-gray-600'
-                                                    }`}>
+                                                <span className={`mt-2 text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full ${
+                                                    matchData.matchScore >= 80 ? 'bg-green-100 text-green-700' :
+                                                        matchData.matchScore >= 60 ? 'bg-blue-100 text-blue-700' :
+                                                            matchData.matchScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-gray-100 text-gray-600'
+                                                }`}>
                                                     {matchData.matchLevel} Match
                                                 </span>
                                             </div>
@@ -704,92 +630,21 @@ const JobDetail = () => {
                                                 </p>
                                             )}
 
-                                            {matchData.overqualificationSignal && (
-                                                <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-100">
-                                                    <div className="flex items-start gap-2">
-                                                        <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                                                        <div>
-                                                            <p className="text-xs font-semibold text-blue-800">
-                                                                {matchData.overqualificationSignal.title}
-                                                            </p>
-                                                            <p className="text-xs text-blue-700 leading-relaxed mt-0.5">
-                                                                {matchData.overqualificationSignal.detail}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {matchData.inferredSoftSkills?.length > 0 && (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Why It Matches</p>
-                                                    <div className="space-y-2">
-                                                        {matchData.inferredSoftSkills.map((item, i) => (
-                                                            <div key={i} className="p-2 rounded-lg bg-indigo-50 border border-indigo-100">
-                                                                <p className="text-xs font-semibold text-indigo-800">
-                                                                    {item.requirement}
-                                                                </p>
-                                                                <p className="text-xs text-indigo-700 mt-0.5 leading-relaxed">
-                                                                    Credited from {item.inferredSkill}: {item.recruiterReason}
-                                                                </p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Detailed Breakdown Button (no AI detail yet) */}
-                                            {!matchData.skillBreakdown?.length && !matchData.detailError && (
+                                            {/* Load Explanation */}
+                                            {!matchData.explanation && !loadingExplanation && (
                                                 <div className="text-center pt-2">
                                                     <button
-                                                        onClick={calculateMatch}
-                                                        disabled={!job || !userData}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                                                        onClick={loadExplanation}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:shadow-lg transition-all"
                                                     >
                                                         <Sparkles className="w-4 h-4" />
-                                                        Detailed Breakdown
+                                                        Explain My Match
                                                     </button>
                                                 </div>
                                             )}
-
-
-                                            {/* Skill Breakdown Progress Bars */}
-                                            {matchData.skillBreakdown?.length > 0 && (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">Skill Breakdown</p>
-                                                    <div className="space-y-2.5">
-                                                        {matchData.skillBreakdown.map((sb, i) => {
-                                                            const Icon = sb.category.toLowerCase().includes('technical') ? Target :
-                                                                sb.category.toLowerCase().includes('experience') ? Briefcase :
-                                                                    sb.category.toLowerCase().includes('education') ? BookOpen : TrendingUp
-                                                            return (
-                                                                <div key={i}>
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <Icon className="w-3 h-3 text-indigo-500" />
-                                                                            <span className="text-xs font-semibold text-gray-700">{sb.category}</span>
-                                                                        </div>
-                                                                        <span className={`text-xs font-bold ${sb.score >= 70 ? 'text-green-600' :
-                                                                            sb.score >= 40 ? 'text-yellow-600' :
-                                                                                'text-red-500'
-                                                                            }`}>{sb.score}%</span>
-                                                                    </div>
-                                                                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className={`h-full rounded-full transition-all duration-700 ${sb.score >= 70 ? 'bg-gradient-to-r from-green-400 to-green-500' :
-                                                                                sb.score >= 40 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                                                                    'bg-gradient-to-r from-red-400 to-red-500'
-                                                                                }`}
-                                                                            style={{ width: `${sb.score}%` }}
-                                                                        />
-                                                                    </div>
-                                                                    {sb.detail && (
-                                                                        <p className="text-xs text-gray-400 mt-0.5">{sb.detail}</p>
-                                                                    )}
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </div>
+                                            {loadingExplanation && (
+                                                <div className="flex justify-center py-2">
+                                                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                                                 </div>
                                             )}
 
@@ -797,22 +652,26 @@ const JobDetail = () => {
                                             {matchData.preferredSkillBonus > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
                                                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preferred Skills Bonus</p>
-                                                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-green-50 border border-green-100">
-                                                        <div className="flex items-center gap-2">
-                                                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                                            <p className="text-xs text-green-800 font-medium">You matched preferred skills</p>
+                                                    <div className="space-y-1.5">
+                                                        {preferredMatches.map((sb, i) => (
+                                                            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-green-50 border border-green-100">
+                                                                <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                                                <p className="text-xs text-green-800 font-medium">Matched: {sb.label}</p>
+                                                            </div>
+                                                        ))}
+                                                        <div className="flex justify-end">
+                                                            <span className="text-xs font-bold text-green-700">+{matchData.preferredSkillBonus} pts</span>
                                                         </div>
-                                                        <span className="text-xs font-bold text-green-700">+{matchData.preferredSkillBonus} pts</span>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {/* Matching Skills */}
-                                            {matchData.matchingSkills?.length > 0 && (
+                                            {/* Your Strengths */}
+                                            {matchingSkills.length > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
                                                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Your Strengths</p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {matchData.matchingSkills.map((skill, i) => (
+                                                        {matchingSkills.map((skill, i) => (
                                                             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
                                                                 <CheckCircle className="w-2.5 h-2.5" />
                                                                 {skill}
@@ -822,75 +681,17 @@ const JobDetail = () => {
                                                 </div>
                                             )}
 
-                                            {/* Missing Skills */}
-                                            {matchData.missingSkills?.length > 0 && (
+                                            {/* Skill Gaps */}
+                                            {missingSkills.length > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
                                                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Skill Gaps</p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {matchData.missingSkills.map((skill, i) => (
+                                                        {missingSkills.map((skill, i) => (
                                                             <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full text-xs font-medium border border-red-200">
                                                                 {skill}
                                                             </span>
                                                         ))}
                                                     </div>
-                                                </div>
-                                            )}
-
-                                            {/* Career Action Items */}
-                                            {matchData.actionItems?.length > 0 && (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Career Coach</p>
-                                                    <div className="space-y-2">
-                                                        {matchData.actionItems.map((item, i) => {
-                                                            const typeIcon = item.type === 'course' ? BookOpen :
-                                                                item.type === 'certification' ? Award :
-                                                                    item.type === 'portfolio' ? ArrowUpRight : Briefcase
-                                                            const TypeIcon = typeIcon
-                                                            return (
-                                                                <div key={i} className={`flex items-start gap-2 p-2 rounded-lg ${item.priority === 'high' ? 'bg-orange-50 border border-orange-100' :
-                                                                    'bg-gray-50 border border-gray-100'
-                                                                    }`}>
-                                                                    <TypeIcon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${item.priority === 'high' ? 'text-orange-500' : 'text-indigo-400'
-                                                                        }`} />
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className="text-xs text-gray-700 leading-relaxed">{item.action}</p>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <span className="text-xs font-medium text-gray-400 uppercase">{item.type}</span>
-                                                                            {item.priority === 'high' && (
-                                                                                <span className="text-xs font-bold text-orange-600 uppercase">Priority</span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {matchData.rebrandingSuggestions?.length > 0 && (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Positioning Advice</p>
-                                                    <div className="space-y-1.5">
-                                                        {matchData.rebrandingSuggestions.map((tip, i) => (
-                                                            <p key={i} className="text-xs text-gray-600 leading-relaxed">
-                                                                {tip}
-                                                            </p>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Detail error with retry */}
-                                            {matchData?.detailError && (
-                                                <div className="text-center pt-2">
-                                                    <p className="text-xs text-gray-400 mb-2">Detailed analysis unavailable right now</p>
-                                                    <button
-                                                        onClick={calculateMatch}
-                                                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                                                    >
-                                                        Retry
-                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -900,41 +701,28 @@ const JobDetail = () => {
                         )}
 
                         {/* Skill Gap Analysis */}
-                        {currentUser && isJobseeker() && matchData && !matchData.error && (matchData.matchingSkills?.length > 0 || matchData.missingSkills?.length > 0) && !hasApplied && (() => {
-                            const matched = matchData.matchingSkills || []
-                            const missing = matchData.missingSkills || []
-                            return (
-                                <div className="card">
-                                    <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skill Match</h3>
-                                    <div className="space-y-2">
-                                        {matched.map((skill, i) => (
-                                            <div key={`m-${i}`} className="flex items-center gap-2 text-sm">
-                                                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                                <span className="text-gray-700">{skill}</span>
-                                            </div>
-                                        ))}
-                                        {missing.map((skill, i) => (
-                                            <div key={`x-${i}`} className="flex items-center gap-2 text-sm">
-                                                <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                                                <span className="text-gray-500">{skill}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-3">
-                                        {matched.length} of {matched.length + missing.length} requirements matched
-                                    </p>
-                                    {matchData.inferredSoftSkills?.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                                            {matchData.inferredSoftSkills.map((item, i) => (
-                                                <div key={`inf-${i}`} className="text-xs text-gray-500 leading-relaxed">
-                                                    <span className="font-semibold text-gray-700">{item.requirement}:</span> matched through {item.inferredSkill.toLowerCase()} evidence.
-                                                </div>
-                                            ))}
+                        {currentUser && isJobseeker() && matchData && !matchError && (matchingSkills.length > 0 || missingSkills.length > 0) && !hasApplied && (
+                            <div className="card">
+                                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skill Match</h3>
+                                <div className="space-y-2">
+                                    {matchingSkills.map((skill, i) => (
+                                        <div key={`m-${i}`} className="flex items-center gap-2 text-sm">
+                                            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                            <span className="text-gray-700">{skill}</span>
                                         </div>
-                                    )}
+                                    ))}
+                                    {missingSkills.map((skill, i) => (
+                                        <div key={`x-${i}`} className="flex items-center gap-2 text-sm">
+                                            <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                            <span className="text-gray-500">{skill}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            )
-                        })()}
+                                <p className="text-xs text-gray-400 mt-3">
+                                    {matchingSkills.length} of {matchingSkills.length + missingSkills.length} requirements matched
+                                </p>
+                            </div>
+                        )}
 
                         {/* Apply Card */}
                         <div className="card">
@@ -1107,7 +895,7 @@ const JobDetail = () => {
                                     )}
                                     {job.filter_mode === 'strict' && !checkSkillMatch() && (
                                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
-                                            Your skills do not match the requirements
+                                            Your profile does not currently match the requirements for this position.
                                         </div>
                                     )}
                                     <button
