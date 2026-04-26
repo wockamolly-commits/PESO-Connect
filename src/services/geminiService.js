@@ -528,6 +528,66 @@ Return ONLY a JSON object in this exact shape:
     }
 }
 
+export const deepAnalyzeJobRequirements = async (jobData = {}) => {
+    const EMPTY = { requiredSkills: [], preferredSkills: [] }
+
+    const { title = '', category = '', jobSummary = '', keyResponsibilities = '', experienceLevel = '' } = jobData
+    const existingRequired = (jobData.requiredSkills || []).join(', ')
+    const existingPreferred = (jobData.preferredSkills || []).join(', ')
+
+    if (!title && !jobSummary && !keyResponsibilities) return EMPTY
+
+    const contextLines = []
+    if (title) contextLines.push(`Job Title: ${title}`)
+    if (category) contextLines.push(`Job Category: ${category}`)
+    if (experienceLevel) contextLines.push(`Experience Level: ${experienceLevel}`)
+    if (jobSummary) contextLines.push(`Job Summary: ${jobSummary}`)
+    if (keyResponsibilities) contextLines.push(`Key Responsibilities: ${keyResponsibilities}`)
+    if (existingRequired) contextLines.push(`Already Listed Required Skills: ${existingRequired}`)
+    if (existingPreferred) contextLines.push(`Already Listed Preferred Skills: ${existingPreferred}`)
+
+    const prompt = `You are a hiring specialist helping a Philippine employer write a job posting. Analyze the job details and suggest TWO separate skill lists.
+
+${contextLines.join('\n')}
+
+Produce:
+1. "requiredSkills": Skills that are clearly essential for this role based on the title, responsibilities, and category. Only include skills that the job cannot function without.
+2. "preferredSkills": Bonus or nice-to-have skills relevant to the role but not strictly required.
+
+RULES:
+- Each skill must be a short normalized phrase (1-4 words).
+- Do not repeat skills already in "Already Listed Required Skills" or "Already Listed Preferred Skills".
+- Do not duplicate a skill across both lists.
+- Keep requiredSkills to 0-8 items and preferredSkills to 0-6 items.
+- Cover the correct industry — do NOT assume IT.
+
+Return ONLY a JSON object:
+{"requiredSkills":["..."], "preferredSkills":["..."]}`
+
+    try {
+        const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 512 })
+        const parsed = safeParseAIJSON(raw)
+        if (!parsed.ok) return EMPTY
+
+        const normalizeList = (values, limit) => {
+            if (!Array.isArray(values)) return []
+            const seen = new Set()
+            return values
+                .map(s => (typeof s === 'string' ? s.trim() : ''))
+                .filter(s => s.length > 0 && s.length < 60)
+                .filter(s => { const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+                .slice(0, limit)
+        }
+
+        return {
+            requiredSkills: normalizeList(parsed.data?.requiredSkills, 8),
+            preferredSkills: normalizeList(parsed.data?.preferredSkills, 6),
+        }
+    } catch {
+        return EMPTY
+    }
+}
+
 export default {
     analyzeResume,
     calculateJobMatch,
