@@ -35,7 +35,7 @@ function Step2PersonalInfo({ formData, handleChange, setFormData, errors = {} })
         <SearchableSelect label="Suffix" name="suffix" value={formData.suffix} onChange={handleChange} options={SUFFIX_OPTIONS} placeholder="None" />
       </div>
 
-      <FloatingLabelInput label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} type="date" icon={Calendar} required error={errors.date_of_birth} />
+      <FloatingLabelInput label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} type="date" icon={Calendar} required error={errors.date_of_birth} max={new Date().toISOString().split('T')[0]} />
 
       <div>
         <label className="label">Sex <span className="text-red-500">*</span></label>

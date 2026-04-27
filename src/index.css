@@ -218,3 +218,7 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+#skills-section {
+  scroll-margin-top: 100px;
+}

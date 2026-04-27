@@ -452,30 +452,6 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
         )}
 
         <div>
-          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400 mb-2">Common Skills</p>
-          <div className="flex flex-wrap gap-2">
-            {PREDEFINED_SKILLS.map(skill => {
-              const selected = isSkillSelected(skill)
-              return (
-                <button
-                  key={skill}
-                  type="button"
-                  onClick={() => toggleSuggestedSkill(skill)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    selected
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-primary-700 border-primary-300 hover:bg-primary-50'
-                  }`}
-                >
-                  {selected ? <Check className="h-3.5 w-3.5" /> : <span className="text-[11px] leading-none">+</span>}
-                  <span>{skill}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div>
           <TagInput
             label="Additional Skills"
             value={skillInput}

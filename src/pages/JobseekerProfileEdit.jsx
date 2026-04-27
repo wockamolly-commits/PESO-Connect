@@ -146,19 +146,26 @@ const JobseekerProfileEdit = () => {
     const navigate = useNavigate()
     const location = useLocation()
 
+    useEffect(() => { window.scrollTo(0, 0) }, [])
+
     const hasScrolledToSkillsRef = useRef(false)
     useEffect(() => {
         if (hasScrolledToSkillsRef.current) return
         if (location.state?.scrollTo !== 'skills') return
         if (!userData) return
+
         const timer = setTimeout(() => {
             if (hasScrolledToSkillsRef.current) return
             hasScrolledToSkillsRef.current = true
             const el = document.getElementById('skills-section')
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                // Clear state so it doesn't persist on refresh
+                navigate(location.pathname, { replace: true, state: {} })
+            }
         }, 300)
         return () => clearTimeout(timer)
-    }, [location.state, userData])
+    }, [location.state, userData, navigate, location.pathname])
 
     const [formData, setFormData] = useState({
         // Personal Information (Step 2)
@@ -1040,7 +1047,7 @@ const JobseekerProfileEdit = () => {
                                 <SearchableSelect label="Suffix" name="suffix" value={formData.suffix} onChange={handleChange} options={SUFFIX_OPTIONS} placeholder="None" />
                             </div>
 
-                            <FloatingLabelInput label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} type="date" icon={Calendar} required />
+                            <FloatingLabelInput label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} type="date" icon={Calendar} required max={new Date().toISOString().split('T')[0]} />
 
                             <div>
                                 <label className="label">Sex <span className="text-red-500">*</span></label>
@@ -1581,20 +1588,6 @@ const JobseekerProfileEdit = () => {
                                     </div>
                                 </div>
                             )}
-
-                            <div>
-                                <label className="label">Common Skills</label>
-                                <p className="text-sm text-gray-500 mb-2">Select skills you have or add your own below.</p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                    {PREDEFINED_SKILLS.filter(skill => !new Set([...companionRequired, ...companionPreferred.map(p => p.skill)].map(s => s.toLowerCase())).has(skill.toLowerCase())).map(skill => (
-                                        <label key={skill} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                                            <input type="checkbox" checked={(formData.predefined_skills || []).includes(skill)} onChange={() => togglePredefinedSkill(skill)}
-                                                className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                                            <span className="text-sm text-gray-700">{skill}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
 
                             {/* Custom Skills */}
                             <div>
