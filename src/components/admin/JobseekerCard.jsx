@@ -299,6 +299,32 @@ const JobseekerCard = ({
                                 </div>
                             )}
 
+                            {/* Legacy certification uploads */}
+                            {(jobseeker.certificate_urls || []).length > 0 && (
+                                <div className="p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <FileText className="w-4 h-4 text-green-400" />
+                                        <span className="text-sm text-slate-300 font-medium">
+                                            Certificates ({jobseeker.certificate_urls.length})
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {(jobseeker.certificate_urls || []).map((cert, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onViewDocument(cert.data, cert.name || `Certificate ${i + 1}`)
+                                                }}
+                                                className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline block"
+                                            >
+                                                {cert.name || `Certificate ${i + 1}`}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Civil service eligibility certificate */}
                             {jobseeker.civil_service_cert_path && (
                                 <button

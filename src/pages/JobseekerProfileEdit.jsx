@@ -26,6 +26,7 @@ import { getSkillsForPosition, generateSuggestedSkills } from '../utils/skillRec
 import { getCompanionSuggestions, getSmartPreferredSuggestions } from '../utils/skillIntelligence'
 import { inferCategoryFromProfile, getTopDemandSkills } from '../services/skillDemandService'
 import { logSkillAcceptance } from '../services/telemetryService'
+import { buildResumeExportData } from '../utils/resumeExport'
 
 // --- Helpers ---
 // Unwrap values that were mistakenly saved as single-element arrays
@@ -300,6 +301,10 @@ const JobseekerProfileEdit = () => {
     }, [currentSkills, inferredCategory])
 
     const showSuggestions = companionRequired.length > 0 || companionPreferred.length > 0
+    const resumeExportData = useMemo(
+        () => buildResumeExportData(userData, formData),
+        [userData, formData]
+    )
 
     useEffect(() => {
         if (!inferredCategory) { setDemandSkills([]); return }
@@ -1893,7 +1898,7 @@ const JobseekerProfileEdit = () => {
                     {/* 9. EXPORT RESUME */}
                     {/* ============================================================ */}
                     <div className="pt-4">
-                        <ExportResumeButton />
+                        <ExportResumeButton resumeData={resumeExportData} />
                     </div>
 
                     {/* Action Buttons */}

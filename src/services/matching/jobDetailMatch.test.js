@@ -70,7 +70,7 @@ describe('getPreferredBonus', () => {
 })
 
 describe('getBucketBreakdown', () => {
-    it('derives bucket percentages from the authoritative skillBreakdown (match=1, partial=0.5, gap=0)', () => {
+    it('derives bucket percentages from the authoritative skillBreakdown (match=1, partial=0.4, gap=0)', () => {
         const result = getBucketBreakdown({
             skillBreakdown: [
                 { label: 'React', kind: 'skill', tier: 'required', status: 'match' },
@@ -83,7 +83,7 @@ describe('getBucketBreakdown', () => {
         })
 
         expect(result).toEqual([
-            { category: 'Required Skills', key: 'required_skills', entryCount: 4, normalizedScore: 38 },
+            { category: 'Required Skills', key: 'required_skills', entryCount: 4, normalizedScore: 35 },
             { category: 'Preferred Skills', key: 'preferred_skills', entryCount: 1, normalizedScore: 100 },
             { category: 'Education', key: 'education', entryCount: 1, normalizedScore: 100 },
         ])

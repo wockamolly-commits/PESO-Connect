@@ -40,9 +40,12 @@ describe('headline success metric — Hardware candidate vs technical roles', ()
     expect(result.matchScore).toBeLessThan(40)
   })
 
-  it('scores > 50 against Technical Support (deterministic layer)', () => {
-    const result = calculateDeterministicScore(technicalSupportJob, hardwareProfile)
-    expect(result.matchScore).toBeGreaterThan(50)
+  it('scores materially better against Technical Support than React Developer', () => {
+    const supportResult = calculateDeterministicScore(technicalSupportJob, hardwareProfile)
+    const reactResult = calculateDeterministicScore(reactDeveloperJob, hardwareProfile)
+
+    expect(supportResult.matchScore).toBeGreaterThan(40)
+    expect(supportResult.matchScore).toBeGreaterThan(reactResult.matchScore)
   })
 
   it('React Developer match has React in missingSkills', () => {

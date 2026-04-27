@@ -10,7 +10,9 @@ import {
     mergeMatchResult,
 } from '../services/matching/uiMatcher'
 
-const HYBRID_MATCHING_ENABLED = import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true'
+const HYBRID_MATCHING_ENABLED =
+    import.meta.env.VITE_ENABLE_HYBRID_MATCHING === 'true' ||
+    import.meta.env.VITE_ENABLE_EDGE_MATCHING === 'true'
 
 const isGlueExplanation = (text) => {
     if (typeof text !== 'string') return false
@@ -173,7 +175,13 @@ export const useJobDetailMatch = ({
             })
 
             if (response?.explanation && !isStubExplanationResponse(response)) {
-                setMatchData(prev => prev ? { ...prev, explanation: response.explanation } : prev)
+                setMatchData(prev => prev ? {
+                    ...prev,
+                    explanation: response.explanation,
+                    scoreAttribution: response.scoreAttribution || prev.scoreAttribution,
+                    skillBreakdown: prev.skillBreakdown,
+                    explanationBreakdown: response.skillBreakdown || prev.explanationBreakdown,
+                } : prev)
             }
         } catch (err) {
             console.warn('Match explanation fetch failed:', err.message)

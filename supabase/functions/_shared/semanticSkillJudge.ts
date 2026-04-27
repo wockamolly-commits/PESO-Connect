@@ -1,6 +1,6 @@
 import { chatJSON } from './cohere.ts'
 
-export type SemanticMatchType = 'exact' | 'partial' | 'related' | 'gap'
+export type SemanticMatchType = 'related' | 'gap'
 
 export type SemanticSkillJudgment = {
   requirement: string
@@ -13,9 +13,7 @@ export type SemanticSkillJudgment = {
 }
 
 export const SEMANTIC_MATCH_TYPE_SCORES: Record<SemanticMatchType, number> = {
-  exact: 1,
-  partial: 0.82,
-  related: 0.68,
+  related: 0.4,
   gap: 0,
 }
 
@@ -41,22 +39,16 @@ export const normalizeSemanticSkillJudgments = (
     if (!requirement || !key) continue
 
     const normalizedType = (String(row.matchType || 'gap').toLowerCase() as SemanticMatchType)
-    const matchType: SemanticMatchType =
-      normalizedType === 'exact' || normalizedType === 'partial' || normalizedType === 'related'
-        ? normalizedType
-        : 'gap'
+    const matchType: SemanticMatchType = normalizedType === 'related' ? 'related' : 'gap'
 
     const matched = row.matched === true && matchType !== 'gap'
     const fallbackScore = scoreFromSemanticMatchType(matchType)
-    const rowScore = typeof row.score === 'number' && Number.isFinite(row.score)
-      ? Math.max(0, Math.min(1, row.score))
-      : fallbackScore
 
     byRequirement.set(key, {
       requirement,
       matched,
       matchType: matched ? matchType : 'gap',
-      score: matched ? Math.max(rowScore, fallbackScore) : 0,
+      score: matched ? fallbackScore : 0,
       bestSkill: normalizeText(row.bestSkill),
       supportingSkills: Array.isArray(row.supportingSkills)
         ? row.supportingSkills.map(normalizeText).filter(Boolean)
@@ -96,10 +88,11 @@ Your task is to judge whether each job requirement is supported by the candidate
 
 Rules:
 - Be conservative. Do not invent experience or overgeneralize.
-- "exact" means the same skill or a very near-equivalent wording.
-- "partial" means strongly overlapping wording or nearly the same practical competency.
 - "related" means a specific practical skill clearly supports a broader requirement.
 - "gap" means there is not enough evidence.
+- You may only return "related" or "gap".
+- Never return "exact" or "partial".
+- Do not provide custom numeric scores. Use the fixed example score for related matches.
 - A broader soft/general requirement may be supported by a concrete technical skill if the connection is direct and defensible.
 - Example: "Hardware Troubleshooting" can support "Problem Solving" because it involves diagnosing faults and resolving issues.
 - Example: "Graphic Design" can support "Attention to Detail" because design work depends on precision, visual accuracy, layout consistency, and careful revision.
@@ -127,7 +120,7 @@ Return exactly:
       "requirement": "Problem Solving",
       "matched": true,
       "matchType": "related",
-      "score": 0.68,
+      "score": 0.4,
       "bestSkill": "Hardware Troubleshooting",
       "supportingSkills": ["Hardware Troubleshooting", "Technical Support"],
       "reason": "Hardware Troubleshooting demonstrates diagnosing faults and resolving issues, which supports problem solving."

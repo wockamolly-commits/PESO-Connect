@@ -1,15 +1,22 @@
-import { describe, expect, it } from 'vitest'
-import {
+import { describe, expect, it, vi } from 'vitest'
+
+vi.stubGlobal('Deno', {
+    env: {
+        get: () => '',
+    },
+})
+
+const {
     buildSemanticSkillJudgePrompt,
     normalizeSemanticSkillJudgments,
     scoreFromSemanticMatchType,
-} from '../../../supabase/functions/_shared/semanticSkillJudge.ts'
+} = await import('../../../supabase/functions/_shared/semanticSkillJudge.ts')
 
 describe('semanticSkillJudge', () => {
     it('maps semantic match types to stable scores', () => {
-        expect(scoreFromSemanticMatchType('exact')).toBe(1)
-        expect(scoreFromSemanticMatchType('partial')).toBe(0.82)
-        expect(scoreFromSemanticMatchType('related')).toBe(0.68)
+        expect(scoreFromSemanticMatchType('exact')).toBe(0)
+        expect(scoreFromSemanticMatchType('partial')).toBe(0)
+        expect(scoreFromSemanticMatchType('related')).toBe(0.4)
         expect(scoreFromSemanticMatchType('gap')).toBe(0)
     })
 
@@ -35,7 +42,7 @@ describe('semanticSkillJudge', () => {
             matchType: 'related',
             bestSkill: 'Hardware Troubleshooting',
             supportingSkills: ['Hardware Troubleshooting'],
-            score: 0.68,
+            score: 0.4,
         }))
         expect(result.get('typescript')).toEqual(expect.objectContaining({
             requirement: 'TypeScript',
@@ -86,6 +93,36 @@ describe('semanticSkillJudge', () => {
 
         expect(result.get('attention to detail')).toEqual(expect.objectContaining({
             supportingSkills: ['Graphic Design', 'Layout Design', 'Photo Manipulation'],
+        }))
+    })
+
+    it('downgrades forbidden exact or partial outputs to gaps', () => {
+        const result = normalizeSemanticSkillJudgments({
+            results: [
+                {
+                    requirement: 'React',
+                    matched: true,
+                    matchType: 'exact',
+                    bestSkill: 'React',
+                },
+                {
+                    requirement: 'API Development',
+                    matched: true,
+                    matchType: 'partial',
+                    bestSkill: 'REST APIs',
+                },
+            ],
+        }, ['React', 'API Development'])
+
+        expect(result.get('react')).toEqual(expect.objectContaining({
+            matched: false,
+            matchType: 'gap',
+            score: 0,
+        }))
+        expect(result.get('api development')).toEqual(expect.objectContaining({
+            matched: false,
+            matchType: 'gap',
+            score: 0,
         }))
     })
 })

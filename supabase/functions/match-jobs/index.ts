@@ -2,8 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { embedTexts } from '../_shared/cohere.ts'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
 import {
+  buildRequiredSkillSummary,
   calculateDeterministicScore,
-  classifyRequirements,
+  computePreferredAverageCredit,
+  computePreferredBonus,
+  computeRequiredSkillScore,
+  computeSkillFirstMatchScore,
   educationSatisfied,
   getJobEducationOrdinal,
   getUserEducationOrdinal,
@@ -14,13 +18,10 @@ import {
 } from '../_shared/deterministicScore.ts'
 import { ensureProfileEmbedding } from '../_shared/embeddingStore.ts'
 import { sha256 } from '../_shared/hash.ts'
-import { getOrCreateRequirementEmbeddings } from '../_shared/requirementEmbeddingStore.ts'
-import { calibrateSemantic } from '../_shared/semanticCalibration.ts'
-import { computePersonalizationAdjust, getUserAffinity } from '../_shared/userAffinity.ts'
+import { computePersonalizationAdjust, getUserAffinity, type UserAffinity } from '../_shared/userAffinity.ts'
 import { buildJobText } from '../_shared/matchingText.ts'
 import { cosineSimilarity, normalizeCosineScore } from '../_shared/similarity.ts'
 import { judgeSkillSemanticMatches, type SemanticSkillJudgment } from '../_shared/semanticSkillJudge.ts'
-import { isTechnicalJob } from '../_shared/technicalRole.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -28,7 +29,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const MAX_CANDIDATES = 500
 const SEMANTIC_SHORTLIST_SIZE = 50
 const MAX_USER_SKILL_TEXTS = 96
-const MATCHER_VERSION = 'inferential-v10'
+const MATCHER_VERSION = 'skill-first-v11'
+const EMPTY_USER_AFFINITY: UserAffinity = {
+  categoryWeights: new Map<string, number>(),
+  totalSignals: 0,
+  refreshedAt: null,
+}
 
 // Per-skill status thresholds. These drive the JobDetail UI's
 // three-state checks AND the Requirements pill coloring, so the
@@ -37,15 +43,6 @@ const MATCHER_VERSION = 'inferential-v10'
 //             calibrated semantic >= 0.85)
 //   partial — inferred / transferable / weakly-related fit
 //   gap     — score below partial threshold
-const STATUS_MATCH_THRESHOLD = 0.85
-const STATUS_PARTIAL_THRESHOLD = 0.5
-
-const statusFromScore = (score: number): 'match' | 'partial' | 'gap' => {
-  if (score >= STATUS_MATCH_THRESHOLD) return 'match'
-  if (score >= STATUS_PARTIAL_THRESHOLD) return 'partial'
-  return 'gap'
-}
-
 type SkillBreakdownEntry = {
   label: string
   tier: 'required' | 'preferred'
@@ -165,8 +162,6 @@ const rejectOnHardFilters = (job: JobRecord, profile: ProfileRecord): HardFilter
   return null
 }
 
-const PREFERRED_BONUS_CAP = 10
-
 // The "required tier" is the structured list we backfilled via the
 // hard-filter migration. When it's populated we use it verbatim.
 // When it's empty (legacy rows or flexible jobs that skipped the
@@ -176,19 +171,21 @@ const getRequiredSkillList = (job: JobRecord): string[] => {
   const structured = Array.isArray(job.required_skills)
     ? (job.required_skills as unknown[]).filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
     : []
-  if (structured.length > 0) return structured
+  if (structured.length > 0) return uniqueStrings(structured)
 
-  return getJobRequirements(job).filter(
+  return uniqueStrings(getJobRequirements(job).filter(
     (req) => !isEducationRequirement(req) && !isLanguageRequirement(req),
-  )
+  ))
 }
 
 const getPreferredSkillList = (job: JobRecord): string[] =>
-  Array.isArray(job.preferred_skills)
-    ? (job.preferred_skills as unknown[]).filter(
-      (s): s is string => typeof s === 'string' && s.trim().length > 0,
-    )
-    : []
+  uniqueStrings(
+    Array.isArray(job.preferred_skills)
+      ? (job.preferred_skills as unknown[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0,
+      )
+      : [],
+  )
 
 const getJobRequirements = (job: JobRecord) => {
   const raw = Array.isArray(job.requirements) ? job.requirements : []
@@ -447,6 +444,88 @@ const getProfileSignalsForSemanticJudge = (profile: ProfileRecord) => {
   return uniqueStrings(signals).slice(0, 24)
 }
 
+const mergeProfileData = (
+  baseData: Record<string, unknown>,
+  profileData: Record<string, unknown> | null,
+) => {
+  if (!profileData) return { ...baseData }
+
+  const merged = { ...baseData }
+  for (const [key, value] of Object.entries(profileData)) {
+    if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+      if (merged[key] === undefined) merged[key] = value
+      continue
+    }
+    merged[key] = value
+  }
+
+  return merged
+}
+
+const buildDeterministicResult = (
+  job: JobRecord,
+  profile: ProfileRecord,
+  userAffinity: UserAffinity = EMPTY_USER_AFFINITY,
+) => {
+  const det = calculateDeterministicScore(job, profile)
+  const requiredSkillSummary = det.requiredSkillSummary ?? buildRequiredSkillSummary(det.skillBreakdown || [])
+  const scoreComposition = det.scoreComposition || {
+    requiredSkillScore: det.technicalCompetencyScore ?? 0,
+    supportScore: det.supportScore ?? 0,
+    preferredBonus: det.preferredSkillBonus ?? 0,
+    coverageCap: requiredSkillSummary.total > 0 ? Math.round(35 + (65 * Number(requiredSkillSummary.strongCoverage || 0))) : 55,
+    baseScoreBeforeCap: det.matchScore ?? 0,
+  }
+  const personalizationAdjust = computePersonalizationAdjust(job, userAffinity)
+  const personalizationCap = requiredSkillSummary.total > 0 ? Number(scoreComposition.coverageCap ?? 100) : 55
+  const baseFinalScore = Number(det.matchScore ?? 0)
+  const finalScore = Math.min(personalizationCap, Math.max(0, baseFinalScore + personalizationAdjust))
+  const { evidence, gaps } = buildEvidenceLedger(job, profile, det.skillBreakdown || [])
+  const confidenceScore = Math.min(
+    1,
+    Math.max(Number(det.confidenceScore ?? 0), computeMatchConfidence(job, profile)),
+  )
+
+  return {
+    jobId: job.id,
+    semanticScore: 0,
+    hybridSkillScore: det.technicalCompetencyScore ?? 0,
+    deterministicScore: baseFinalScore,
+    experienceScore: det.experienceScore ?? 0,
+    educationScore: det.baselineScore ?? det.educationScore ?? 0,
+    finalScore,
+    baseFinalScore,
+    personalizationAdjust,
+    matchLevel:
+      finalScore >= 80 ? 'Excellent'
+        : finalScore >= 60 ? 'Good'
+          : finalScore >= 40 ? 'Fair'
+            : 'Low',
+    matchingSkills: Array.isArray(det.matchingSkills) ? det.matchingSkills : [],
+    relatedSkills: Array.isArray(det.relatedSkills) ? det.relatedSkills : [],
+    missingSkills: Array.isArray(det.missingSkills) ? det.missingSkills : [],
+    inferredSoftSkills: Array.isArray(det.inferredSoftSkills) ? det.inferredSoftSkills : [],
+    technicalCompetencyScore: det.technicalCompetencyScore ?? 0,
+    inferredSoftSkillScore: det.inferredSoftSkillScore ?? 0,
+    baselineScore: det.baselineScore ?? 0,
+    candidateSignals: Array.isArray(det.candidateSignals) ? det.candidateSignals : [],
+    overqualificationSignal: det.overqualificationSignal ?? null,
+    rebrandingSuggestions: Array.isArray(det.rebrandingSuggestions) ? det.rebrandingSuggestions : [],
+    preferredSkillBonus: det.preferredSkillBonus ?? 0,
+    preferredScore: 0,
+    confidenceScore,
+    lowEvidence: confidenceScore < 0.35,
+    lowDensityJob: !hasStructuredJobRequirements(job),
+    requiredSkillSummary,
+    scoreComposition,
+    supportScore: det.supportScore ?? 0,
+    skillBreakdown: Array.isArray(det.skillBreakdown) ? det.skillBreakdown : [],
+    evidence,
+    gaps,
+    explanation: null,
+  }
+}
+
 const getRuleSignal = (
   requirement: string,
   userSkills: string[],
@@ -463,57 +542,21 @@ const getRuleSignal = (
 const normalizeRequirementKey = (req: string) =>
   req.toLowerCase().replace(/\s+/g, ' ').trim()
 
-// Score one skill/requirement string against the user's skills using the
-// rule-union-semantic logic. Returns [0, 1]. Pure — no I/O.
-const scoreOneSkill = (
-  skill: string,
-  userSkills: string[],
-  aliasMap: Record<string, string[]>,
-  userSkillEmbeddings: number[][],
-  requirementEmbeddingMap: Map<string, number[]>,
-  llmJudgments: Map<string, SemanticSkillJudgment> = new Map(),
-): number => {
-  const ruleSignal = getRuleSignal(skill, userSkills, aliasMap)
-  if (ruleSignal >= 1) return 1
-  const llmSignal = llmJudgments.get(normalizeRequirementKey(skill))?.score ?? 0
-  if (userSkillEmbeddings.length === 0) return Math.max(ruleSignal, llmSignal)
-
-  const requirementEmbedding = requirementEmbeddingMap.get(normalizeRequirementKey(skill))
-  if (!requirementEmbedding) return Math.max(ruleSignal, llmSignal)
-
-  let maxCosine = 0
-  for (const skillEmbedding of userSkillEmbeddings) {
-    maxCosine = Math.max(maxCosine, cosineSimilarity(requirementEmbedding, skillEmbedding))
+const buildLlmRelatedVerdict = (judgment?: SemanticSkillJudgment | null) => {
+  if (!judgment || judgment.matchType !== 'related') return null
+  return {
+    score: 0.4,
+    status: 'partial' as const,
+    matchType: 'related' as const,
+    matchedSkill: judgment.bestSkill || judgment.supportingSkills?.[0] || undefined,
+    supportingSkills: judgment.supportingSkills?.length ? judgment.supportingSkills : undefined,
+    reason: judgment.reason || undefined,
   }
-
-  const semanticScore = calibrateSemantic(maxCosine)
-  return Math.max(ruleSignal, llmSignal, semanticScore)
 }
 
-// Weakest-link aggregation: the score is dragged down by the single
-// weakest required skill, but not to zero if everything else is strong.
-// One missing required skill in a list of ten should hurt visibly
-// without obliterating the match.
-const weakestLinkAggregate = (scores: number[]): number => {
-  if (scores.length === 0) return 1
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length
-  const min = Math.min(...scores)
-  return 0.7 * mean + 0.3 * min
-}
-
-// Pure scoring function. All embeddings come in precomputed — no network I/O.
-// Callers are responsible for ensuring `requirementEmbeddingMap` contains
-// entries for every required AND preferred skill on the job, keyed by
-// `normalizeRequirementKey`.
-//
-// Returns:
-//   hybridSkillScore — [0, 100], weakest-link over required tier
-//   preferredScore   — [0, 1],   mean over preferred tier (bonus-normalized)
 const computeHybridSkillScore = (
   job: JobRecord,
   profile: ProfileRecord,
-  userSkillEmbeddings: number[][],
-  requirementEmbeddingMap: Map<string, number[]>,
   llmJudgments: Map<string, SemanticSkillJudgment> = new Map(),
 ): {
   hybridSkillScore: number
@@ -522,93 +565,84 @@ const computeHybridSkillScore = (
 } => {
   const userSkills = getUserSkillNames(profile)
   const aliasMap = getAliasMap(profile)
-
   const requiredSkills = getRequiredSkillList(job)
   const preferredSkills = getPreferredSkillList(job)
   const breakdown: SkillBreakdownEntry[] = []
 
-  // Education & language that are NOT gated as hard filters still count
-  // as required-tier signals here (pass/fail into the weakest-link pool).
-  // When the hard-filter flag IS set, such jobs have already been
-  // rejected upstream for non-matching profiles, so this path only runs
-  // for profiles that pass them — the 1.0 is correct.
-  const eduLangScores: number[] = []
   for (const req of getJobRequirements(job)) {
     if (isEducationRequirement(req)) {
       const score = educationSatisfied(req, profile.highest_education) ? 1 : 0
-      eduLangScores.push(score)
       breakdown.push({
         label: req,
         tier: 'required',
         kind: 'education',
         score,
-        status: statusFromScore(score),
+        status: score > 0 ? 'match' : 'gap',
+        matchType: score > 0 ? 'exact' : 'gap',
       })
     } else if (isLanguageRequirement(req)) {
       const score = languageSatisfied(req, profile.languages) ? 1 : 0
-      eduLangScores.push(score)
       breakdown.push({
         label: req,
         tier: 'required',
         kind: 'language',
         score,
-        status: statusFromScore(score),
+        status: score > 0 ? 'match' : 'gap',
+        matchType: score > 0 ? 'exact' : 'gap',
       })
     }
   }
 
   const requiredScores = requiredSkills.map((skill) => {
-    const llmJudgment = llmJudgments.get(normalizeRequirementKey(skill))
-    const score = scoreOneSkill(skill, userSkills, aliasMap, userSkillEmbeddings, requirementEmbeddingMap, llmJudgments)
+    const directMatch = matchRequirementToSkillSet(skill, userSkills, aliasMap)
+    const relatedOnly = !directMatch.matched
+      ? buildLlmRelatedVerdict(llmJudgments.get(normalizeRequirementKey(skill)))
+      : null
+    const score = directMatch.matched ? directMatch.credit : (relatedOnly?.score ?? 0)
+
     breakdown.push({
       label: skill,
       tier: 'required',
       kind: 'skill',
       score,
-      status: statusFromScore(score),
-      reason: llmJudgment?.reason || undefined,
-      matchedSkill: llmJudgment?.bestSkill || llmJudgment?.supportingSkills?.[0] || undefined,
-      supportingSkills: llmJudgment?.supportingSkills?.length ? llmJudgment.supportingSkills : undefined,
-      matchType: llmJudgment?.matchType || undefined,
+      status: directMatch.matched ? directMatch.status : (relatedOnly?.status ?? 'gap'),
+      reason: directMatch.reason || relatedOnly?.reason,
+      matchedSkill: directMatch.matchedSkill || relatedOnly?.matchedSkill,
+      supportingSkills: relatedOnly?.supportingSkills,
+      matchType: directMatch.matchType !== 'gap' ? directMatch.matchType : (relatedOnly?.matchType ?? 'gap'),
     })
+
     return score
   })
 
   const preferredScores = preferredSkills.map((skill) => {
-    const llmJudgment = llmJudgments.get(normalizeRequirementKey(skill))
-    const score = scoreOneSkill(skill, userSkills, aliasMap, userSkillEmbeddings, requirementEmbeddingMap, llmJudgments)
+    const directMatch = matchRequirementToSkillSet(skill, userSkills, aliasMap)
+    const relatedOnly = !directMatch.matched
+      ? buildLlmRelatedVerdict(llmJudgments.get(normalizeRequirementKey(skill)))
+      : null
+    const score = directMatch.matched ? directMatch.credit : (relatedOnly?.score ?? 0)
+
     breakdown.push({
       label: skill,
       tier: 'preferred',
       kind: 'skill',
       score,
-      status: statusFromScore(score),
-      reason: llmJudgment?.reason || undefined,
-      matchedSkill: llmJudgment?.bestSkill || llmJudgment?.supportingSkills?.[0] || undefined,
-      supportingSkills: llmJudgment?.supportingSkills?.length ? llmJudgment.supportingSkills : undefined,
-      matchType: llmJudgment?.matchType || undefined,
+      status: directMatch.matched ? directMatch.status : (relatedOnly?.status ?? 'gap'),
+      reason: directMatch.reason || relatedOnly?.reason,
+      matchedSkill: directMatch.matchedSkill || relatedOnly?.matchedSkill,
+      supportingSkills: relatedOnly?.supportingSkills,
+      matchType: directMatch.matchType !== 'gap' ? directMatch.matchType : (relatedOnly?.matchType ?? 'gap'),
     })
+
     return score
   })
 
   const preferredScore = preferredScores.length > 0
     ? preferredScores.reduce((a, b) => a + b, 0) / preferredScores.length
     : 0
-
-  // Nothing at all to score → use the legacy classifier path so jobs
-  // with only descriptive text still get a sensible baseline.
-  if (requiredScores.length === 0 && eduLangScores.length === 0) {
-    const raw = getJobRequirements(job)
-    if (raw.length === 0) {
-      return { hybridSkillScore: 100, preferredScore, skillBreakdown: breakdown }
-    }
-    const { matchingSkills } = classifyRequirements(raw, userSkills, aliasMap, profile)
-    const hybridSkillScore = matchingSkills.length === raw.length ? 100 : 0
-    return { hybridSkillScore, preferredScore, skillBreakdown: breakdown }
-  }
-
-  const requiredPool = [...requiredScores, ...eduLangScores]
-  const hybridSkillScore = Math.round(weakestLinkAggregate(requiredPool) * 100)
+  const hybridSkillScore = requiredScores.length > 0
+    ? Math.round((requiredScores.reduce((sum, score) => sum + score, 0) / requiredScores.length) * 100)
+    : 0
 
   return { hybridSkillScore, preferredScore, skillBreakdown: breakdown }
 }
@@ -698,6 +732,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    const { data: baseUser, error: baseUserError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (baseUserError) throw baseUserError
+    if (!baseUser) {
+      return jsonResponse({ error: 'User not found' }, { status: 404 })
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from('jobseeker_profiles')
       .select('id, predefined_skills, skills, skill_aliases, work_experiences, highest_education, date_of_birth, course_or_field, preferred_occupations, preferred_job_type, preferred_local_locations, preferred_overseas_locations, experience_categories, languages, certifications, professional_licenses, vocational_training, portfolio_url, employment_status, willing_to_relocate, expected_salary_min, expected_salary_max')
@@ -705,13 +750,11 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (profileError) throw profileError
-    if (!profile) {
-      return jsonResponse({ error: 'Profile not found' }, { status: 404 })
+    const profileWithUserId = {
+      ...mergeProfileData(baseUser as Record<string, unknown>, profile as Record<string, unknown> | null),
+      id: userId,
+      user_id: userId,
     }
-
-    // jobseeker_profiles.id === auth user id; ensureProfileEmbedding needs both id and user_id
-    const profileWithUserId = { ...profile, user_id: userId }
-    const profileEmbedding = await ensureProfileEmbedding(supabase as never, profileWithUserId as ProfileRecord)
 
     let jobs: JobRecord[] = []
     const jobIdFilter = typeof filters.jobId === 'string' ? filters.jobId : ''
@@ -794,7 +837,76 @@ Deno.serve(async (req) => {
       })
     }
 
-    const jobEmbeddings = await ensureJobEmbeddings(supabase, jobs)
+    let userAffinity = EMPTY_USER_AFFINITY
+    try {
+      userAffinity = await getUserAffinity(supabase as never, userId)
+    } catch (error) {
+      console.warn('User affinity lookup failed, disabling personalization:', (error as Error).message)
+    }
+
+    let profileEmbedding: Awaited<ReturnType<typeof ensureProfileEmbedding>> | null = null
+    try {
+      profileEmbedding = await ensureProfileEmbedding(supabase as never, profileWithUserId as ProfileRecord)
+    } catch (error) {
+      console.warn('Profile embedding unavailable, using deterministic matcher:', (error as Error).message)
+    }
+
+    if (!profileEmbedding) {
+      const fallbackResults = jobs
+        .map((job) => buildDeterministicResult(job, profileWithUserId as ProfileRecord, userAffinity))
+        .sort((a, b) => b.finalScore - a.finalScore)
+      const pagedResults = fallbackResults.slice(offset, offset + limit)
+
+      return jsonResponse({
+        results: pagedResults,
+        meta: {
+          source: 'deterministic_fallback',
+          candidateCount: jobs.length,
+          prefilterCandidateCount: prefilteredCount,
+          semanticShortlistCount: 0,
+          reranked: false,
+          filters,
+          hardFilterRejections,
+          requirementCache: { requested: 0, hits: 0, misses: 0 },
+          personalization: {
+            totalSignals: userAffinity.totalSignals,
+            topCategories: [],
+          },
+        },
+      })
+    }
+
+    let jobEmbeddings: Awaited<ReturnType<typeof ensureJobEmbeddings>> | null = null
+    try {
+      jobEmbeddings = await ensureJobEmbeddings(supabase, jobs)
+    } catch (error) {
+      console.warn('Job embeddings unavailable, using deterministic matcher:', (error as Error).message)
+    }
+
+    if (!jobEmbeddings) {
+      const fallbackResults = jobs
+        .map((job) => buildDeterministicResult(job, profileWithUserId as ProfileRecord, userAffinity))
+        .sort((a, b) => b.finalScore - a.finalScore)
+      const pagedResults = fallbackResults.slice(offset, offset + limit)
+
+      return jsonResponse({
+        results: pagedResults,
+        meta: {
+          source: 'deterministic_fallback',
+          candidateCount: jobs.length,
+          prefilterCandidateCount: prefilteredCount,
+          semanticShortlistCount: 0,
+          reranked: false,
+          filters,
+          hardFilterRejections,
+          requirementCache: { requested: 0, hits: 0, misses: 0 },
+          personalization: {
+            totalSignals: userAffinity.totalSignals,
+            topCategories: [],
+          },
+        },
+      })
+    }
 
     const semanticRanked = jobs
       .map((job) => {
@@ -827,12 +939,6 @@ Deno.serve(async (req) => {
       (cachedRows || []).map((row: Record<string, unknown>) => [String(row.job_id), row]),
     )
 
-    // Personalization: fetch once per request. Affinity rarely changes
-    // between calls (TTL-gated refresh inside the helper), so cost is
-    // usually a single select. Applied at response time — never cached
-    // into match_scores_cache, so the canonical score stays stable.
-    const userAffinity = await getUserAffinity(supabase as never, userId)
-
     // Identify which shortlisted jobs need a fresh hybrid-skill score.
     // Everything else is served from match_scores_cache with zero Cohere cost.
     const versionedProfileHash = `${profileEmbedding.contentHash}:${MATCHER_VERSION}`
@@ -848,21 +954,13 @@ Deno.serve(async (req) => {
 
     // Embed user skills ONCE per request, only if at least one shortlisted
     // job will be scored from scratch. Full cache hit => zero Cohere calls.
-    let userSkillEmbeddings: number[][] = []
-    if (jobsNeedingHybridScore.length > 0) {
-      const userSkillTexts = getUserSkillTexts(profileWithUserId as ProfileRecord)
-      if (userSkillTexts.length > 0) {
-        const { embeddings } = await embedTexts(userSkillTexts, 'search_document')
-        userSkillEmbeddings = embeddings as number[][]
-      }
-    }
+    let requirementCacheStats = { requested: 0, hits: 0, misses: 0 }
 
     // Collect every distinct requirement key across the non-cached jobs
     // (skipping education/language entries — those are handled without
     // embeddings). requirement_embeddings table serves cross-request cache;
     // only genuine first-sightings go to Cohere.
-    const requirementEmbeddingMap = new Map<string, number[]>()
-    let requirementCacheStats = { requested: 0, hits: 0, misses: 0 }
+    // Visible scoring no longer uses requirement-level embedding caches.
     if (jobsNeedingHybridScore.length > 0) {
       const uniqueKeys = new Set<string>()
       for (const item of jobsNeedingHybridScore) {
@@ -889,13 +987,7 @@ Deno.serve(async (req) => {
       }
 
       if (uniqueKeys.size > 0) {
-        const { map, stats } = await getOrCreateRequirementEmbeddings(
-          supabase as never,
-          Array.from(uniqueKeys),
-          'search_query',
-        )
-        for (const [key, embedding] of map) requirementEmbeddingMap.set(key, embedding)
-        requirementCacheStats = stats
+        requirementCacheStats = { requested: uniqueKeys.size, hits: 0, misses: 0 }
       }
     }
 
@@ -978,8 +1070,6 @@ Deno.serve(async (req) => {
         const scored = computeHybridSkillScore(
           item.job,
           profileWithUserId as ProfileRecord,
-          userSkillEmbeddings,
-          requirementEmbeddingMap,
           llmJudgments,
         )
         hybridSkillScore = scored.hybridSkillScore
@@ -999,42 +1089,18 @@ Deno.serve(async (req) => {
         Math.max(det.confidenceScore ?? 0, computeMatchConfidence(item.job, profileWithUserId as ProfileRecord)),
       )
       const isLowDensityJob = !hasStructuredJobRequirements(item.job)
-      const preferredBonus = Math.round(preferredScore * PREFERRED_BONUS_CAP)
-      // Canonical / unpersonalized score. This is what lands in the
-      // cache and what employer-facing / audit views should consume.
-      const isTechnical = isTechnicalJob(item.job)
-
-      const weights = isTechnical
-        ? { deterministic: 0.25, hybrid: 0.60, semantic: 0.15 }
-        : { deterministic: 0.50, hybrid: 0.30, semantic: 0.20 }
-
-      let blendedScore = Math.min(
-        100,
-        Math.round(
-          deterministicScore * weights.deterministic +
-          hybridSkillScore   * weights.hybrid +
-          semanticScore      * weights.semantic,
-        ) + preferredBonus,
-      )
-
-      // Technical kill-switch: prevent "False Fair" matches where a candidate
-      // has zero relevant skills but high education/semantic scores.
-      if (isTechnical) {
-        if (hybridSkillScore === 0)       blendedScore = Math.min(blendedScore, 25)
-        else if (hybridSkillScore < 30)   blendedScore = Math.min(blendedScore, 40)
-      }
-
-      const baseFinalScore = isLowDensityJob
-        ? Math.min(blendedScore, 55)
-        : confidenceScore < 0.35
-          ? Math.min(blendedScore, 55)
-          : confidenceScore < 0.7
-            ? Math.round(blendedScore * 0.92)
-            : blendedScore
-
-      const baseMatchLevel = cacheValid && typeof cached.match_level === 'string'
-        ? cached.match_level
-        : baseFinalScore >= 80
+      const requiredSkillSummary = buildRequiredSkillSummary(skillBreakdown)
+      hybridSkillScore = computeRequiredSkillScore(skillBreakdown)
+      preferredScore = computePreferredAverageCredit(skillBreakdown)
+      const preferredBonus = computePreferredBonus(skillBreakdown)
+      const { matchScore: baseFinalScore, scoreComposition } = computeSkillFirstMatchScore({
+        requiredSkillSummary,
+        requiredSkillScore: hybridSkillScore,
+        supportScore: det.supportScore ?? 0,
+        preferredBonus,
+      })
+      const baseMatchLevel =
+        baseFinalScore >= 80
           ? 'Excellent'
           : baseFinalScore >= 60
             ? 'Good'
@@ -1056,7 +1122,7 @@ Deno.serve(async (req) => {
               preferred_score: preferredScore,
               deterministic_score: deterministicScore,
               experience_score: experienceScore,
-              education_score: det.baselineScore ?? educationScore,
+              education_score: educationScore,
               final_score: baseFinalScore,
               match_level: baseMatchLevel,
               explanation: cached?.explanation || null,
@@ -1072,7 +1138,8 @@ Deno.serve(async (req) => {
       // Personalization layered ON TOP of the cached base. Different
       // users see different finalScore for the same job — intended.
       const personalizationAdjust = computePersonalizationAdjust(item.job, userAffinity)
-      const finalScore = Math.min(100, Math.max(0, baseFinalScore + personalizationAdjust))
+      const personalizationCap = requiredSkillSummary.total > 0 ? scoreComposition.coverageCap : 55
+      const finalScore = Math.min(personalizationCap, Math.max(0, baseFinalScore + personalizationAdjust))
 
       // matchLevel reflects what the user actually sees, not the base.
       const matchLevel =
@@ -1087,6 +1154,22 @@ Deno.serve(async (req) => {
         skillBreakdown,
       )
 
+      const matchingSkills = uniqueStrings(
+        skillBreakdown
+          .filter((entry) => entry.kind === 'skill' && entry.tier === 'required' && (entry.matchType === 'exact' || entry.matchType === 'partial'))
+          .map((entry) => entry.label),
+      )
+      const relatedSkills = uniqueStrings(
+        skillBreakdown
+          .filter((entry) => entry.kind === 'skill' && entry.tier === 'required' && entry.matchType === 'related')
+          .map((entry) => entry.label),
+      )
+      const missingSkills = uniqueStrings(
+        skillBreakdown
+          .filter((entry) => entry.kind === 'skill' && entry.tier === 'required' && (!entry.matchType || entry.matchType === 'gap'))
+          .map((entry) => entry.label),
+      )
+
       results.push({
         jobId: item.job.id,
         semanticScore,
@@ -1098,10 +1181,11 @@ Deno.serve(async (req) => {
         baseFinalScore,
         personalizationAdjust,
         matchLevel,
-        matchingSkills: det.matchingSkills,
-        missingSkills: det.missingSkills,
+        matchingSkills,
+        relatedSkills,
+        missingSkills,
         inferredSoftSkills: det.inferredSoftSkills,
-        technicalCompetencyScore: det.technicalCompetencyScore,
+        technicalCompetencyScore: hybridSkillScore,
         inferredSoftSkillScore: det.inferredSoftSkillScore,
         baselineScore: det.baselineScore,
         candidateSignals: det.candidateSignals,
@@ -1112,6 +1196,9 @@ Deno.serve(async (req) => {
         confidenceScore,
         lowEvidence: confidenceScore < 0.35,
         lowDensityJob: isLowDensityJob,
+        requiredSkillSummary,
+        scoreComposition,
+        supportScore: det.supportScore ?? 0,
         skillBreakdown,
         evidence,
         gaps,

@@ -27,18 +27,21 @@ export const deduplicateSkills = (skills) => {
 
 const MATCH_CREDITS = {
     exact: 1,
-    partial: 0.8,
-    related: 0.6,
-    quantified: 0.7,
-    inferred: 0.6,
-    overqualified: 0.6,
+    partial: 0.75,
+    related: 0.4,
+    quantified: 0.75,
+    inferred: 0.4,
+    overqualified: 0.4,
 }
 
 const MATCH_STATUS = {
     exact: 'match',
-    partial: 'partial',
+    partial: 'match',
+    quantified: 'match',
     related: 'partial',
+    inferred: 'partial',
     gap: 'gap',
+    overqualified: 'partial',
 }
 
 const SKILL_NOISE_PREFIXES = [
@@ -463,7 +466,15 @@ const SOFT_SKILL_INFERENCE_RULES = [
 
 const BASELINE_REQUIREMENT_PATTERNS = [/\btyping\b/i, /\btyping speed\b/i, /\bdata entry\b/i, /\bdata encoding\b/i, /\bbasic computer\b/i, /\bcomputer literacy\b/i, /\bms office\b/i, /\bmicrosoft office\b/i, /\bhigh school\b/i, /\bsenior high\b/i]
 const LOW_TIER_ROLE_PATTERNS = [/\bdata entry\b/i, /\bdata encoder\b/i, /\bencoder\b/i, /\badmin assistant\b/i, /\badministrative assistant\b/i, /\bclerical\b/i, /\boffice assistant\b/i, /\bback office\b/i, /\bdocumentation\b/i]
-const OVERQUALIFICATION_TRANSFER_PATTERNS = [/\btyping\b/i, /\btyping speed\b/i, /\bdata entry\b/i, /\bdata encoding\b/i, /\battention to detail\b/i, /\banalytical thinking\b/i, /\banalytical skills\b/i, /\baccuracy\b/i, /\bprecision\b/i, /\bcomputer literacy\b/i, /\bbasic computer\b/i, /\bms office\b/i, /\bmicrosoft office\b/i]
+const OVERQUALIFICATION_TRANSFER_PATTERNS = [
+    /\battention to detail\b/i,
+    /\bdetail[- ]oriented\b/i,
+    /\banalytical thinking\b/i,
+    /\banalytical skills\b/i,
+    /\bcritical thinking\b/i,
+    /\baccuracy\b/i,
+    /\bprecision\b/i,
+]
 export const HIGH_TIER_SKILL_PATTERNS = [/\bprogramming\b/i, /\bcoding\b/i, /\bsoftware\b/i, /\bweb development\b/i, /\bfrontend\b/i, /\bbackend\b/i, /\bfull stack\b/i, /\bgraphic design\b/i, /\bvisual design\b/i, /\bui\b/i, /\bux\b/i, /\bphotoshop\b/i, /\billustrator\b/i, /\bfigma\b/i]
 
 const TECHNICAL_FIELD_PATTERNS = [
@@ -481,6 +492,233 @@ const TECHNICAL_FIELD_PATTERNS = [
   /\bcomputer\s*programming\b/i,
   /\bnc\s*ii?\s*(?:computer|programming|ict)\b/i,
 ]
+
+const FIELD_ALIGNMENT_RULES = [
+    {
+        family: 'technology',
+        userPatterns: [
+            ...TECHNICAL_FIELD_PATTERNS,
+            /\bstem\b/i,
+            /\bict\b/i,
+            /\binformation and communication technology\b/i,
+        ],
+        jobPatterns: [
+            /\bsoftware\b/i,
+            /\bweb\s*development\b/i,
+            /\bfrontend\b/i,
+            /\bbackend\b/i,
+            /\bfull\s*stack\b/i,
+            /\bdeveloper\b/i,
+            /\bprogrammer\b/i,
+            /\bprogramming\b/i,
+            /\bcoding\b/i,
+            /\breact\b/i,
+            /\bjavascript\b/i,
+            /\btypescript\b/i,
+            /\bapi\b/i,
+            /\bdatabase\b/i,
+            /\bit\s*support\b/i,
+            /\btechnical\s*support\b/i,
+            /\bnetwork(?:ing| administration)?\b/i,
+            /\bcybersecurity\b/i,
+            /\bcomputer\s*hardware\b/i,
+        ],
+        jobCategories: ['it'],
+    },
+    {
+        family: 'design-media',
+        userPatterns: [
+            /\bdigital\s*(arts?|design|media)\b/i,
+            /\bmultimedia\b/i,
+            /\bgraphic\s*design\b/i,
+            /\bvisual\s*communication\b/i,
+            /\banimation\b/i,
+            /\bfine\s*arts?\b/i,
+            /\barts?\s+and\s+design\b/i,
+            /\bfilm\b/i,
+            /\bvideo\b/i,
+        ],
+        jobPatterns: [
+            /\bgraphic\s*design\b/i,
+            /\bvisual\s*design\b/i,
+            /\blayout\s*design\b/i,
+            /\bvideo\s*edit/i,
+            /\bmultimedia\b/i,
+            /\bui\b/i,
+            /\bux\b/i,
+            /\banimat/i,
+            /\bmotion\s*graphics?\b/i,
+            /\billustrator\b/i,
+            /\bphotoshop\b/i,
+            /\bfigma\b/i,
+            /\bcontent\s*creator\b/i,
+        ],
+        jobCategories: ['design'],
+    },
+    {
+        family: 'business-admin',
+        userPatterns: [
+            /\bbusiness\b/i,
+            /\baccountan/i,
+            /\bfinance\b/i,
+            /\bmarketing\b/i,
+            /\boffice\s*admin/i,
+            /\bentrepreneur/i,
+            /\bmanagement\b/i,
+            /\be-?commerce\b/i,
+            /\breal\s*estate\b/i,
+            /\bhuman\s*resource/i,
+        ],
+        jobPatterns: [
+            /\baccountan/i,
+            /\bbookkeep/i,
+            /\bfinance\b/i,
+            /\bmarketing\b/i,
+            /\bhuman\s*resource/i,
+            /\badmin(?:istrative)?\b/i,
+            /\boffice\s*assistant\b/i,
+            /\bdata\s*(entry|encoding)\b/i,
+            /\bencoder\b/i,
+            /\bclerk\b/i,
+            /\bcashier\b/i,
+            /\bsales\b/i,
+        ],
+        jobCategories: ['retail'],
+    },
+    {
+        family: 'hospitality-tourism',
+        userPatterns: [
+            /\btourism\b/i,
+            /\bhospitality\b/i,
+            /\bhotel\b/i,
+            /\brestaurant\b/i,
+            /\bculinary\b/i,
+            /\bhrm\b/i,
+            /\btravel\b/i,
+        ],
+        jobPatterns: [
+            /\bhotel\b/i,
+            /\brestaurant\b/i,
+            /\btourism\b/i,
+            /\bfront\s*desk\b/i,
+            /\bhousekeeping\b/i,
+            /\bwait(?:er|ress|staff)\b/i,
+            /\bbarista\b/i,
+            /\bguest\b/i,
+            /\bconcierge\b/i,
+            /\bcook\b/i,
+            /\bkitchen\b/i,
+        ],
+        jobCategories: ['hospitality'],
+    },
+    {
+        family: 'healthcare',
+        userPatterns: [
+            /\bnursing\b/i,
+            /\bmidwif/i,
+            /\bpharma/i,
+            /\bmedical\b/i,
+            /\bhealth\b/i,
+            /\bcaregiv/i,
+            /\bpublic\s*health\b/i,
+        ],
+        jobPatterns: [
+            /\bnurse\b/i,
+            /\bmedical\b/i,
+            /\bclinic\b/i,
+            /\bhospital\b/i,
+            /\bcaregiver\b/i,
+            /\bpharmacy\b/i,
+            /\bpatient\b/i,
+            /\bhealth\b/i,
+        ],
+        jobCategories: ['healthcare'],
+    },
+    {
+        family: 'education',
+        userPatterns: [
+            /\beducat/i,
+            /\bteacher\b/i,
+            /\bpedago/i,
+            /\bbeed\b/i,
+            /\bbsed\b/i,
+            /\bearly\s*childhood\b/i,
+            /\bspecial\s*education\b/i,
+        ],
+        jobPatterns: [
+            /\bteacher\b/i,
+            /\btutor\b/i,
+            /\binstructor\b/i,
+            /\btrainer\b/i,
+            /\beducat/i,
+        ],
+        jobCategories: ['education'],
+    },
+    {
+        family: 'agriculture',
+        userPatterns: [
+            /\bagri\b/i,
+            /\bagricultur/i,
+            /\bfisher/i,
+            /\bforestry\b/i,
+            /\bagronom/i,
+            /\bagribusiness\b/i,
+            /\bagroforest/i,
+        ],
+        jobPatterns: [
+            /\bagri\b/i,
+            /\bagricultur/i,
+            /\bfarm\b/i,
+            /\blivestock\b/i,
+            /\bharvest\b/i,
+            /\bfisher/i,
+            /\baquaculture\b/i,
+            /\bpoultry\b/i,
+        ],
+        jobCategories: ['agriculture'],
+    },
+    {
+        family: 'engineering-trades',
+        userPatterns: [
+            /\bengineering\b/i,
+            /\bautomotive\b/i,
+            /\belectrical\b/i,
+            /\bwelding\b/i,
+            /\bmechanical\b/i,
+            /\bindustrial\s*arts\b/i,
+            /\btechnology\s+and\s+livelihood\b/i,
+            /\btechnical.?voc/i,
+            /\bconstruction\b/i,
+            /\bmachine\s*shop\b/i,
+            /\bheavy\s*equipment\b/i,
+        ],
+        jobPatterns: [
+            /\bwelder\b/i,
+            /\belectrician\b/i,
+            /\bmason\b/i,
+            /\bcarpenter\b/i,
+            /\bmechanic\b/i,
+            /\bplumber\b/i,
+            /\bheavy\s*equipment\b/i,
+            /\boperator\b/i,
+            /\bconstruction\b/i,
+            /\bdriver\b/i,
+            /\bforklift\b/i,
+            /\bfabrication\b/i,
+            /\btechnician\b/i,
+        ],
+        jobCategories: ['trades', 'construction', 'energy'],
+    },
+]
+
+const FIELD_ALIGNMENT_ADJACENCY = {
+    technology: ['design-media'],
+    'design-media': ['technology', 'business-admin'],
+    'business-admin': ['hospitality-tourism', 'design-media'],
+    'hospitality-tourism': ['business-admin'],
+    agriculture: ['engineering-trades'],
+    'engineering-trades': ['agriculture'],
+}
 
 const OVERQUALIFICATION_MESSAGE = 'Technical background exceeds the role\'s detail requirements and signals high accuracy for precision-based tasks.'
 
@@ -502,11 +740,100 @@ const normalizeCategoryKey = (value = '') => value.toLowerCase()
     .replace('hospitality', 'hospitality')
     .trim()
 
+const inferFieldFamiliesFromText = (text = '', mode = 'user') => {
+    const normalizedText = String(text || '').trim()
+    if (!normalizedText) return []
+
+    return FIELD_ALIGNMENT_RULES
+        .filter((rule) => {
+            const patterns = mode === 'job' ? rule.jobPatterns : rule.userPatterns
+            return patterns.some((pattern) => pattern.test(normalizedText))
+        })
+        .map((rule) => rule.family)
+}
+
+const inferUserFieldFamilies = (userData = {}) =>
+    Array.from(new Set(inferFieldFamiliesFromText(userData.course_or_field || '', 'user')))
+
+const inferJobFieldFamilies = (job = {}) => {
+    const normalizedCategory = normalizeCategoryKey(job.category || '')
+    const categoryFamilies = FIELD_ALIGNMENT_RULES
+        .filter((rule) => rule.jobCategories.includes(normalizedCategory))
+        .map((rule) => rule.family)
+
+    const jobSignals = [
+        job.title,
+        job.category,
+        job.description,
+        ...(Array.isArray(job.requirements) ? job.requirements : []),
+        ...(Array.isArray(job.required_skills) ? job.required_skills : []),
+        ...(Array.isArray(job.preferred_skills) ? job.preferred_skills : []),
+    ]
+        .filter(Boolean)
+        .join(' ')
+
+    return Array.from(new Set([
+        ...categoryFamilies,
+        ...inferFieldFamiliesFromText(jobSignals, 'job'),
+    ]))
+}
+
+export const computeFieldAlignment = (job, userData = {}) => {
+    const userFamilies = inferUserFieldFamilies(userData)
+    const jobFamilies = inferJobFieldFamilies(job)
+
+    if (userFamilies.length === 0 || jobFamilies.length === 0) {
+        return {
+            applicable: false,
+            relation: 'unknown',
+            score: null,
+            userFamilies,
+            jobFamilies,
+        }
+    }
+
+    const overlap = userFamilies.filter((family) => jobFamilies.includes(family))
+    if (overlap.length > 0) {
+        return {
+            applicable: true,
+            relation: 'aligned',
+            score: 100,
+            userFamilies,
+            jobFamilies,
+        }
+    }
+
+    const adjacent = userFamilies.some((family) =>
+        jobFamilies.some((jobFamily) =>
+            (FIELD_ALIGNMENT_ADJACENCY[family] || []).includes(jobFamily) ||
+            (FIELD_ALIGNMENT_ADJACENCY[jobFamily] || []).includes(family),
+        ),
+    )
+
+    return {
+        applicable: true,
+        relation: adjacent ? 'adjacent' : 'unrelated',
+        score: adjacent ? 65 : 20,
+        userFamilies,
+        jobFamilies,
+    }
+}
+
 const toSkillList = (userData = {}) => deduplicateSkills(
     [...(userData.predefined_skills || []), ...(userData.skills || [])]
         .map((skill) => typeof skill === 'string' ? skill : skill?.name)
         .filter(Boolean)
 )
+
+const deduplicateRequirementLabels = (values = []) => {
+    const seen = new Set()
+    return values.filter((value) => {
+        const key = normalizeSkillKey(value)
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
 
 const getSkillSignals = (skills, aliases = {}) => {
     const signals = new Set()
@@ -702,11 +1029,13 @@ const buildSkillCandidates = (skills = [], aliases = {}) => {
 
 const getMatchStatus = (matchType) => MATCH_STATUS[matchType] || MATCH_STATUS.gap
 
+const toSupportingSkills = (matchedSkill) => matchedSkill ? [matchedSkill] : []
+
 export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {}) => {
     const requirementKey = normalizeSkillKey(requirement)
     const requirementRawKey = normalizeRawSkillKey(requirement)
     if (!requirementKey) {
-        return { matched: false, matchType: 'gap', credit: 0, status: getMatchStatus('gap'), matchedSkill: null }
+        return { matched: false, matchType: 'gap', credit: 0, status: getMatchStatus('gap'), matchedSkill: null, supportingSkills: [] }
     }
 
     const candidates = buildSkillCandidates(skills, aliases)
@@ -727,6 +1056,7 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('exact'),
             matchedSkill: exactCandidate.display,
             matchedSkillKey: exactCandidate.key,
+            supportingSkills: toSupportingSkills(exactCandidate.display),
             reason: `Matched directly from ${exactCandidate.display}.`,
         }
     }
@@ -743,6 +1073,7 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('partial'),
             matchedSkill: partialCandidate.display,
             matchedSkillKey: partialCandidate.key,
+            supportingSkills: toSupportingSkills(partialCandidate.display),
             reason: `${partialCandidate.display} closely overlaps with ${requirement}.`,
         }
     }
@@ -759,6 +1090,7 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('partial'),
             matchedSkill: aliasCandidate.parentSkill || aliasCandidate.display,
             matchedSkillKey: aliasCandidate.key,
+            supportingSkills: toSupportingSkills(aliasCandidate.parentSkill || aliasCandidate.display),
             reason: `${aliasCandidate.parentSkill || aliasCandidate.display} was matched through a normalized profile alias.`,
         }
     }
@@ -779,6 +1111,7 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('related'),
             matchedSkill: relatedCandidate.parentSkill || relatedCandidate.display,
             matchedSkillKey: relatedCandidate.key,
+            supportingSkills: toSupportingSkills(relatedCandidate.parentSkill || relatedCandidate.display),
             reason: `${relatedCandidate.parentSkill || relatedCandidate.display} is treated as a closely related skill for ${requirement}.`,
         }
     }
@@ -799,6 +1132,7 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('related'),
             matchedSkill: semanticCandidate.parentSkill || semanticCandidate.display,
             matchedSkillKey: semanticCandidate.key,
+            supportingSkills: toSupportingSkills(semanticCandidate.parentSkill || semanticCandidate.display),
             reason: `${semanticCandidate.parentSkill || semanticCandidate.display} supports the broader requirement ${requirement}.`,
         }
     }
@@ -811,11 +1145,12 @@ export const matchRequirementToSkillSet = (requirement, skills = [], aliases = {
             status: getMatchStatus('related'),
             matchedSkill: null,
             matchedSkillKey: null,
+            supportingSkills: [],
             reason: `${requirement} is covered by a more specific skill family in the profile.`,
         }
     }
 
-    return { matched: false, matchType: 'gap', credit: 0, status: getMatchStatus('gap'), matchedSkill: null, matchedSkillKey: null, reason: '' }
+    return { matched: false, matchType: 'gap', credit: 0, status: getMatchStatus('gap'), matchedSkill: null, matchedSkillKey: null, supportingSkills: [], reason: '' }
 }
 
 const QUANTIFIED_REQUIREMENT_PATTERNS = [
@@ -836,7 +1171,7 @@ const quantifiedRequirementMatch = (requirement, skills, aliases) => {
 
     if (!matched) return null
 
-    return { matched: true, credit: pattern.credit, matchType: 'partial', status: getMatchStatus('partial'), matchedSkill: null }
+    return { matched: true, credit: pattern.credit, matchType: 'partial', status: getMatchStatus('partial'), matchedSkill: null, supportingSkills: [] }
 }
 
 const isBaselineRequirement = (requirement) =>
@@ -868,8 +1203,136 @@ const computeWeightedScore = (components) => {
     )
 }
 
+export const buildRequiredSkillSummary = (entries = []) => {
+    const requiredSkillEntries = entries.filter(entry => entry?.kind === 'skill' && entry?.tier === 'required')
+    const total = requiredSkillEntries.length
+    const exact = requiredSkillEntries.filter(entry => entry?.matchType === 'exact').length
+    const partial = requiredSkillEntries.filter(entry => entry?.matchType === 'partial').length
+    const related = requiredSkillEntries.filter(entry => entry?.matchType === 'related').length
+    const missing = requiredSkillEntries.filter(entry => !entry?.matchType || entry?.matchType === 'gap').length
+    const strongCoverage = total > 0
+        ? Number(((exact + (partial * MATCH_CREDITS.partial)) / total).toFixed(4))
+        : 0
+
+    return {
+        total,
+        exact,
+        partial,
+        related,
+        missing,
+        strongCoverage,
+    }
+}
+
+export const computeRequiredSkillScore = (entries = []) => {
+    const requiredSkillEntries = entries.filter(entry => entry?.kind === 'skill' && entry?.tier === 'required')
+    if (requiredSkillEntries.length === 0) return 0
+    const earned = requiredSkillEntries.reduce((sum, entry) => sum + (Number(entry?.score) || 0), 0)
+    return Math.round((earned / requiredSkillEntries.length) * 100)
+}
+
+export const computePreferredAverageCredit = (entries = []) => {
+    const preferredEntries = entries.filter(entry => entry?.kind === 'skill' && entry?.tier === 'preferred')
+    if (preferredEntries.length === 0) return 0
+    return preferredEntries.reduce((sum, entry) => sum + (Number(entry?.score) || 0), 0) / preferredEntries.length
+}
+
+export const computePreferredBonus = (entries = []) =>
+    Math.min(5, Math.round(computePreferredAverageCredit(entries) * 5))
+
+export const computeSupportScore = ({
+    educationScore = 0,
+    experienceScore = 0,
+    educationApplicable = false,
+    experienceApplicable = false,
+} = {}) => computeWeightedScore([
+    { score: educationScore, weight: 0.6, active: educationApplicable },
+    { score: experienceScore, weight: 0.4, active: experienceApplicable },
+])
+
+export const computeCoverageCap = (requiredSkillSummary = { total: 0, strongCoverage: 0 }) => (
+    requiredSkillSummary.total > 0
+        ? Math.round(35 + (65 * Number(requiredSkillSummary.strongCoverage || 0)))
+        : 55
+)
+
+export const computeSkillFirstMatchScore = ({
+    requiredSkillSummary = { total: 0 },
+    requiredSkillScore = 0,
+    supportScore = 0,
+    preferredBonus = 0,
+} = {}) => {
+    if ((requiredSkillSummary.total || 0) === 0) {
+        const lowDensityScore = Math.min(Math.round(supportScore), 55)
+        return {
+            matchScore: lowDensityScore,
+            scoreComposition: {
+                requiredSkillScore: 0,
+                supportScore,
+                preferredBonus: Math.min(5, preferredBonus),
+                coverageCap: 55,
+                baseScoreBeforeCap: Math.round(supportScore),
+            },
+        }
+    }
+
+    const baseScoreBeforeCap = Math.round((requiredSkillScore * 0.8) + (supportScore * 0.2))
+    const coverageCap = computeCoverageCap(requiredSkillSummary)
+    const matchScore = Math.min(baseScoreBeforeCap + Math.min(5, preferredBonus), coverageCap)
+
+    return {
+        matchScore,
+        scoreComposition: {
+            requiredSkillScore,
+            supportScore,
+            preferredBonus: Math.min(5, preferredBonus),
+            coverageCap,
+            baseScoreBeforeCap,
+        },
+    }
+}
+
+const buildPreferredSkillEntries = (preferredSkills = [], skills = [], aliases = {}) => {
+    const skillBreakdown = []
+    const evidence = []
+    const gaps = []
+
+    for (const skill of deduplicateRequirementLabels(preferredSkills)) {
+        const matchResult = matchRequirementToSkillSet(skill, skills, aliases)
+        const entry = {
+            label: skill,
+            tier: 'preferred',
+            kind: 'skill',
+            score: matchResult.credit,
+            status: matchResult.status,
+            matchType: matchResult.matchType,
+            matchedSkill: matchResult.matchedSkill,
+            reason: matchResult.reason || '',
+        }
+
+        skillBreakdown.push(entry)
+        if (matchResult.matched) {
+            evidence.push({
+                type: `skill_preferred_${matchResult.matchType}`,
+                jobField: 'skill',
+                jobValue: skill,
+                candidateField: 'skill',
+                candidateValue: matchResult.matchedSkill || skill,
+                matchMode: matchResult.status,
+                score: matchResult.credit,
+                reason: matchResult.reason || '',
+            })
+        } else {
+            gaps.push({ type: 'skill_preferred_gap', jobField: 'skill', jobValue: skill })
+        }
+    }
+
+    return { skillBreakdown, evidence, gaps }
+}
+
 export const classifyRequirements = (requirements, skills, aliases, userData, job = {}) => {
     const matchingSkills = []
+    const relatedSkills = []
     const missingSkills = []
     const inferredSoftSkills = []
     const candidateSignals = []
@@ -918,12 +1381,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
         if (isEducationRequirement(req)) {
             baselinePossible += 1
             const matched = educationSatisfied(req, userData)
-            if (matched) {
-                matchingSkills.push(req)
-                baselineEarned += 1
-            } else {
-                missingSkills.push(req)
-            }
+            if (matched) baselineEarned += 1
             const score = matched ? MATCH_CREDITS.exact : 0
             const status = matched ? getMatchStatus('exact') : getMatchStatus('gap')
             const reason = matched ? `Matched from your education level: ${deriveUserEducationLevel(userData) || req}.` : ''
@@ -937,12 +1395,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
         if (isLanguageRequirement(req)) {
             languagePossible += 1
             const matched = languageSatisfied(req, userData.languages)
-            if (matched) {
-                matchingSkills.push(req)
-                languageEarned += 1
-            } else {
-                missingSkills.push(req)
-            }
+            if (matched) languageEarned += 1
             const score = matched ? MATCH_CREDITS.exact : 0
             const status = matched ? getMatchStatus('exact') : getMatchStatus('gap')
             const reason = matched ? `Matched from your listed language support for ${req}.` : ''
@@ -957,7 +1410,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
         if (inferredMatch) {
             inferredPossible += 1
             inferredEarned += inferredMatch.credit
-            matchingSkills.push(req)
+            relatedSkills.push(req)
             inferredSoftSkills.push({
                 requirement: req,
                 inferredSkill: inferredMatch.inferredSkill,
@@ -967,7 +1420,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
             const status = getMatchStatus('related')
             const reason = `Credited from ${inferredMatch.inferredSkill}: ${inferredMatch.recruiterReason}`
             requirementMatches.push({ requirement: req, kind: 'skill', bucket: 'technical', matchType: 'related', credit: score, status, matchedSkill: inferredMatch.inferredSkill, reason })
-            skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score, status, matchType: 'related', matchedSkill: inferredMatch.inferredSkill, reason })
+            skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score, status, matchType: 'related', matchedSkill: inferredMatch.inferredSkill, supportingSkills: [inferredMatch.inferredSkill], reason })
             evidence.push({ type: 'skill_required_inferred', jobField: 'skill', jobValue: req, candidateField: 'skill', candidateValue: inferredMatch.inferredSkill, matchMode: status, score, reason })
             continue
         }
@@ -983,7 +1436,7 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
             else technicalEarned += quantifiedMatch.credit
             const reason = `Matched from closely related typing or data-entry experience for ${req}.`
             requirementMatches.push({ requirement: req, kind: 'skill', bucket, matchType: quantifiedMatch.matchType, credit: quantifiedMatch.credit, status: quantifiedMatch.status, matchedSkill: quantifiedMatch.matchedSkill, reason })
-            skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score: quantifiedMatch.credit, status: quantifiedMatch.status, matchType: quantifiedMatch.matchType, matchedSkill: quantifiedMatch.matchedSkill, reason })
+            skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score: quantifiedMatch.credit, status: quantifiedMatch.status, matchType: quantifiedMatch.matchType, matchedSkill: quantifiedMatch.matchedSkill, supportingSkills: quantifiedMatch.supportingSkills || [], reason })
             evidence.push({ type: 'skill_required_quantified', jobField: 'skill', jobValue: req, candidateField: 'skill', candidateValue: quantifiedMatch.matchedSkill || req, matchMode: quantifiedMatch.status, score: quantifiedMatch.credit, reason })
             continue
         }
@@ -997,15 +1450,17 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
                 credit: MATCH_CREDITS.overqualified,
                 status: getMatchStatus('related'),
                 matchedSkill: null,
-                reason: 'Credited from higher-precision technical experience that transfers to this requirement.',
+                supportingSkills: [],
+                reason: 'Credited as transferable because the profile shows higher-precision work that strongly implies this requirement.',
             }
         }
 
         requirementMatches.push({ requirement: req, kind: 'skill', bucket, matchType: matchResult.matchType, credit: matchResult.credit, status: matchResult.status, matchedSkill: matchResult.matchedSkill, reason: matchResult.reason || '' })
-        skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score: matchResult.credit, status: matchResult.status, matchType: matchResult.matchType, matchedSkill: matchResult.matchedSkill, reason: matchResult.reason || '' })
+        skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score: matchResult.credit, status: matchResult.status, matchType: matchResult.matchType, matchedSkill: matchResult.matchedSkill, supportingSkills: matchResult.supportingSkills || [], reason: matchResult.reason || '' })
 
         if (matchResult.matched) {
-            matchingSkills.push(req)
+            if (matchResult.matchType === 'related') relatedSkills.push(req)
+            else matchingSkills.push(req)
             if (bucket === 'baseline') baselineEarned += matchResult.credit
             else technicalEarned += matchResult.credit
             evidence.push({ type: `skill_required_${matchResult.matchType}`, jobField: 'skill', jobValue: req, candidateField: 'skill', candidateValue: matchResult.matchedSkill || req, matchMode: matchResult.status, score: matchResult.credit, reason: matchResult.reason || '' })
@@ -1016,7 +1471,8 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
     }
 
     return {
-        matchingSkills,
+        matchingSkills: deduplicateRequirementLabels(matchingSkills),
+        relatedSkills: deduplicateRequirementLabels(relatedSkills),
         missingSkills,
         inferredSoftSkills,
         candidateSignals,
@@ -1101,18 +1557,16 @@ export const computeEducationScore = (job, userData) => {
         else educationScore = 15
     }
 
-    // Field-of-study penalty: technical jobs only grant full education credit
-    // when the candidate's degree is in a relevant technical field.
-    // Empty or null course_or_field is treated as unrelated (no positive evidence).
-    if (isTechnicalJob(job) && jobOrdinal >= 0 && educationScore === 100) {
-        const field = String(userData.course_or_field || '')
-        const fieldIsTechnical = field.length > 0 && TECHNICAL_FIELD_PATTERNS.some((p) => p.test(field))
-        if (!fieldIsTechnical) {
-            educationScore = Math.round(educationScore * 0.7)
-        }
+    const fieldAlignment = computeFieldAlignment(job, userData)
+    if (!fieldAlignment.applicable || typeof fieldAlignment.score !== 'number') {
+        return educationScore
     }
 
-    return educationScore
+    if (jobOrdinal >= 0) {
+        return Math.round((educationScore * 0.6) + (fieldAlignment.score * 0.4))
+    }
+
+    return fieldAlignment.score
 }
 
 export const getMatchLevel = (score) => {
@@ -1125,47 +1579,61 @@ export const getMatchLevel = (score) => {
 export const calculateDeterministicScore = (job, userData) => {
     const skills = toSkillList(userData)
     const aliases = userData.skill_aliases || {}
-    const requirements = (job.requirements || job.required_skills || []).filter(Boolean)
+    const requirements = deduplicateRequirementLabels(job.requirements || job.required_skills || [])
+    const preferredSkills = deduplicateRequirementLabels(job.preferred_skills || [])
 
     const classified = classifyRequirements(requirements, skills, aliases, userData, job)
+    const preferred = buildPreferredSkillEntries(preferredSkills, skills, aliases)
 
     const isTechnical = isTechnicalJob(job)
     const hasCoreTechnicalSkill = classified.matchingSkills.length > 0
+    const fieldAlignment = computeFieldAlignment(job, userData)
 
     const experienceScore = computeExperienceScore(job, userData, { isTechnical, hasCoreTechnicalSkill })
     const educationScore = computeEducationScore(job, userData)
-    const technicalCompetencyScore = classified.technicalRequirementScore > 0
-        ? Math.round(classified.technicalRequirementScore * 0.75 + experienceScore * 0.25)
-        : classified.overqualificationSignal
-            ? 95
-            : experienceScore
     const baselineScore = Math.round(classified.baselineRequirementScore * 0.5 + educationScore * 0.5)
     const hasEducationEvidence = Boolean(String(userData.highest_education || '').trim())
     const hasAgeEvidence = Boolean(userData.date_of_birth || userData.birthdate || userData.birthday)
     const hasSkillEvidence = skills.length > 0
-    const hasLanguageEvidence = Array.isArray(userData.languages) && userData.languages.length > 0
     const hasExperienceEvidence =
         (Array.isArray(userData.work_experiences) && userData.work_experiences.length > 0) ||
         (Array.isArray(userData.experience_categories) && userData.experience_categories.length > 0)
 
     const baselineObserved = hasSkillEvidence || hasEducationEvidence || hasAgeEvidence
-    const baselineApplicable = (classified.baselineRequirementScore > 0) || requirements.some((req) => isAgeRequirement(req) || isEducationRequirement(req) || isBaselineRequirement(req))
-    const technicalApplicable = classified.technicalRequirementScore > 0 || requirements.some((req) => !isEducationRequirement(req) && !isLanguageRequirement(req) && !isAgeRequirement(req))
     const experienceApplicable = Boolean(String(job.experience_level || '').trim() || String(job.category || '').trim())
-
-    const matchScore = computeWeightedScore([
-        { score: technicalCompetencyScore, weight: 0.5, active: technicalApplicable && hasSkillEvidence },
-        { score: baselineScore, weight: 0.25, active: baselineApplicable && baselineObserved },
-        { score: experienceScore, weight: 0.15, active: experienceApplicable && hasExperienceEvidence },
-        { score: classified.languageRequirementScore, weight: 0.1, active: classified.languageRequirementApplicable && hasLanguageEvidence },
-    ])
+    const educationApplicable = Boolean(
+        String(job.education_level || '').trim() ||
+        requirements.some((req) => isEducationRequirement(req)) ||
+        fieldAlignment.applicable
+    )
+    const requiredSkillBreakdown = [
+        ...classified.skillBreakdown,
+        ...preferred.skillBreakdown,
+    ]
+    const requiredSkillSummary = buildRequiredSkillSummary(requiredSkillBreakdown)
+    const requiredSkillScore = computeRequiredSkillScore(requiredSkillBreakdown)
+    const supportScore = computeSupportScore({
+        educationScore,
+        experienceScore,
+        educationApplicable: educationApplicable && baselineObserved,
+        experienceApplicable: experienceApplicable && hasExperienceEvidence,
+    })
+    const preferredSkillBonus = computePreferredBonus(preferred.skillBreakdown)
+    const { matchScore, scoreComposition } = computeSkillFirstMatchScore({
+        requiredSkillSummary,
+        requiredSkillScore,
+        supportScore,
+        preferredBonus: preferredSkillBonus,
+    })
+    const technicalCompetencyScore = requiredSkillSummary.total > 0
+        ? requiredSkillScore
+        : Math.min(Math.round(supportScore), 55)
 
     const confidenceScore = (() => {
         const components = [
-            { weight: 0.5, applicable: technicalApplicable, active: technicalApplicable && hasSkillEvidence },
-            { weight: 0.25, applicable: baselineApplicable, active: baselineApplicable && baselineObserved },
-            { weight: 0.15, applicable: experienceApplicable, active: experienceApplicable && hasExperienceEvidence },
-            { weight: 0.1, applicable: classified.languageRequirementApplicable, active: classified.languageRequirementApplicable && hasLanguageEvidence },
+            { weight: 0.8, applicable: requiredSkillSummary.total > 0, active: requiredSkillSummary.total > 0 && hasSkillEvidence },
+            { weight: 0.12, applicable: educationApplicable, active: educationApplicable && baselineObserved },
+            { weight: 0.08, applicable: experienceApplicable, active: experienceApplicable && hasExperienceEvidence },
         ]
 
         const applicableWeight = components
@@ -1186,11 +1654,12 @@ export const calculateDeterministicScore = (job, userData) => {
         matchLevel: getMatchLevel(matchScore),
         confidenceScore,
         matchingSkills: classified.matchingSkills,
+        relatedSkills: classified.relatedSkills,
         missingSkills: classified.missingSkills,
         requirementMatches: classified.requirementMatches,
-        skillBreakdown: classified.skillBreakdown,
-        evidence: classified.evidence,
-        gaps: classified.gaps,
+        skillBreakdown: requiredSkillBreakdown,
+        evidence: [...classified.evidence, ...preferred.evidence],
+        gaps: [...classified.gaps, ...preferred.gaps],
         skillScore: classified.skillScore,
         experienceScore,
         educationScore,
@@ -1199,6 +1668,12 @@ export const calculateDeterministicScore = (job, userData) => {
         baselineRequirementScore: classified.baselineRequirementScore,
         baselineScore,
         technicalRequirementScore: classified.technicalRequirementScore,
+        requiredSkillSummary,
+        scoreComposition,
+        supportScore,
+        fieldAlignmentScore: fieldAlignment.score ?? 0,
+        fieldAlignmentRelation: fieldAlignment.relation,
+        preferredSkillBonus,
         inferredSoftSkills: classified.inferredSoftSkills,
         candidateSignals: classified.candidateSignals,
         overqualificationSignal: classified.overqualificationSignal,

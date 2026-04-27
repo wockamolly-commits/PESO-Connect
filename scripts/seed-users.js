@@ -1,15 +1,24 @@
 /**
- * Seed script for PESO-Connect platform.
- * Creates test users, job postings, applications, and conversations via Supabase Admin API.
+ * Reset and rebuild managed system test data for PESO-Connect.
  *
- * Usage:  node scripts/seed-users.js
- * Requires: SUPABASE_SERVICE_ROLE_KEY in .env
+ * What it does:
+ * 1. Removes managed dummy employers and jobseekers from auth + public tables
+ * 2. Deletes orphaned conversations tied to those dummy users
+ * 3. Re-seeds employers, jobseekers, job postings, applications, and messages
+ * 4. Populates current schema fields used by registration, profile edit, and AI matching
+ *
+ * Usage:
+ *   node scripts/seed-users.js
+ *
+ * Requires:
+ *   VITE_SUPABASE_URL
+ *   SUPABASE_SERVICE_ROLE_KEY
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 
-config() // load .env
+config()
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -20,1251 +29,1908 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
+    auth: { autoRefreshToken: false, persistSession: false },
 })
 
 const PASSWORD = 'Test1234!'
+const MANAGED_EMAIL_SUFFIXES = ['@test.com', '.test.com', '@seed.peso-connect.test', '.seed.peso-connect.test']
 
-// ═══════════════════════════════════════════════════════════════
-// SEED DATA — USERS
-// ═══════════════════════════════════════════════════════════════
+const CURRENT_YEAR = Number(new Date().toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+}))
+const VERIFICATION_EXPIRES_AT = `${CURRENT_YEAR + 1}-01-01T00:00:00+08:00`
+const NOW_ISO = () => new Date().toISOString()
 
-const jobseekers = [
-    {
-        email: 'maria.santos@test.com',
-        base: { name: 'Maria Santos', is_verified: true, registration_complete: true },
+const workforceLabelByValue = {
+    micro: 'Micro (1-9)',
+    small: 'Small (10-99)',
+    medium: 'Medium (100-199)',
+    large: 'Large (200 and up)',
+}
+
+const verificationState = {
+    is_verified: true,
+    registration_complete: true,
+    registration_step: null,
+    verified_for_year: CURRENT_YEAR,
+    verification_expires_at: VERIFICATION_EXPIRES_AT,
+    verification_expired_at: null,
+}
+
+const pendingVerificationState = {
+    is_verified: false,
+    registration_complete: true,
+    registration_step: null,
+    verified_for_year: null,
+    verification_expires_at: null,
+    verification_expired_at: null,
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function daysFromNow(days) {
+    const date = new Date()
+    date.setUTCDate(date.getUTCDate() + days)
+    return date.toISOString().slice(0, 10)
+}
+
+function isoOffsetFromNow({ days = 0, minutes = 0 }) {
+    const date = new Date()
+    date.setUTCDate(date.getUTCDate() + days)
+    date.setUTCMinutes(date.getUTCMinutes() + minutes)
+    return date.toISOString()
+}
+
+function isManagedDummyEmail(email = '') {
+    const lower = String(email || '').toLowerCase()
+    return MANAGED_EMAIL_SUFFIXES.some((suffix) => lower.endsWith(suffix))
+}
+
+function buildFullName({ first_name, middle_name, surname, suffix }) {
+    return [first_name, middle_name, surname, suffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function buildBusinessAddress({ street = '', barangay = '', city = '', province = '' }) {
+    return [street, barangay && `Brgy. ${barangay}`, city, province].filter(Boolean).join(', ')
+}
+
+function makeStoragePath(kind, slug, filename) {
+    return `${kind}/${slug}/${filename}`
+}
+
+function combineDescription(jobSummary, keyResponsibilities) {
+    return `Summary:\n${jobSummary}\n\nKey Responsibilities:\n${keyResponsibilities}`
+}
+
+function buildEmployerRecord({
+    email,
+    company_name,
+    trade_name = '',
+    acronym = '',
+    office_type,
+    employer_sector,
+    employer_type_specific,
+    nature_of_business,
+    total_work_force,
+    tin,
+    business_reg_number,
+    province,
+    city,
+    barangay,
+    street,
+    owner_name,
+    same_as_owner = false,
+    representative_name,
+    representative_position,
+    contact_number,
+    telephone_number = '',
+    preferred_contact_method = 'email',
+    company_description,
+    year_established,
+    company_website,
+    company_logo = '',
+    facebook_url = '',
+    linkedin_url = '',
+    employer_status = 'approved',
+    approved = true,
+}) {
+    const baseState = approved ? verificationState : pendingVerificationState
+    const business_address = buildBusinessAddress({ street, barangay, city, province })
+    return {
+        email,
+        base: {
+            name: company_name,
+            role: 'employer',
+            ...baseState,
+        },
         profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Maria Clara Santos',
-            date_of_birth: '1998-05-14',
-            barangay: 'Rizal',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171234567',
+            company_name,
+            trade_name,
+            acronym,
+            office_type,
+            employer_sector,
+            employer_type_specific,
+            nature_of_business,
+            total_work_force,
+            tin,
+            business_reg_number,
+            province,
+            city,
+            barangay,
+            street,
+            business_address,
+            owner_name,
+            same_as_owner,
+            representative_name,
+            representative_position,
+            contact_email: email,
+            contact_number,
+            telephone_number,
+            preferred_contact_method,
+            gov_id_url: makeStoragePath('seed-docs', company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), 'government-id.pdf'),
+            business_permit_url: makeStoragePath('seed-docs', company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), 'business-permit.pdf'),
+            terms_accepted: true,
+            peso_consent: true,
+            labor_compliance: true,
+            employer_status,
+            rejection_reason: '',
+            company_description,
+            company_size: workforceLabelByValue[total_work_force] || '',
+            year_established,
+            company_website,
+            company_logo,
+            social_media_links: {
+                facebook: facebook_url,
+                linkedin: linkedin_url,
+            },
+            facebook_url,
+            linkedin_url,
+            ...baseState,
+            updated_at: NOW_ISO(),
+        },
+    }
+}
+
+function buildJobseekerRecord({
+    email,
+    surname,
+    first_name,
+    middle_name = '',
+    suffix = '',
+    date_of_birth,
+    sex,
+    civil_status,
+    religion,
+    height_cm,
+    is_pwd = false,
+    disability_type = [],
+    disability_type_specify = '',
+    pwd_id_number = '',
+    street_address,
+    barangay,
+    city,
+    province,
+    mobile_number,
+    employment_status,
+    employment_type = '',
+    self_employment_type = '',
+    unemployment_reason = '',
+    months_looking_for_work = null,
+    currently_in_school = false,
+    highest_education,
+    school_name,
+    course_or_field,
+    year_graduated = '',
+    did_not_graduate = false,
+    education_level_reached = '',
+    year_last_attended = '',
+    vocational_training = [],
+    predefined_skills = [],
+    skills = [],
+    professional_licenses = [],
+    civil_service_eligibility = '',
+    civil_service_date = null,
+    civil_service_cert_path = '',
+    work_experiences = [],
+    portfolio_url = '',
+    resume_slug,
+    certificate_urls = [],
+    preferred_job_type,
+    preferred_occupations,
+    preferred_local_locations,
+    preferred_overseas_locations,
+    expected_salary_min,
+    expected_salary_max,
+    willing_to_relocate,
+    languages,
+    approved = true,
+}) {
+    const full_name = buildFullName({ first_name, middle_name, surname, suffix })
+    const baseState = approved ? verificationState : pendingVerificationState
+    const resume_url = makeStoragePath('seed-resumes', resume_slug, 'resume.pdf')
+    const certifications = vocational_training.map((item) => item.course).filter(Boolean)
+    return {
+        email,
+        base: {
+            name: full_name,
+            role: 'user',
+            subtype: 'jobseeker',
+            surname,
+            first_name,
+            middle_name,
+            suffix,
+            ...baseState,
+        },
+        profile: {
+            surname,
+            first_name,
+            middle_name,
+            suffix,
+            full_name,
+            date_of_birth,
+            sex,
+            civil_status,
+            religion,
+            height_cm,
+            is_pwd,
+            disability_type,
+            disability_type_specify,
+            pwd_id_number,
+            street_address,
+            barangay,
+            city,
+            province,
+            mobile_number,
             preferred_contact_method: 'email',
-            preferred_job_type: ['full-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '15000',
-            expected_salary_max: '25000',
-            willing_to_relocate: 'yes',
-            highest_education: 'college',
-            school_name: 'Carlos Hilado Memorial State University',
-            course_or_field: 'BS Information Technology',
-            year_graduated: '2020',
-            skills: ['Web Development', 'MS Office', 'Data Entry', 'Customer Service', 'JavaScript', 'React'],
-            work_experiences: [
-                { company: 'TechStart Inc.', position: 'Junior Developer', duration: '2020-2022', description: 'Frontend web development' },
-                { company: 'Freelance', position: 'Web Developer', duration: '2022-present', description: 'Building websites for local businesses' }
-            ],
-            certifications: ['TESDA NC II - Computer Programming', 'Google IT Support Certificate'],
-            portfolio_url: 'https://mariasantos.dev',
+            employment_status,
+            employment_type,
+            self_employment_type,
+            unemployment_reason,
+            months_looking_for_work,
+            currently_in_school,
+            highest_education,
+            school_name,
+            course_or_field,
+            year_graduated,
+            did_not_graduate,
+            education_level_reached,
+            year_last_attended,
+            vocational_training,
+            predefined_skills,
+            skills,
+            certifications,
+            professional_licenses,
+            civil_service_eligibility,
+            civil_service_date,
+            civil_service_cert_path,
+            work_experiences,
+            portfolio_url,
+            resume_url,
+            certificate_urls,
+            preferred_job_type,
+            preferred_occupations,
+            preferred_local_locations,
+            preferred_overseas_locations,
+            preferred_job_location: preferred_local_locations[0] || '',
+            expected_salary_min: String(expected_salary_min),
+            expected_salary_max: String(expected_salary_max),
+            willing_to_relocate,
+            languages,
             terms_accepted: true,
             data_processing_consent: true,
             peso_verification_consent: true,
             info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'fluent' }],
-        }
-    },
-    {
-        email: 'juan.delacruz@test.com',
-        base: { name: 'Juan Dela Cruz', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Juan Miguel Dela Cruz',
-            date_of_birth: '1995-11-22',
-            barangay: 'Guadalupe',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09281234568',
-            preferred_contact_method: 'phone',
-            preferred_job_type: ['full-time', 'contract'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '12000',
-            expected_salary_max: '18000',
-            willing_to_relocate: 'no',
-            highest_education: 'vocational',
-            school_name: 'TESDA Training Center - San Carlos',
-            course_or_field: 'Electrical Installation and Maintenance',
-            year_graduated: '2016',
-            skills: ['Electrical Work', 'Electrical Installation', 'Plumbing', 'Carpentry', 'Auto Repair', 'Welding'],
-            work_experiences: [
-                { company: 'San Carlos Electric Cooperative', position: 'Electrician', duration: '2016-2019', description: 'Residential and commercial electrical work' },
-                { company: 'Self-Employed', position: 'General Contractor', duration: '2019-present', description: 'Electrical, plumbing, and general repair services' }
-            ],
-            certifications: ['TESDA NC II - Electrical Installation and Maintenance', 'TESDA NC II - Plumbing'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'married',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'Hiligaynon', proficiency: 'native' }],
-        }
-    },
-    {
-        email: 'anna.reyes@test.com',
-        base: { name: 'Anna Reyes', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Anna Marie Reyes',
-            date_of_birth: '2001-03-08',
-            barangay: 'Buluangan',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09351234569',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'part-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '10000',
-            expected_salary_max: '15000',
-            willing_to_relocate: 'yes',
-            highest_education: 'college',
-            school_name: 'La Consolacion College - Bacolod',
-            course_or_field: 'BS Accountancy',
-            year_graduated: '2023',
-            skills: ['Cashiering', 'Inventory Management', 'MS Office', 'Data Entry', 'Customer Service', 'Sales'],
-            work_experiences: [
-                { company: 'SM City Bacolod', position: 'Sales Associate (OJT)', duration: '2022-2023', description: 'Customer service and inventory management' }
-            ],
-            certifications: [],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'intermediate' }],
-        }
-    },
-    {
-        email: 'ricardo.garcia@test.com',
-        base: { name: 'Ricardo Garcia', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Ricardo Lopez Garcia',
-            date_of_birth: '1985-08-30',
-            barangay: 'Punao',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171234570',
-            preferred_contact_method: 'phone',
-            preferred_job_type: ['full-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '20000',
-            expected_salary_max: '35000',
-            willing_to_relocate: 'no',
-            highest_education: 'college',
-            school_name: 'University of St. La Salle - Bacolod',
-            course_or_field: 'BS Agriculture',
-            year_graduated: '2007',
-            skills: ['Farming', 'Crop Management', 'Livestock Care', 'Irrigation', 'Organic Farming', 'Farm Equipment Operation', 'Pest Control'],
-            work_experiences: [
-                { company: 'Department of Agriculture', position: 'Agricultural Technician', duration: '2008-2013', description: 'Farm extension work and crop advisory' },
-                { company: 'Garcia Family Farm', position: 'Farm Manager', duration: '2013-present', description: 'Managing 5-hectare sugarcane and vegetable farm' }
-            ],
-            certifications: ['Organic Agriculture Certificate', 'Farm Machinery Operator License'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'married',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'Hiligaynon', proficiency: 'native' }, { language: 'English', proficiency: 'basic' }],
-        }
-    },
-    {
-        email: 'grace.villanueva@test.com',
-        base: { name: 'Grace Villanueva', is_verified: false, registration_complete: true },
-        profile: {
-            is_verified: false,
-            registration_complete: true,
-            full_name: 'Grace Anne Villanueva',
-            date_of_birth: '1992-12-03',
-            barangay: 'Palampas',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09191234571',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'part-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '18000',
-            expected_salary_max: '30000',
-            willing_to_relocate: 'yes',
-            highest_education: 'post-graduate',
-            school_name: 'University of the Philippines - Diliman',
-            course_or_field: 'Master in Public Administration',
-            year_graduated: '2018',
-            skills: ['Technical Support', 'Network Setup', 'Database Management', 'MS Office', 'Web Development', 'Computer Repair'],
-            work_experiences: [
-                { company: 'DICT Region VI', position: 'IT Specialist', duration: '2018-2022', description: 'Government IT infrastructure and support' },
-                { company: 'Currently unemployed', position: '', duration: '2023-present', description: 'Looking for IT management roles' }
-            ],
-            certifications: ['CompTIA A+', 'CCNA'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'fluent' }],
-        }
-    },
-    {
-        email: 'pedro.mendoza@test.com',
-        base: { name: 'Pedro Mendoza', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Pedro Jose Mendoza',
-            date_of_birth: '2000-07-19',
-            barangay: 'Quezon',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09061234572',
-            preferred_contact_method: 'phone',
-            preferred_job_type: ['part-time', 'temporary'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '8000',
-            expected_salary_max: '12000',
-            willing_to_relocate: 'no',
-            highest_education: 'high-school',
-            school_name: 'San Carlos National High School',
-            course_or_field: '',
-            year_graduated: '2018',
-            skills: ['Carpentry', 'Painting', 'Masonry', 'Welding'],
-            work_experiences: [
-                { company: 'Various construction sites', position: 'Construction Worker', duration: '2018-present', description: 'Carpentry, painting, and general construction' }
-            ],
-            certifications: ['TESDA NC II - Masonry'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Hiligaynon', proficiency: 'native' }, { language: 'Filipino', proficiency: 'fluent' }],
-        }
-    },
-    {
-        email: 'rosa.lim@test.com',
-        base: { name: 'Rosa Lim', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Rosa Christina Lim',
-            date_of_birth: '1990-01-25',
-            barangay: 'Codcod',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09221234573',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '25000',
-            expected_salary_max: '40000',
-            willing_to_relocate: 'yes',
-            highest_education: 'college',
-            school_name: 'University of San Agustin - Iloilo',
-            course_or_field: 'BS Nursing',
-            year_graduated: '2012',
-            skills: ['Customer Service', 'Sales', 'Visual Merchandising', 'Inventory Management', 'POS Operation', 'Stock Management'],
-            work_experiences: [
-                { company: 'Mercury Drug - San Carlos', position: 'Pharmacist Assistant', duration: '2012-2015', description: 'Customer service and pharmaceutical sales' },
-                { company: 'Gaisano Grand - San Carlos', position: 'Store Supervisor', duration: '2015-present', description: 'Team management, inventory, and customer relations' }
-            ],
-            certifications: ['First Aid Training', 'Retail Management Certificate'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'married',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'fluent' }, { language: 'Mandarin', proficiency: 'basic' }],
-        }
-    },
-    {
-        email: 'mark.aquino@test.com',
-        base: { name: 'Mark Aquino', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Mark Anthony Aquino',
-            date_of_birth: '1997-09-11',
-            barangay: 'Sipaway',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09431234574',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'contract'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '15000',
-            expected_salary_max: '22000',
-            willing_to_relocate: 'yes',
-            highest_education: 'vocational',
-            school_name: 'TESDA Training Center - San Carlos',
-            course_or_field: 'Motorcycle/Small Engine Servicing',
-            year_graduated: '2017',
-            skills: ['Motorcycle Repair', 'Auto Repair', 'Welding', 'Generator Operation', 'Solar Panel Installation'],
-            work_experiences: [
-                { company: 'Honda 3S Shop - San Carlos', position: 'Motorcycle Technician', duration: '2017-2021', description: 'Motorcycle repair and maintenance' },
-                { company: 'SunPower Energy Solutions', position: 'Solar Technician', duration: '2021-present', description: 'Solar panel installation and maintenance' }
-            ],
-            certifications: ['TESDA NC II - Motorcycle Servicing', 'Solar PV Installation Certificate'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'intermediate' }],
-        }
-    },
-]
+            dole_authorization: true,
+            jobseeker_status: approved ? 'verified' : 'pending',
+            rejection_reason: '',
+            ...baseState,
+            updated_at: NOW_ISO(),
+        },
+    }
+}
 
 const employers = [
-    {
-        email: 'hr@sancarloscoop.test.com',
-        base: { name: 'San Carlos Multi-Purpose Cooperative', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            company_name: 'San Carlos Multi-Purpose Cooperative',
-            employer_type: 'cooperative',
-            business_reg_number: 'CDA-2015-0042',
-            business_address: 'T. Ganzon St., Brgy. Rizal, San Carlos City, Negros Occidental',
-            nature_of_business: 'Financial Services / Cooperative',
-            representative_name: 'Elena Bautista',
-            representative_position: 'HR Manager',
-            contact_email: 'hr@sancarloscoop.test.com',
-            contact_number: '09171111001',
-            preferred_contact_method: 'email',
-            terms_accepted: true,
-            peso_consent: true,
-            labor_compliance: true,
-            employer_status: 'approved',
-            company_description: 'Leading cooperative in San Carlos City serving over 15,000 members with savings, loans, and livelihood programs.',
-            company_size: '51-200',
-            year_established: '1995',
-        }
-    },
-    {
-        email: 'recruitment@peso-sancarlos.test.com',
-        base: { name: 'PESO San Carlos City', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            company_name: 'Public Employment Service Office - San Carlos City',
-            employer_type: 'government',
-            business_reg_number: 'LGU-SC-PESO-001',
-            business_address: 'City Hall, San Carlos City, Negros Occidental',
-            nature_of_business: 'Government / Public Employment Services',
-            representative_name: 'Roberto Magno',
-            representative_position: 'PESO Manager',
-            contact_email: 'recruitment@peso-sancarlos.test.com',
-            contact_number: '09171111002',
-            preferred_contact_method: 'email',
-            terms_accepted: true,
-            peso_consent: true,
-            labor_compliance: true,
-            employer_status: 'approved',
-            company_description: 'Government office providing free employment facilitation services, career guidance, and livelihood programs for San Carlos City residents.',
-            company_size: '11-50',
-            year_established: '2000',
-        }
-    },
-    {
-        email: 'hiring@greenfields-bpo.test.com',
-        base: { name: 'Greenfields BPO Solutions', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            company_name: 'Greenfields BPO Solutions Inc.',
-            employer_type: 'private',
-            business_reg_number: 'SEC-2019-00891',
-            business_address: '2F Greenfields Bldg., National Highway, San Carlos City, Negros Occidental',
-            nature_of_business: 'Business Process Outsourcing',
-            representative_name: 'Michael Tan',
-            representative_position: 'Operations Manager',
-            contact_email: 'hiring@greenfields-bpo.test.com',
-            contact_number: '09171111003',
-            preferred_contact_method: 'email',
-            terms_accepted: true,
-            peso_consent: true,
-            labor_compliance: true,
-            employer_status: 'approved',
-            company_description: 'BPO company specializing in customer support, data processing, and back-office operations for international clients.',
-            company_size: '201-500',
-            year_established: '2019',
-        }
-    },
-    {
-        email: 'jobs@crystal-sugar.test.com',
-        base: { name: 'Crystal Sugar Milling Corp', is_verified: false, registration_complete: true },
-        profile: {
-            is_verified: false,
-            registration_complete: true,
-            company_name: 'Crystal Sugar Milling Corporation',
-            employer_type: 'private',
-            business_reg_number: 'SEC-2005-01234',
-            business_address: 'Hacienda Cristal, Brgy. Punao, San Carlos City, Negros Occidental',
-            nature_of_business: 'Sugar Manufacturing / Agriculture',
-            representative_name: 'Antonio Ledesma',
-            representative_position: 'HR Director',
-            contact_email: 'jobs@crystal-sugar.test.com',
-            contact_number: '09171111004',
-            preferred_contact_method: 'phone',
-            terms_accepted: true,
-            peso_consent: true,
-            labor_compliance: true,
-            employer_status: 'pending',
-            company_description: 'Sugar milling company serving the planters of northern Negros Occidental since 2005.',
-            company_size: '501-1000',
-            year_established: '2005',
-        }
-    },
-    {
-        email: 'orders@golden-grain-bakery.test.com',
-        base: { name: 'Golden Grain Bakery', is_verified: false, registration_complete: true },
-        profile: {
-            is_verified: false,
-            registration_complete: true,
-            company_name: 'Golden Grain Bakery & Food Products',
-            employer_type: 'small_business',
-            business_reg_number: 'DTI-NOC-2020-05678',
-            business_address: 'Brgy. Rizal, San Carlos City, Negros Occidental',
-            nature_of_business: 'Food Manufacturing / Bakery',
-            representative_name: 'Carmen Diaz',
-            representative_position: 'Owner',
-            contact_email: 'orders@golden-grain-bakery.test.com',
-            contact_number: '09171111005',
-            preferred_contact_method: 'phone',
-            terms_accepted: true,
-            peso_consent: true,
-            labor_compliance: true,
-            employer_status: 'pending',
-            company_description: 'Local bakery producing bread, pastries, and kakanin for San Carlos City and nearby towns.',
-            company_size: '11-50',
-            year_established: '2020',
-        }
-    },
+    buildEmployerRecord({
+        email: 'talent@northpoint-digital.seed.peso-connect.test',
+        company_name: 'NorthPoint Digital Solutions Inc.',
+        trade_name: 'NorthPoint Digital',
+        acronym: 'NPDSI',
+        office_type: 'main_office',
+        employer_sector: 'private',
+        employer_type_specific: 'direct_hire',
+        nature_of_business: 'Software development, managed IT services, and digital operations support',
+        total_work_force: 'medium',
+        tin: '412-778-921-000',
+        business_reg_number: 'SEC-2021-084512',
+        province: 'Negros Occidental',
+        city: 'San Carlos City',
+        barangay: 'Rizal',
+        street: '3F NorthPoint Hub, F. Palma St.',
+        owner_name: 'Daniel G. Rivera',
+        representative_name: 'Marianne C. Lee',
+        representative_position: 'People Operations Lead',
+        contact_number: '09171120001',
+        telephone_number: '(034) 445-2101',
+        company_description: 'A regional technology services firm supporting e-commerce, logistics, and public-sector digitalization projects across Western Visayas.',
+        year_established: '2021',
+        company_website: 'https://northpoint-digital.example.test',
+        facebook_url: 'https://facebook.example.test/northpointdigital',
+        linkedin_url: 'https://linkedin.example.test/company/northpoint-digital',
+    }),
+    buildEmployerRecord({
+        email: 'careers@sunridge-energy.seed.peso-connect.test',
+        company_name: 'Sunridge Renewable Energy Services Corp.',
+        trade_name: 'Sunridge Energy',
+        acronym: 'SRESC',
+        office_type: 'main_office',
+        employer_sector: 'private',
+        employer_type_specific: 'direct_hire',
+        nature_of_business: 'Solar installation, preventive maintenance, and energy efficiency services',
+        total_work_force: 'small',
+        tin: '185-447-633-000',
+        business_reg_number: 'DTI-NOC-2022-11894',
+        province: 'Negros Occidental',
+        city: 'San Carlos City',
+        barangay: 'Codcod',
+        street: 'Sunridge Service Yard, Don Emilio St.',
+        owner_name: 'Francis O. Yusay',
+        representative_name: 'Liza P. Consing',
+        representative_position: 'HR and Compliance Officer',
+        contact_number: '09171120002',
+        telephone_number: '(034) 445-2102',
+        company_description: 'A field-heavy renewable energy contractor handling rooftop solar, genset backup systems, and preventive electrical maintenance for commercial clients.',
+        year_established: '2022',
+        company_website: 'https://sunridge-energy.example.test',
+    }),
+    buildEmployerRecord({
+        email: 'recruitment@greenharvest-agri.seed.peso-connect.test',
+        company_name: 'GreenHarvest Agri Ventures Cooperative',
+        trade_name: 'GreenHarvest Agri',
+        acronym: 'GHAVC',
+        office_type: 'main_office',
+        employer_sector: 'private',
+        employer_type_specific: 'direct_hire',
+        nature_of_business: 'Integrated crop production, post-harvest trading, and farm advisory services',
+        total_work_force: 'medium',
+        tin: '624-190-552-000',
+        business_reg_number: 'CDA-2019-06124',
+        province: 'Negros Occidental',
+        city: 'San Carlos City',
+        barangay: 'Palampas',
+        street: 'GreenHarvest Compound, National Highway',
+        owner_name: 'Arturo V. Salcedo',
+        representative_name: 'Mila T. Veloso',
+        representative_position: 'HR Supervisor',
+        contact_number: '09171120003',
+        telephone_number: '(034) 445-2103',
+        company_description: 'A farmer-owned cooperative focused on sugarcane diversification, vegetables, corn, and post-harvest quality systems.',
+        year_established: '2019',
+        company_website: 'https://greenharvest-agri.example.test',
+    }),
+    buildEmployerRecord({
+        email: 'jobs@harborview-hospitality.seed.peso-connect.test',
+        company_name: 'HarborView Suites and Events',
+        trade_name: 'HarborView Suites',
+        acronym: 'HVSE',
+        office_type: 'main_office',
+        employer_sector: 'private',
+        employer_type_specific: 'direct_hire',
+        nature_of_business: 'Hotel operations, events, dining, and pastry production',
+        total_work_force: 'small',
+        tin: '558-002-384-000',
+        business_reg_number: 'DTI-NOC-2018-24590',
+        province: 'Negros Occidental',
+        city: 'San Carlos City',
+        barangay: 'Buluangan',
+        street: 'Seaside Drive, Purok Baywalk',
+        owner_name: 'Helena R. Ocampo',
+        representative_name: 'Jasper M. Dy',
+        representative_position: 'HR Generalist',
+        contact_number: '09171120004',
+        telephone_number: '(034) 445-2104',
+        company_description: 'A 46-room boutique hotel with an in-house pastry kitchen, banquet operations, and corporate events clientele.',
+        year_established: '2018',
+        company_website: 'https://harborview-suites.example.test',
+    }),
+    buildEmployerRecord({
+        email: 'hiring@marketbridge-retail.seed.peso-connect.test',
+        company_name: 'MarketBridge Retail and Logistics Corp.',
+        trade_name: 'MarketBridge Retail',
+        acronym: 'MBRL',
+        office_type: 'main_office',
+        employer_sector: 'private',
+        employer_type_specific: 'direct_hire',
+        nature_of_business: 'Retail operations, warehouse fulfillment, and e-commerce catalog management',
+        total_work_force: 'medium',
+        tin: '309-772-604-000',
+        business_reg_number: 'SEC-2020-117833',
+        province: 'Negros Occidental',
+        city: 'San Carlos City',
+        barangay: 'Guadalupe',
+        street: 'MarketBridge Center, Mabini Ave.',
+        owner_name: 'Cynthia B. Locsin',
+        representative_name: 'Paolo V. Mariano',
+        representative_position: 'Talent Acquisition Specialist',
+        contact_number: '09171120005',
+        telephone_number: '(034) 445-2105',
+        company_description: 'A multi-site retailer operating convenience formats, warehouse dispatch, and a growing online marketplace catalog team.',
+        year_established: '2020',
+        company_website: 'https://marketbridge-retail.example.test',
+    }),
 ]
 
-const homeowners = [
-    {
-        email: 'lucia.fernandez@test.com',
-        base: { name: 'Lucia Fernandez', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Lucia Mae Fernandez',
-            contact_number: '09171112001',
-            homeowner_status: 'active',
-            barangay: 'Palampas',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            bio: 'Retired teacher interested in livelihood programs and community skills training.',
-            service_preferences: ['career_counseling', 'livelihood_programs'],
-        }
-    },
-    {
-        email: 'james.ong@test.com',
-        base: { name: 'James Ong', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'James Patrick Ong',
-            contact_number: '09171112002',
-            homeowner_status: 'active',
-            barangay: 'Rizal',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            bio: 'Small business owner looking for PESO assistance with hiring and labor compliance.',
-            service_preferences: ['skills_training', 'career_counseling'],
-        }
-    },
-    {
-        email: 'cynthia.ramos@test.com',
-        base: { name: 'Cynthia Ramos', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Cynthia Joy Ramos',
-            contact_number: '09171112003',
-            homeowner_status: 'active',
-            barangay: 'Guadalupe',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            bio: 'Parent exploring skills training options for household members.',
-            service_preferences: ['livelihood_programs', 'skills_training'],
-        }
-    },
-    {
-        email: 'kevin.bautista@test.com',
-        base: { name: 'Kevin Bautista', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Kevin Jay Bautista',
-            contact_number: '09171112004',
-            homeowner_status: 'active',
-            barangay: 'Buluangan',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            bio: 'College student exploring career options before graduation. Interested in IT and business fields.',
-            service_preferences: ['career_counseling', 'skills_training'],
-        }
-    },
-    {
-        email: 'marilyn.delos-reyes@test.com',
-        base: { name: 'Marilyn Delos Reyes', is_verified: true, registration_complete: true },
-        profile: {
-            is_verified: true,
-            registration_complete: true,
-            full_name: 'Marilyn Cruz Delos Reyes',
-            contact_number: '09171112005',
-            homeowner_status: 'active',
-            barangay: 'Codcod',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            bio: 'OFW returnee from Saudi Arabia. Looking for PESO reintegration programs and livelihood assistance.',
-            service_preferences: ['livelihood_programs', 'career_counseling', 'skills_training'],
-        }
-    },
+const jobseekers = [
+    buildJobseekerRecord({
+        email: 'arianne.villareal@seed.peso-connect.test',
+        surname: 'Villareal',
+        first_name: 'Arianne',
+        middle_name: 'Lopez',
+        date_of_birth: '1999-06-14',
+        sex: 'Female',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 163,
+        street_address: 'Block 7 Lot 12, Mabini Homes',
+        barangay: 'Rizal',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230001',
+        employment_status: 'Employed',
+        employment_type: 'Full-time',
+        highest_education: 'Tertiary',
+        school_name: 'University of St. La Salle',
+        course_or_field: 'BS Information Technology',
+        year_graduated: '2023',
+        vocational_training: [
+            {
+                course: 'Responsive Web Development Bootcamp',
+                institution: 'DICT Region VI',
+                hours: '160',
+                skills_acquired: 'React, JavaScript, Git Version Control, API Development',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'arianne-villareal', 'web-bootcamp.pdf'),
+            },
+        ],
+        predefined_skills: ['Computer Literate'],
+        skills: ['React', 'JavaScript', 'HTML/CSS', 'API Development', 'Git Version Control', 'SQL', 'Technical Documentation'],
+        work_experiences: [
+            { company: 'PixelPier Studio', address: 'Bacolod City', position: 'Frontend Developer', year_started: '2023', year_ended: '2024', employment_status: 'Contractual' },
+            { company: 'North Coast Commerce', address: 'San Carlos City', position: 'Junior Web Developer', year_started: '2024', year_ended: '', employment_status: 'Permanent' },
+        ],
+        portfolio_url: 'https://portfolio.example.test/arianne-villareal',
+        resume_slug: 'arianne-villareal',
+        certificate_urls: [makeStoragePath('seed-certificates', 'arianne-villareal', 'web-bootcamp.pdf')],
+        preferred_job_type: ['full-time', 'contractual'],
+        preferred_occupations: ['Junior Full Stack Developer', 'Frontend Developer', 'Web Application Support'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Talisay City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 24000,
+        expected_salary_max: 36000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Fluent' },
+            { language: 'Tagalog', proficiency: 'Native' },
+            { language: 'Hiligaynon', proficiency: 'Proficient' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'joel.espina@seed.peso-connect.test',
+        surname: 'Espina',
+        first_name: 'Joel',
+        middle_name: 'Mercado',
+        date_of_birth: '1997-02-08',
+        sex: 'Male',
+        civil_status: 'Single',
+        religion: 'Born Again Christian',
+        height_cm: 171,
+        street_address: 'Purok Santan, Quezon Extension',
+        barangay: 'Quezon',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230002',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Finished Contract',
+        months_looking_for_work: 4,
+        highest_education: 'Tertiary',
+        school_name: 'Colegio de Sta. Rita',
+        course_or_field: 'BS Information Systems',
+        did_not_graduate: true,
+        education_level_reached: '3rd Year',
+        year_last_attended: '2021',
+        vocational_training: [
+            {
+                course: 'Computer Systems Servicing NC II',
+                institution: 'TESDA San Carlos',
+                hours: '320',
+                skills_acquired: 'Technical Support, Network Setup, Computer Repair, Hardware Troubleshooting',
+                certificate_level: 'NC II',
+                certificate_path: makeStoragePath('seed-certificates', 'joel-espina', 'css-nc2.pdf'),
+            },
+        ],
+        predefined_skills: ['Computer Literate'],
+        skills: ['Technical Support', 'Network Setup', 'Computer Repair', 'Hardware Troubleshooting', 'IT Helpdesk', 'MS Office'],
+        professional_licenses: [
+            {
+                name: 'Computer Systems Servicing NC II',
+                number: 'TESDA-CSS-24019',
+                valid_until: '2028-03-31',
+                license_copy_path: makeStoragePath('seed-certificates', 'joel-espina', 'css-nc2-license.pdf'),
+            },
+        ],
+        work_experiences: [
+            { company: 'ServNet Outsourcing', address: 'Bacolod City', position: 'IT Support Staff', year_started: '2021', year_ended: '2023', employment_status: 'Contractual' },
+            { company: 'Mercury Drug - San Carlos', address: 'San Carlos City', position: 'Desktop Support Technician', year_started: '2023', year_ended: '2025', employment_status: 'Contractual' },
+        ],
+        resume_slug: 'joel-espina',
+        certificate_urls: [makeStoragePath('seed-certificates', 'joel-espina', 'css-nc2.pdf')],
+        preferred_job_type: ['full-time'],
+        preferred_occupations: ['IT Service Desk Analyst', 'Technical Support Specialist', 'Network Support Assistant'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Silay City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 18000,
+        expected_salary_max: 26000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Proficient' },
+            { language: 'Tagalog', proficiency: 'Native' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'melissa.catalan@seed.peso-connect.test',
+        surname: 'Catalan',
+        first_name: 'Melissa',
+        middle_name: 'Rivera',
+        date_of_birth: '1995-09-20',
+        sex: 'Female',
+        civil_status: 'Married',
+        religion: 'Roman Catholic',
+        height_cm: 158,
+        street_address: 'Mabini St., near Public Market',
+        barangay: 'Guadalupe',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230003',
+        employment_status: 'Employed',
+        employment_type: 'Full-time',
+        highest_education: 'Senior High School (Grades 11-12)',
+        school_name: 'San Carlos National High School',
+        course_or_field: 'Accountancy, Business and Management (ABM)',
+        year_graduated: '2013',
+        vocational_training: [
+            {
+                course: 'Retail Operations and Cash Handling',
+                institution: 'PESO Skills Center',
+                hours: '80',
+                skills_acquired: 'Cashiering, POS Operation, Inventory Management',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'melissa-catalan', 'retail-ops.pdf'),
+            },
+        ],
+        predefined_skills: [],
+        skills: ['Customer Service', 'Sales', 'Inventory Management', 'POS Operation', 'Cashiering', 'Team Supervision', 'Sales Reporting'],
+        work_experiences: [
+            { company: 'BudgetMart Express', address: 'San Carlos City', position: 'Senior Cashier', year_started: '2016', year_ended: '2021', employment_status: 'Permanent' },
+            { company: 'MarketBridge Mini', address: 'Escalante City', position: 'Store Team Lead', year_started: '2021', year_ended: '', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'melissa-catalan',
+        certificate_urls: [makeStoragePath('seed-certificates', 'melissa-catalan', 'retail-ops.pdf')],
+        preferred_job_type: ['full-time'],
+        preferred_occupations: ['Retail Operations Supervisor', 'Store Team Leader', 'Inventory Control Associate'],
+        preferred_local_locations: ['San Carlos City', 'Escalante City', 'Cadiz City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 19000,
+        expected_salary_max: 28000,
+        willing_to_relocate: 'no',
+        languages: [
+            { language: 'Hiligaynon', proficiency: 'Native' },
+            { language: 'Tagalog', proficiency: 'Fluent' },
+            { language: 'English', proficiency: 'Conversational' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'rogelio.paderanga@seed.peso-connect.test',
+        surname: 'Paderanga',
+        first_name: 'Rogelio',
+        middle_name: 'Mendoza',
+        date_of_birth: '1991-11-03',
+        sex: 'Male',
+        civil_status: 'Married',
+        religion: 'Roman Catholic',
+        height_cm: 174,
+        street_address: 'Sitio Upper Codcod',
+        barangay: 'Codcod',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230004',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Resigned',
+        months_looking_for_work: 2,
+        highest_education: 'Senior High School (Grades 11-12)',
+        school_name: 'Codcod National High School',
+        course_or_field: 'TVL - Electrical Installation and Maintenance',
+        year_graduated: '2009',
+        vocational_training: [
+            {
+                course: 'Electrical Installation and Maintenance NC II',
+                institution: 'TESDA San Carlos',
+                hours: '320',
+                skills_acquired: 'Electrical Installation, Electrical Wiring, Electrical Safety',
+                certificate_level: 'NC II',
+                certificate_path: makeStoragePath('seed-certificates', 'rogelio-paderanga', 'eim-nc2.pdf'),
+            },
+            {
+                course: 'Solar PV Systems Installation',
+                institution: 'Sunridge Training Center',
+                hours: '120',
+                skills_acquired: 'Solar Panel Installation, Renewable Energy Systems, Net Metering',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'rogelio-paderanga', 'solar-pv.pdf'),
+            },
+        ],
+        predefined_skills: ['Electrician'],
+        skills: ['Electrical Installation', 'Electrical Wiring', 'Electrical Safety', 'Solar Panel Installation', 'Generator Operation', 'Low Voltage Systems'],
+        professional_licenses: [
+            {
+                name: 'Electrical Installation and Maintenance NC II',
+                number: 'TESDA-EIM-88412',
+                valid_until: '2028-08-30',
+                license_copy_path: makeStoragePath('seed-certificates', 'rogelio-paderanga', 'eim-license.pdf'),
+            },
+        ],
+        work_experiences: [
+            { company: 'VoltPro Services', address: 'Bacolod City', position: 'Electrical Technician', year_started: '2013', year_ended: '2019', employment_status: 'Permanent' },
+            { company: 'SolarReach Installations', address: 'San Carlos City', position: 'Solar Installation Technician', year_started: '2019', year_ended: '2025', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'rogelio-paderanga',
+        certificate_urls: [
+            makeStoragePath('seed-certificates', 'rogelio-paderanga', 'eim-nc2.pdf'),
+            makeStoragePath('seed-certificates', 'rogelio-paderanga', 'solar-pv.pdf'),
+        ],
+        preferred_job_type: ['full-time', 'contractual'],
+        preferred_occupations: ['Solar Installation Technician', 'Distribution Line Technician', 'Electrical Technician'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Victorias City'],
+        preferred_overseas_locations: ['Qatar'],
+        expected_salary_min: 22000,
+        expected_salary_max: 34000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'Tagalog', proficiency: 'Native' },
+            { language: 'English', proficiency: 'Conversational' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'leah.monterde@seed.peso-connect.test',
+        surname: 'Monterde',
+        first_name: 'Leah',
+        middle_name: 'Santos',
+        date_of_birth: '1998-04-17',
+        sex: 'Female',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 160,
+        street_address: 'Purok Seaside',
+        barangay: 'Buluangan',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230005',
+        employment_status: 'Employed',
+        employment_type: 'Full-time',
+        highest_education: 'Tertiary',
+        school_name: 'University of Negros Occidental - Recoletos',
+        course_or_field: 'BS Hospitality Management',
+        year_graduated: '2020',
+        vocational_training: [
+            {
+                course: 'Front Office Services',
+                institution: 'TESDA Bacolod',
+                hours: '160',
+                skills_acquired: 'Front Desk, Guest Relations, Reservation Management',
+                certificate_level: 'NC II',
+                certificate_path: makeStoragePath('seed-certificates', 'leah-monterde', 'front-office.pdf'),
+            },
+        ],
+        skills: ['Front Desk', 'Guest Relations', 'Reservation Management', 'Check-in/Check-out Processing', 'Customer Service Excellence', 'POS for Restaurants'],
+        work_experiences: [
+            { company: 'Ocean Crest Hotel', address: 'Bacolod City', position: 'Guest Services Associate', year_started: '2020', year_ended: '2022', employment_status: 'Permanent' },
+            { company: 'Harbor Lane Inn', address: 'San Carlos City', position: 'Front Desk Officer', year_started: '2022', year_ended: '', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'leah-monterde',
+        certificate_urls: [makeStoragePath('seed-certificates', 'leah-monterde', 'front-office.pdf')],
+        preferred_job_type: ['full-time'],
+        preferred_occupations: ['Front Desk Associate', 'Guest Services Officer', 'Reservations Coordinator'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Dumaguete City'],
+        preferred_overseas_locations: ['United Arab Emirates'],
+        expected_salary_min: 18000,
+        expected_salary_max: 26000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Fluent' },
+            { language: 'Tagalog', proficiency: 'Native' },
+            { language: 'Hiligaynon', proficiency: 'Proficient' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'noel.agbayani@seed.peso-connect.test',
+        surname: 'Agbayani',
+        first_name: 'Noel',
+        middle_name: 'Ting',
+        date_of_birth: '1988-01-29',
+        sex: 'Male',
+        civil_status: 'Married',
+        religion: 'Iglesia ni Cristo',
+        height_cm: 169,
+        street_address: 'Sitio Riverside',
+        barangay: 'Palampas',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230006',
+        employment_status: 'Self-Employed',
+        self_employment_type: 'Vendor/Retailer',
+        highest_education: 'Tertiary',
+        school_name: 'Central Philippine State University',
+        course_or_field: 'BS Agriculture',
+        year_graduated: '2011',
+        vocational_training: [
+            {
+                course: 'Good Agricultural Practices',
+                institution: 'Department of Agriculture',
+                hours: '40',
+                skills_acquired: 'Crop Management, Farm Record Keeping, Irrigation',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'noel-agbayani', 'gap-training.pdf'),
+            },
+        ],
+        skills: ['Crop Management', 'Farm Record Keeping', 'Irrigation', 'Post-Harvest Handling', 'Quality Control', 'MS Office'],
+        work_experiences: [
+            { company: 'AgriBest Supply', address: 'Talisay City', position: 'Field Agronomist', year_started: '2011', year_ended: '2017', employment_status: 'Permanent' },
+            { company: 'Agbayani Farm Inputs', address: 'San Carlos City', position: 'Farm Operations Supervisor', year_started: '2017', year_ended: '', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'noel-agbayani',
+        certificate_urls: [makeStoragePath('seed-certificates', 'noel-agbayani', 'gap-training.pdf')],
+        preferred_job_type: ['full-time', 'contractual'],
+        preferred_occupations: ['Farm Operations Coordinator', 'Post-Harvest Quality Inspector', 'Agricultural Extension Assistant'],
+        preferred_local_locations: ['San Carlos City', 'Bago City', 'La Carlota City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 23000,
+        expected_salary_max: 32000,
+        willing_to_relocate: 'no',
+        languages: [
+            { language: 'Hiligaynon', proficiency: 'Native' },
+            { language: 'Tagalog', proficiency: 'Fluent' },
+            { language: 'English', proficiency: 'Conversational' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'karen.torres@seed.peso-connect.test',
+        surname: 'Torres',
+        first_name: 'Karen',
+        middle_name: 'Velasco',
+        date_of_birth: '1996-08-11',
+        sex: 'Female',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 157,
+        is_pwd: true,
+        disability_type: ['Physical'],
+        pwd_id_number: 'PWD-NOC-11874',
+        street_address: 'Villa Rosario Phase 1',
+        barangay: 'Guadalupe',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230007',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Finished Contract',
+        months_looking_for_work: 3,
+        highest_education: 'Senior High School (Grades 11-12)',
+        school_name: 'San Carlos College',
+        course_or_field: 'Information and Communications Technology (ICT)',
+        year_graduated: '2014',
+        vocational_training: [
+            {
+                course: 'Digital Catalog and Marketplace Operations',
+                institution: 'DICT Region VI',
+                hours: '96',
+                skills_acquired: 'Data Entry, Product Knowledge, MS Office, E-commerce Management',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'karen-torres', 'catalog-ops.pdf'),
+            },
+        ],
+        predefined_skills: ['Computer Literate'],
+        skills: ['Data Entry', 'MS Office', 'E-commerce Management', 'Product Knowledge', 'Customer Service', 'Social Media'],
+        work_experiences: [
+            { company: 'ShopLink Marketplace', address: 'Remote', position: 'Catalog Assistant', year_started: '2022', year_ended: '2024', employment_status: 'Contractual' },
+            { company: 'HomeCart PH', address: 'Remote', position: 'Product Listing Associate', year_started: '2024', year_ended: '2025', employment_status: 'Contractual' },
+        ],
+        resume_slug: 'karen-torres',
+        certificate_urls: [makeStoragePath('seed-certificates', 'karen-torres', 'catalog-ops.pdf')],
+        preferred_job_type: ['full-time', 'part-time', 'on-demand'],
+        preferred_occupations: ['E-commerce Catalog Specialist', 'Data Entry Associate', 'Content Listing Assistant'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Remote'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 17000,
+        expected_salary_max: 24000,
+        willing_to_relocate: 'no',
+        languages: [
+            { language: 'English', proficiency: 'Proficient' },
+            { language: 'Tagalog', proficiency: 'Native' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'dante.villasis@seed.peso-connect.test',
+        surname: 'Villasis',
+        first_name: 'Dante',
+        middle_name: 'Castro',
+        date_of_birth: '1984-05-25',
+        sex: 'Male',
+        civil_status: 'Married',
+        religion: 'Roman Catholic',
+        height_cm: 172,
+        street_address: 'Sunrise Subdivision',
+        barangay: 'Rizal',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230008',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Terminated/Laid Off',
+        months_looking_for_work: 6,
+        highest_education: 'Graduate Studies / Post-graduate',
+        school_name: 'University of the Philippines Visayas',
+        course_or_field: 'Master in Business Administration',
+        year_graduated: '2015',
+        vocational_training: [
+            {
+                course: 'Supply Chain Analytics Workshop',
+                institution: 'Philippine Retailers Association',
+                hours: '24',
+                skills_acquired: 'Retail Analytics, KPI Tracking, Inventory Management',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'dante-villasis', 'supply-chain.pdf'),
+            },
+        ],
+        skills: ['Project Management', 'Retail Analytics', 'Inventory Management', 'KPI Tracking', 'Team Supervision', 'Sales Reporting'],
+        work_experiences: [
+            { company: 'Metro Hypermart', address: 'Iloilo City', position: 'Operations Manager', year_started: '2012', year_ended: '2020', employment_status: 'Permanent' },
+            { company: 'ValueChain Retail', address: 'Cebu City', position: 'Area Operations Lead', year_started: '2020', year_ended: '2025', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'dante-villasis',
+        certificate_urls: [makeStoragePath('seed-certificates', 'dante-villasis', 'supply-chain.pdf')],
+        preferred_job_type: ['full-time'],
+        preferred_occupations: ['Retail Operations Supervisor', 'Store Compliance Manager', 'Inventory Planning Lead'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Cebu City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 35000,
+        expected_salary_max: 50000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Fluent' },
+            { language: 'Tagalog', proficiency: 'Native' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'sofia.madamba@seed.peso-connect.test',
+        surname: 'Madamba',
+        first_name: 'Sofia',
+        middle_name: 'Perez',
+        date_of_birth: '1994-12-02',
+        sex: 'Female',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 159,
+        street_address: 'Purok Magnolia',
+        barangay: 'Sipaway',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230009',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Resigned',
+        months_looking_for_work: 5,
+        highest_education: 'Tertiary',
+        school_name: 'West Visayas State University',
+        course_or_field: 'BS Secondary Education',
+        year_graduated: '2016',
+        vocational_training: [
+            {
+                course: 'Google Workspace and Spreadsheet Automation',
+                institution: 'DICT Learning Hub',
+                hours: '60',
+                skills_acquired: 'Data Entry, MS Office, Report Writing, Product Knowledge',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'sofia-madamba', 'workspace-automation.pdf'),
+            },
+        ],
+        skills: ['Data Entry', 'MS Office', 'Report Writing', 'Product Knowledge', 'Customer Service', 'Social Media'],
+        work_experiences: [
+            { company: 'Sipaway National High School', address: 'San Carlos City', position: 'Teacher I', year_started: '2017', year_ended: '2024', employment_status: 'Permanent' },
+            { company: 'Freelance', address: 'Remote', position: 'Virtual Catalog Assistant', year_started: '2024', year_ended: '2025', employment_status: 'Part-time' },
+        ],
+        resume_slug: 'sofia-madamba',
+        certificate_urls: [makeStoragePath('seed-certificates', 'sofia-madamba', 'workspace-automation.pdf')],
+        preferred_job_type: ['full-time', 'part-time'],
+        preferred_occupations: ['E-commerce Catalog Specialist', 'Data Entry Associate', 'Operations Assistant'],
+        preferred_local_locations: ['San Carlos City', 'Remote', 'Bacolod City'],
+        preferred_overseas_locations: ['Singapore'],
+        expected_salary_min: 18000,
+        expected_salary_max: 26000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Fluent' },
+            { language: 'Tagalog', proficiency: 'Native' },
+            { language: 'Hiligaynon', proficiency: 'Conversational' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'miguel.soriano@seed.peso-connect.test',
+        surname: 'Soriano',
+        first_name: 'Miguel',
+        middle_name: 'Bautista',
+        date_of_birth: '2000-03-15',
+        sex: 'Male',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 176,
+        street_address: 'Purok Narra',
+        barangay: 'Punao',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230010',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Finished Contract',
+        months_looking_for_work: 1,
+        highest_education: 'Junior High School (Grades 7-10)',
+        school_name: 'Punao National High School',
+        course_or_field: '',
+        did_not_graduate: true,
+        education_level_reached: 'Grade 10',
+        year_last_attended: '2016',
+        vocational_training: [
+            {
+                course: 'Shielded Metal Arc Welding',
+                institution: 'TESDA San Carlos',
+                hours: '240',
+                skills_acquired: 'Welding, Steel Fabrication, Safety Compliance',
+                certificate_level: 'NC I',
+                certificate_path: makeStoragePath('seed-certificates', 'miguel-soriano', 'welding-nc1.pdf'),
+            },
+        ],
+        predefined_skills: [],
+        skills: ['Welding', 'Steel Fabrication', 'Driving', 'Safety Compliance'],
+        work_experiences: [
+            { company: 'Local Contractor Pool', address: 'San Carlos City', position: 'General Laborer', year_started: '2019', year_ended: '2022', employment_status: 'Contractual' },
+            { company: 'Ridgeworks Fabrication', address: 'Escalante City', position: 'Welding Helper', year_started: '2023', year_ended: '2025', employment_status: 'Contractual' },
+        ],
+        resume_slug: 'miguel-soriano',
+        certificate_urls: [makeStoragePath('seed-certificates', 'miguel-soriano', 'welding-nc1.pdf')],
+        preferred_job_type: ['full-time', 'on-demand'],
+        preferred_occupations: ['Welding Helper', 'Utility Installer', 'Warehouse Rider'],
+        preferred_local_locations: ['San Carlos City', 'Escalante City', 'Cadiz City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 13000,
+        expected_salary_max: 19000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'Hiligaynon', proficiency: 'Native' },
+            { language: 'Tagalog', proficiency: 'Conversational' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'fatima.ramos@seed.peso-connect.test',
+        surname: 'Ramos',
+        first_name: 'Fatima',
+        middle_name: 'Ali',
+        date_of_birth: '1993-07-07',
+        sex: 'Female',
+        civil_status: 'Married',
+        religion: 'Islam',
+        height_cm: 162,
+        street_address: 'Baywalk Residences',
+        barangay: 'Buluangan',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230011',
+        employment_status: 'Unemployed',
+        unemployment_reason: 'Resigned',
+        months_looking_for_work: 2,
+        highest_education: 'Tertiary',
+        school_name: 'La Consolacion College - Bacolod',
+        course_or_field: 'BS Tourism Management',
+        year_graduated: '2014',
+        vocational_training: [
+            {
+                course: 'Hospitality Guest Relations Excellence',
+                institution: 'Department of Tourism',
+                hours: '32',
+                skills_acquired: 'Guest Relations, Front Desk, Complaint Resolution',
+                certificate_level: 'None',
+                certificate_path: makeStoragePath('seed-certificates', 'fatima-ramos', 'guest-relations.pdf'),
+            },
+        ],
+        skills: ['Guest Relations', 'Front Desk', 'Reservation Management', 'Complaint Resolution', 'Travel Coordination'],
+        work_experiences: [
+            { company: 'Red Sand Resort', address: 'Dubai', position: 'Guest Relations Officer', year_started: '2018', year_ended: '2024', employment_status: 'Permanent' },
+            { company: 'Home-based', address: 'San Carlos City', position: 'Travel Booking Assistant', year_started: '2024', year_ended: '2025', employment_status: 'Part-time' },
+        ],
+        resume_slug: 'fatima-ramos',
+        certificate_urls: [makeStoragePath('seed-certificates', 'fatima-ramos', 'guest-relations.pdf')],
+        preferred_job_type: ['full-time', 'part-time'],
+        preferred_occupations: ['Front Desk Associate', 'Guest Services Officer', 'Travel Coordinator'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Dumaguete City'],
+        preferred_overseas_locations: ['United Arab Emirates', 'Qatar'],
+        expected_salary_min: 20000,
+        expected_salary_max: 30000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Fluent' },
+            { language: 'Arabic', proficiency: 'Fluent' },
+            { language: 'Tagalog', proficiency: 'Native' },
+        ],
+    }),
+    buildJobseekerRecord({
+        email: 'patricia.lloren@seed.peso-connect.test',
+        surname: 'Lloren',
+        first_name: 'Patricia',
+        middle_name: 'Aurelio',
+        date_of_birth: '1992-10-30',
+        sex: 'Female',
+        civil_status: 'Single',
+        religion: 'Roman Catholic',
+        height_cm: 155,
+        street_address: 'Villa Aurora',
+        barangay: 'Rizal',
+        city: 'San Carlos City',
+        province: 'Negros Occidental',
+        mobile_number: '09171230012',
+        employment_status: 'Employed',
+        employment_type: 'Full-time',
+        highest_education: 'Tertiary',
+        school_name: 'St. Paul University Dumaguete',
+        course_or_field: 'BS Hotel and Restaurant Management',
+        year_graduated: '2013',
+        vocational_training: [
+            {
+                course: 'Advanced Pastry and Baking',
+                institution: 'TESDA Bacolod',
+                hours: '180',
+                skills_acquired: 'Baking, Pastry Making, Cake Decorating, Food Safety',
+                certificate_level: 'NC II',
+                certificate_path: makeStoragePath('seed-certificates', 'patricia-lloren', 'pastry-advanced.pdf'),
+            },
+        ],
+        skills: ['Baking', 'Pastry Making', 'Cake Decorating', 'Food Safety', 'Food Cost Control', 'Kitchen Management'],
+        work_experiences: [
+            { company: 'Sweet Harbor Cafe', address: 'Dumaguete City', position: 'Pastry Cook', year_started: '2014', year_ended: '2019', employment_status: 'Permanent' },
+            { company: 'Harbor Lane Kitchen', address: 'San Carlos City', position: 'Senior Pastry Chef', year_started: '2019', year_ended: '', employment_status: 'Permanent' },
+        ],
+        resume_slug: 'patricia-lloren',
+        certificate_urls: [makeStoragePath('seed-certificates', 'patricia-lloren', 'pastry-advanced.pdf')],
+        preferred_job_type: ['full-time'],
+        preferred_occupations: ['Banquet Pastry Chef', 'Pastry Production Lead', 'Bakery Supervisor'],
+        preferred_local_locations: ['San Carlos City', 'Bacolod City', 'Dumaguete City'],
+        preferred_overseas_locations: [],
+        expected_salary_min: 24000,
+        expected_salary_max: 34000,
+        willing_to_relocate: 'yes',
+        languages: [
+            { language: 'English', proficiency: 'Proficient' },
+            { language: 'Tagalog', proficiency: 'Native' },
+        ],
+    }),
 ]
-
-// Diagnostic-test jobseekers: incomplete profiles, mismatched skills, varied states
-const diagnosticJobseekers = [
-    {
-        // Incomplete profile — registration not finished (step 3)
-        email: 'incomplete.user@test.com',
-        base: { name: 'Carlo Reyes', is_verified: false, registration_complete: false, registration_step: 3 },
-        profile: {
-            full_name: 'Carlo Enrique Reyes',
-            date_of_birth: '1999-04-10',
-            barangay: 'Quezon',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113001',
-            // No skills, no education, no work experience — stopped at step 3
-        }
-    },
-    {
-        // Mismatch: has IT skills but wants agriculture job
-        email: 'mismatch.itfarm@test.com',
-        base: { name: 'Dennis Roque', is_verified: true, registration_complete: true },
-        profile: {
-            full_name: 'Dennis Paul Roque',
-            date_of_birth: '1996-06-15',
-            barangay: 'Buluangan',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113002',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '15000',
-            expected_salary_max: '20000',
-            willing_to_relocate: 'no',
-            highest_education: 'college',
-            school_name: 'STI College - Bacolod',
-            course_or_field: 'BS Computer Science',
-            year_graduated: '2018',
-            skills: ['Web Development', 'Database Management', 'Network Setup', 'Technical Support', 'MS Office'],
-            work_experiences: [
-                { company: 'NetPro Solutions', position: 'IT Support', duration: '2018-2021', description: 'Technical support and network administration' }
-            ],
-            certifications: ['CompTIA Network+'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }],
-        }
-    },
-    {
-        // Mismatch: nursing degree but looking for call center work
-        email: 'mismatch.nurse@test.com',
-        base: { name: 'Patricia Soriano', is_verified: true, registration_complete: true },
-        profile: {
-            full_name: 'Patricia Ann Soriano',
-            date_of_birth: '1994-02-28',
-            barangay: 'Codcod',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113003',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '18000',
-            expected_salary_max: '25000',
-            willing_to_relocate: 'yes',
-            highest_education: 'college',
-            school_name: 'Central Philippine University',
-            course_or_field: 'BS Nursing',
-            year_graduated: '2016',
-            skills: ['Customer Service', 'Data Entry', 'MS Office', 'English Proficiency'],
-            work_experiences: [
-                { company: 'Various clinics', position: 'Volunteer Nurse', duration: '2016-2018', description: 'Clinical volunteer work' },
-                { company: 'Convergys (now Concentrix)', position: 'CSR', duration: '2018-2022', description: 'Customer service representative for US healthcare account' }
-            ],
-            certifications: ['Registered Nurse (PRC)', 'IELTS Band 7.5'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'fluent' }],
-        }
-    },
-    {
-        // PWD user with limited mobility
-        email: 'pwd.user@test.com',
-        base: { name: 'Roberto Navarro', is_verified: true, registration_complete: true },
-        profile: {
-            full_name: 'Roberto Santos Navarro',
-            date_of_birth: '1988-10-05',
-            barangay: 'Rizal',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113004',
-            preferred_contact_method: 'phone',
-            preferred_job_type: ['part-time', 'contract'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '8000',
-            expected_salary_max: '15000',
-            willing_to_relocate: 'no',
-            highest_education: 'vocational',
-            school_name: 'TESDA Training Center - San Carlos',
-            course_or_field: 'Computer Hardware Servicing',
-            year_graduated: '2010',
-            skills: ['Computer Repair', 'Data Entry', 'MS Office', 'Technical Support'],
-            work_experiences: [
-                { company: 'Home-based', position: 'Computer Technician', duration: '2010-present', description: 'Freelance computer repair and data entry services' }
-            ],
-            certifications: ['TESDA NC II - Computer Hardware Servicing'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'married',
-            is_pwd: true,
-            pwd_id_number: 'PWD-NOC-2015-00234',
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'Hiligaynon', proficiency: 'native' }],
-        }
-    },
-    {
-        // Fresh graduate, no work experience
-        email: 'fresh.grad@test.com',
-        base: { name: 'Angelica Torres', is_verified: true, registration_complete: true },
-        profile: {
-            full_name: 'Angelica Rose Torres',
-            date_of_birth: '2002-08-17',
-            barangay: 'Sipaway',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113005',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'part-time', 'temporary'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '10000',
-            expected_salary_max: '15000',
-            willing_to_relocate: 'yes',
-            highest_education: 'college',
-            school_name: 'Carlos Hilado Memorial State University',
-            course_or_field: 'BS Hospitality Management',
-            year_graduated: '2024',
-            skills: ['Customer Service', 'Sales', 'POS Operation'],
-            work_experiences: [],
-            certifications: [],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'intermediate' }],
-        }
-    },
-    {
-        // Incomplete — stopped at step 1 (only email/role created)
-        email: 'abandoned.reg@test.com',
-        base: { name: '', is_verified: false, registration_complete: false, registration_step: 1 },
-        profile: {} // No profile data at all
-    },
-    {
-        // Overqualified — post-grad, 10+ years experience, applying for entry-level
-        email: 'overqualified.worker@test.com',
-        base: { name: 'Fernando Castillo', is_verified: true, registration_complete: true },
-        profile: {
-            full_name: 'Fernando Miguel Castillo',
-            date_of_birth: '1982-03-22',
-            barangay: 'Guadalupe',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113006',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'part-time'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '12000',
-            expected_salary_max: '18000',
-            willing_to_relocate: 'no',
-            highest_education: 'post-graduate',
-            school_name: 'Ateneo de Manila University',
-            course_or_field: 'MBA - Business Administration',
-            year_graduated: '2010',
-            skills: ['Project Management', 'Financial Analysis', 'Strategic Planning', 'Team Leadership', 'MS Office', 'Data Analysis'],
-            work_experiences: [
-                { company: 'Ayala Corporation', position: 'Senior Project Manager', duration: '2010-2018', description: 'Managed large-scale infrastructure projects' },
-                { company: 'San Carlos LGU', position: 'Planning Officer', duration: '2018-2023', description: 'Local development planning and project oversight' },
-                { company: 'Currently unemployed', position: '', duration: '2024-present', description: 'Relocated back to San Carlos, seeking any available work' }
-            ],
-            certifications: ['PMP Certified', 'Six Sigma Green Belt'],
-            terms_accepted: true,
-            data_processing_consent: true,
-            peso_verification_consent: true,
-            info_accuracy_confirmation: true,
-            gender: 'male',
-            civil_status: 'married',
-            is_pwd: false,
-            languages: [{ language: 'Filipino', proficiency: 'native' }, { language: 'English', proficiency: 'fluent' }],
-        }
-    },
-    {
-        // Career changer — stopped at step 4, has personal info and preferences but no education/skills
-        email: 'midreg.changer@test.com',
-        base: { name: 'Diane Flores', is_verified: false, registration_complete: false, registration_step: 4 },
-        profile: {
-            full_name: 'Diane Marie Flores',
-            date_of_birth: '1993-11-08',
-            barangay: 'Punao',
-            city: 'San Carlos City',
-            province: 'Negros Occidental',
-            mobile_number: '09171113007',
-            preferred_contact_method: 'email',
-            preferred_job_type: ['full-time', 'contract'],
-            preferred_job_location: 'San Carlos City',
-            expected_salary_min: '15000',
-            expected_salary_max: '22000',
-            willing_to_relocate: 'yes',
-            // Stopped at step 4 — no education, skills, or work experience filled in yet
-            gender: 'female',
-            civil_status: 'single',
-            is_pwd: false,
-        }
-    },
-]
-
-// ═══════════════════════════════════════════════════════════════
-// SEED DATA — JOB POSTINGS
-// ═══════════════════════════════════════════════════════════════
 
 const jobPostings = [
-    // San Carlos Cooperative (2)
     {
-        employer_email: 'hr@sancarloscoop.test.com',
-        title: 'Loan Officer',
-        description: 'Process loan applications, assess borrower creditworthiness, and manage member accounts. Must have strong interpersonal skills and attention to detail.',
-        category: 'Financial Services',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
+        slug: 'junior-full-stack-developer',
+        employer_email: 'talent@northpoint-digital.seed.peso-connect.test',
+        title: 'Junior Full Stack Developer',
+        category: 'it',
+        type: 'permanent',
+        work_arrangement: 'hybrid',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 2,
+        job_summary: 'Build and maintain internal commerce tools, client dashboards, and workflow automations under senior engineer supervision.',
+        key_responsibilities: 'Implement React features, connect API endpoints, write SQL-backed views, review bug reports, and document shipped changes for client handover.',
+        salary_min: 26000,
+        salary_max: 38000,
+        benefits: ['Health Insurance', '13th Month Pay', 'Paid Leave', 'Training & Development'],
+        education_level: 'college',
+        course_strand: 'Information Technology, Computer Science, or Information Systems',
+        experience_level: 'entry',
+        required_skills: ['React', 'JavaScript', 'API Development', 'Git Version Control'],
+        preferred_skills: ['TypeScript', 'SQL', 'Technical Documentation'],
+        required_languages: ['English'],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: true,
+        pwd_disabilities: ['physical'],
+        accepts_ofw: false,
+        other_qualifications: 'Portfolio or sample project required.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'it-service-desk-analyst',
+        employer_email: 'talent@northpoint-digital.seed.peso-connect.test',
+        title: 'IT Service Desk Analyst',
+        category: 'it',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 3,
+        job_summary: 'Support endpoint users, triage incidents, and maintain workstation readiness for local and remote clients.',
+        key_responsibilities: 'Handle service tickets, troubleshoot hardware and software issues, prepare user setups, update asset logs, and escalate server or network incidents.',
+        salary_min: 20000,
+        salary_max: 28000,
+        benefits: ['SSS/PhilHealth/Pag-IBIG', 'Paid Leave', 'Training & Development'],
+        education_level: 'college',
+        course_strand: 'Information Technology or related field',
+        experience_level: '1-3',
+        required_skills: ['IT Helpdesk', 'Technical Support', 'Hardware Troubleshooting', 'Customer Service'],
+        preferred_skills: ['Network Setup', 'Active Directory', 'MS Office'],
+        required_languages: ['English'],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Rotating weekend support may be assigned.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'solar-installation-technician',
+        employer_email: 'careers@sunridge-energy.seed.peso-connect.test',
+        title: 'Solar Installation Technician',
+        category: 'energy',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 4,
+        job_summary: 'Install rooftop solar systems and perform electrical checks for residential and SME clients.',
+        key_responsibilities: 'Interpret system layouts, mount rails and panels, route cabling, perform energization checks, and complete worksite safety documentation.',
+        salary_min: 22000,
+        salary_max: 32000,
+        benefits: ['Health Insurance', 'Transportation Allowance', 'Training & Development'],
+        education_level: 'vocational',
+        course_strand: 'Electrical Installation and Maintenance',
+        experience_level: '1-3',
+        required_skills: ['Electrical Installation', 'Solar Panel Installation', 'Electrical Safety'],
+        preferred_skills: ['Net Metering', 'Low Voltage Systems', 'Generator Operation'],
+        required_languages: [],
+        licenses_certifications: 'Electrical Installation and Maintenance NC II',
+        required_licenses: ['Electrical Installation and Maintenance NC II'],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Willing to work on rooftops and travel for field jobs.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'distribution-line-technician',
+        employer_email: 'careers@sunridge-energy.seed.peso-connect.test',
+        title: 'Distribution Line Technician',
+        category: 'energy',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 2,
+        job_summary: 'Assist line crews with preventive maintenance and fault response work on distribution assets.',
+        key_responsibilities: 'Support pole-top maintenance, string service drops, perform grounding checks, maintain field logs, and follow line safety procedures.',
+        salary_min: 23000,
+        salary_max: 31000,
+        benefits: ['Health Insurance', 'Meal Allowance', '13th Month Pay'],
+        education_level: 'vocational',
+        course_strand: 'Electrical or lineman training',
+        experience_level: '1-3',
+        required_skills: ['Power Line Maintenance', 'Electrical Wiring', 'Electrical Safety'],
+        preferred_skills: ['Lineman Work', 'Grounding Systems', 'Metering Systems'],
+        required_languages: [],
+        licenses_certifications: 'Valid driver license; Lineman safety training',
+        required_licenses: ['Valid driver license'],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Must be comfortable with field response during outages.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'farm-operations-coordinator',
+        employer_email: 'recruitment@greenharvest-agri.seed.peso-connect.test',
+        title: 'Farm Operations Coordinator',
+        category: 'agriculture',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 2,
+        job_summary: 'Coordinate production schedules, irrigation plans, labor deployment, and field reporting across partner farms.',
+        key_responsibilities: 'Monitor crop stages, validate field records, prepare input usage reports, track irrigation schedules, and coordinate with agronomy and hauling teams.',
+        salary_min: 23000,
+        salary_max: 33000,
+        benefits: ['Meal Allowance', 'Transportation Allowance', 'Training & Development'],
+        education_level: 'college',
+        course_strand: 'Agriculture, Agribusiness, or related field',
+        experience_level: '1-3',
+        required_skills: ['Crop Management', 'Farm Record Keeping', 'Irrigation'],
+        preferred_skills: ['Post-Harvest Handling', 'Quality Control', 'MS Office'],
+        required_languages: [],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Motorcycle travel between partner fields is common.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'post-harvest-quality-inspector',
+        employer_email: 'recruitment@greenharvest-agri.seed.peso-connect.test',
+        title: 'Post-Harvest Quality Inspector',
+        category: 'agriculture',
+        type: 'contractual',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 3,
+        job_summary: 'Inspect produce condition, moisture compliance, and lot traceability before dispatch to buyers.',
+        key_responsibilities: 'Inspect receiving lots, tag non-conforming produce, prepare quality summaries, coordinate re-sorting, and maintain dispatch documentation.',
+        salary_min: 18000,
+        salary_max: 24000,
+        benefits: ['Meal Allowance', 'SSS/PhilHealth/Pag-IBIG'],
+        education_level: 'senior-high',
+        course_strand: 'Agri-Fishery Arts, STEM, or related field',
+        experience_level: 'entry',
+        required_skills: ['Post-Harvest Handling', 'Quality Control', 'Farm Record Keeping'],
+        preferred_skills: ['MS Office', 'Cold Storage Handling'],
+        required_languages: [],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: true,
+        pwd_disabilities: ['physical'],
+        accepts_ofw: false,
+        other_qualifications: 'Detail-oriented candidates with produce handling exposure are preferred.',
+        filter_mode: 'flexible',
+        status: 'open',
+    },
+    {
+        slug: 'front-desk-associate',
+        employer_email: 'jobs@harborview-hospitality.seed.peso-connect.test',
+        title: 'Front Desk Associate',
+        category: 'hospitality',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 2,
+        job_summary: 'Serve as the primary guest-facing contact for check-in, reservations, and room coordination.',
+        key_responsibilities: 'Handle arrivals and departures, answer reservation inquiries, coordinate housekeeping requests, log incidents, and maintain front office standards.',
         salary_min: 18000,
         salary_max: 25000,
-        experience_level: '1-3 years',
+        benefits: ['Health Insurance', 'Meal Allowance', 'Paid Leave'],
+        education_level: 'college',
+        course_strand: 'Hospitality, Tourism, or related field',
+        experience_level: '1-3',
+        required_skills: ['Front Desk', 'Guest Relations', 'Reservation Management'],
+        preferred_skills: ['Check-in/Check-out Processing', 'Complaint Resolution'],
+        required_languages: ['English'],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: true,
+        other_qualifications: 'Night shift and weekend rotation required.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'banquet-pastry-chef',
+        employer_email: 'jobs@harborview-hospitality.seed.peso-connect.test',
+        title: 'Banquet Pastry Chef',
+        category: 'hospitality',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
+        vacancies: 1,
+        job_summary: 'Lead pastry production for hotel banquets, plated desserts, and special event orders.',
+        key_responsibilities: 'Plan pastry prep, enforce portion and food safety standards, supervise decorators, cost recipes, and coordinate event delivery timing.',
+        salary_min: 26000,
+        salary_max: 36000,
+        benefits: ['Health Insurance', 'Meal Allowance', 'Performance Bonus'],
+        education_level: 'college',
+        course_strand: 'Hospitality or culinary arts',
+        experience_level: '3-5',
+        required_skills: ['Baking', 'Pastry Making', 'Food Safety'],
+        preferred_skills: ['Cake Decorating', 'Food Cost Control', 'Kitchen Management'],
+        required_languages: [],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Portfolio of recent plated dessert or event work required.',
+        filter_mode: 'strict',
+        status: 'open',
+    },
+    {
+        slug: 'retail-operations-supervisor',
+        employer_email: 'hiring@marketbridge-retail.seed.peso-connect.test',
+        title: 'Retail Operations Supervisor',
+        category: 'retail',
+        type: 'permanent',
+        work_arrangement: 'on-site',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
         vacancies: 2,
-        requirements: ['BS Accountancy or Business Administration', 'Customer service experience', 'Computer literate'],
-        education_level: 'college',
+        job_summary: 'Supervise daily retail operations, shift performance, inventory control, and visual standards across assigned stores.',
+        key_responsibilities: 'Lead shift teams, monitor stock accuracy, validate cash controls, coach frontline staff, and submit daily KPI and shrinkage reports.',
+        salary_min: 22000,
+        salary_max: 32000,
+        benefits: ['Health Insurance', '13th Month Pay', 'Paid Leave'],
+        education_level: 'senior-high',
+        course_strand: 'Business-related strand preferred',
+        experience_level: '3-5',
+        required_skills: ['Inventory Management', 'Team Supervision', 'POS Operation'],
+        preferred_skills: ['Sales Reporting', 'KPI Tracking', 'Cash Handling'],
+        required_languages: [],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: false,
+        pwd_disabilities: [],
+        accepts_ofw: false,
+        other_qualifications: 'Experience handling multi-shift retail operations is preferred.',
+        filter_mode: 'strict',
         status: 'open',
     },
     {
-        employer_email: 'hr@sancarloscoop.test.com',
-        title: 'Bookkeeper',
-        description: 'Maintain financial records, process transactions, and prepare monthly reports. Knowledge of cooperative accounting standards preferred.',
-        category: 'Financial Services',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
-        salary_min: 15000,
-        salary_max: 20000,
-        experience_level: '0-1 years',
-        vacancies: 1,
-        requirements: ['BS Accountancy or related course', 'MS Office proficiency', 'Attention to detail'],
-        education_level: 'college',
-        status: 'open',
-    },
-    // PESO San Carlos (2)
-    {
-        employer_email: 'recruitment@peso-sancarlos.test.com',
-        title: 'Administrative Aide',
-        description: 'Provide administrative support to the PESO office including document management, client assistance, and data encoding.',
-        category: 'Government',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
-        salary_min: 12000,
-        salary_max: 16000,
-        experience_level: '0-1 years',
-        vacancies: 1,
-        requirements: ['High school graduate or higher', 'Computer literate', 'Good communication skills'],
-        education_level: 'high-school',
-        status: 'open',
-    },
-    {
-        employer_email: 'recruitment@peso-sancarlos.test.com',
-        title: 'Community Facilitator',
-        description: 'Facilitate livelihood and skills training programs in barangays. Conduct outreach activities and coordinate with partner agencies.',
-        category: 'Government',
-        type: 'contract',
-        location: 'San Carlos City, Negros Occidental',
-        salary_min: 15000,
-        salary_max: 20000,
-        experience_level: '1-3 years',
+        slug: 'ecommerce-catalog-specialist',
+        employer_email: 'hiring@marketbridge-retail.seed.peso-connect.test',
+        title: 'E-commerce Catalog Specialist',
+        category: 'retail',
+        type: 'permanent',
+        work_arrangement: 'hybrid',
+        work_province: 'Negros Occidental',
+        work_city: 'San Carlos City',
         vacancies: 3,
-        requirements: ['College graduate', 'Community development experience', 'Willing to travel to barangays'],
-        education_level: 'college',
-        status: 'open',
-    },
-    // Greenfields BPO (3)
-    {
-        employer_email: 'hiring@greenfields-bpo.test.com',
-        title: 'Customer Service Representative',
-        description: 'Handle inbound customer calls for international healthcare account. Provide accurate information and resolve customer concerns.',
-        category: 'BPO',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
+        job_summary: 'Maintain product listings, item attributes, and online catalog quality across marketplace channels.',
+        key_responsibilities: 'Create and update listings, standardize product data, review image and title quality, coordinate markdowns, and prepare weekly catalog audit reports.',
         salary_min: 18000,
         salary_max: 25000,
-        experience_level: '0-1 years',
-        vacancies: 15,
-        requirements: ['College level or graduate', 'Good English communication', 'Willing to work shifting schedules'],
-        education_level: 'college',
-        status: 'open',
-    },
-    {
-        employer_email: 'hiring@greenfields-bpo.test.com',
-        title: 'Data Entry Specialist',
-        description: 'Encode and verify data from medical records and insurance documents. High accuracy and typing speed required.',
-        category: 'BPO',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
-        salary_min: 15000,
-        salary_max: 20000,
-        experience_level: '0-1 years',
-        vacancies: 10,
-        requirements: ['High school graduate or higher', 'Typing speed 40+ WPM', 'Attention to detail'],
-        education_level: 'high-school',
-        status: 'open',
-    },
-    {
-        employer_email: 'hiring@greenfields-bpo.test.com',
-        title: 'Team Leader',
-        description: 'Supervise a team of 15-20 CSRs. Monitor performance metrics, conduct coaching sessions, and ensure SLA compliance.',
-        category: 'BPO',
-        type: 'full-time',
-        location: 'San Carlos City, Negros Occidental',
-        salary_min: 30000,
-        salary_max: 45000,
-        experience_level: '3-5 years',
-        vacancies: 2,
-        requirements: ['College graduate', '3+ years BPO experience', 'Leadership experience', 'Excellent English'],
-        education_level: 'college',
-        status: 'open',
-    },
-    // Crystal Sugar Milling (3)
-    {
-        employer_email: 'jobs@crystal-sugar.test.com',
-        title: 'Heavy Equipment Operator',
-        description: 'Operate bulldozers, loaders, and trucks for sugar milling operations. Must have valid operator license.',
-        category: 'Skilled Trades',
-        type: 'full-time',
-        location: 'Brgy. Punao, San Carlos City, Negros Occidental',
-        salary_min: 15000,
-        salary_max: 22000,
-        experience_level: '1-3 years',
-        vacancies: 3,
-        requirements: ['TESDA NC II Heavy Equipment Operation', 'Valid driver license', 'Physically fit'],
-        education_level: 'vocational',
-        status: 'open',
-    },
-    {
-        employer_email: 'jobs@crystal-sugar.test.com',
-        title: 'Electrician',
-        description: 'Maintain and repair electrical systems in the milling plant. Troubleshoot equipment failures and perform preventive maintenance.',
-        category: 'Skilled Trades',
-        type: 'full-time',
-        location: 'Brgy. Punao, San Carlos City, Negros Occidental',
-        salary_min: 14000,
-        salary_max: 20000,
-        experience_level: '1-3 years',
-        vacancies: 2,
-        requirements: ['TESDA NC II Electrical Installation', 'Industrial electrical experience preferred'],
-        education_level: 'vocational',
-        status: 'filled',
-    },
-    {
-        employer_email: 'jobs@crystal-sugar.test.com',
-        title: 'Seasonal Farm Worker',
-        description: 'Assist with sugarcane harvesting and processing during milling season (October-April). Physical work in field conditions.',
-        category: 'Agriculture',
-        type: 'temporary',
-        location: 'Brgy. Punao, San Carlos City, Negros Occidental',
-        salary_min: 8000,
-        salary_max: 12000,
-        experience_level: '0-1 years',
-        vacancies: 50,
-        requirements: ['Physically fit', '18 years or older', 'Willing to work outdoors'],
-        education_level: 'high-school',
-        deadline: '2026-04-30',
+        benefits: ['Training & Development', 'Paid Leave', 'Performance Bonus'],
+        education_level: 'senior-high',
+        course_strand: 'ICT, ABM, or related track',
+        experience_level: 'entry',
+        required_skills: ['Data Entry', 'MS Office', 'Product Knowledge'],
+        preferred_skills: ['E-commerce Management', 'Customer Service', 'Social Media'],
+        required_languages: ['English'],
+        licenses_certifications: '',
+        required_licenses: [],
+        accepts_pwd: true,
+        pwd_disabilities: ['physical', 'hearing'],
+        accepts_ofw: false,
+        other_qualifications: 'Hybrid schedule after onboarding; detail accuracy is critical.',
+        filter_mode: 'flexible',
         status: 'open',
     },
 ]
-
-// ═══════════════════════════════════════════════════════════════
-// SEED DATA — APPLICATIONS
-// ═══════════════════════════════════════════════════════════════
 
 const seedApplications = [
-    { applicant_email: 'maria.santos@test.com', job_title: 'Customer Service Representative', status: 'pending' },
-    { applicant_email: 'anna.reyes@test.com', job_title: 'Bookkeeper', status: 'shortlisted' },
-    { applicant_email: 'pedro.mendoza@test.com', job_title: 'Heavy Equipment Operator', status: 'pending' },
-    { applicant_email: 'mark.aquino@test.com', job_title: 'Electrician', status: 'hired' },
-    { applicant_email: 'grace.villanueva@test.com', job_title: 'Team Leader', status: 'rejected' },
-    { applicant_email: 'rosa.lim@test.com', job_title: 'Loan Officer', status: 'shortlisted' },
-    { applicant_email: 'fresh.grad@test.com', job_title: 'Customer Service Representative', status: 'pending' },
-    { applicant_email: 'mismatch.nurse@test.com', job_title: 'Customer Service Representative', status: 'pending' },
-    { applicant_email: 'mismatch.itfarm@test.com', job_title: 'Seasonal Farm Worker', status: 'pending' },
-    { applicant_email: 'juan.delacruz@test.com', job_title: 'Electrician', status: 'shortlisted' },
+    { applicant_email: 'arianne.villareal@seed.peso-connect.test', job_slug: 'junior-full-stack-developer', status: 'shortlisted' },
+    { applicant_email: 'joel.espina@seed.peso-connect.test', job_slug: 'it-service-desk-analyst', status: 'pending' },
+    { applicant_email: 'rogelio.paderanga@seed.peso-connect.test', job_slug: 'solar-installation-technician', status: 'shortlisted' },
+    { applicant_email: 'noel.agbayani@seed.peso-connect.test', job_slug: 'farm-operations-coordinator', status: 'pending' },
+    { applicant_email: 'leah.monterde@seed.peso-connect.test', job_slug: 'front-desk-associate', status: 'shortlisted' },
+    { applicant_email: 'fatima.ramos@seed.peso-connect.test', job_slug: 'front-desk-associate', status: 'pending' },
+    { applicant_email: 'patricia.lloren@seed.peso-connect.test', job_slug: 'banquet-pastry-chef', status: 'hired' },
+    { applicant_email: 'melissa.catalan@seed.peso-connect.test', job_slug: 'retail-operations-supervisor', status: 'pending' },
+    { applicant_email: 'dante.villasis@seed.peso-connect.test', job_slug: 'retail-operations-supervisor', status: 'rejected' },
+    { applicant_email: 'karen.torres@seed.peso-connect.test', job_slug: 'ecommerce-catalog-specialist', status: 'pending' },
+    { applicant_email: 'sofia.madamba@seed.peso-connect.test', job_slug: 'ecommerce-catalog-specialist', status: 'shortlisted' },
+    { applicant_email: 'miguel.soriano@seed.peso-connect.test', job_slug: 'distribution-line-technician', status: 'rejected' },
 ]
-
-// ═══════════════════════════════════════════════════════════════
-// SEED DATA — CONVERSATIONS & MESSAGES
-// ═══════════════════════════════════════════════════════════════
 
 const seedConversations = [
     {
-        participants: ['mark.aquino@test.com', 'jobs@crystal-sugar.test.com'],
-        job_title: 'Electrician',
+        participants: ['arianne.villareal@seed.peso-connect.test', 'talent@northpoint-digital.seed.peso-connect.test'],
+        job_slug: 'junior-full-stack-developer',
         messages: [
-            { sender: 'jobs@crystal-sugar.test.com', text: 'Good day! We reviewed your application for the Electrician position and would like to inform you that you have been hired. Congratulations!' },
-            { sender: 'mark.aquino@test.com', text: 'Thank you so much! When do I start? Do I need to bring any documents?' },
-            { sender: 'jobs@crystal-sugar.test.com', text: 'You can start on Monday. Please bring your TESDA certificate, valid ID, and 2x2 photos. Report to the HR office at 8:00 AM.' },
-            { sender: 'mark.aquino@test.com', text: 'Noted po. I will be there. Thank you!' },
-        ]
+            { sender: 'talent@northpoint-digital.seed.peso-connect.test', text: 'Hi Arianne, your background is aligned with our Junior Full Stack Developer opening. Are you available for a coding assessment on Thursday?' },
+            { sender: 'arianne.villareal@seed.peso-connect.test', text: 'Yes, Thursday works for me. Please send the assessment window and any stack requirements I should prepare for.' },
+            { sender: 'talent@northpoint-digital.seed.peso-connect.test', text: 'Great. We will send the assessment link tomorrow. It covers React, API consumption, and SQL basics.' },
+        ],
     },
     {
-        participants: ['anna.reyes@test.com', 'hr@sancarloscoop.test.com'],
-        job_title: 'Bookkeeper',
+        participants: ['rogelio.paderanga@seed.peso-connect.test', 'careers@sunridge-energy.seed.peso-connect.test'],
+        job_slug: 'solar-installation-technician',
         messages: [
-            { sender: 'hr@sancarloscoop.test.com', text: 'Hi Anna, your application for Bookkeeper has been shortlisted. Are you available for an interview this week?' },
-            { sender: 'anna.reyes@test.com', text: 'Yes po, I am available any day this week. What time works best?' },
-            { sender: 'hr@sancarloscoop.test.com', text: 'How about Wednesday at 2:00 PM at our main office in Brgy. Rizal? Please bring your resume and transcript of records.' },
-        ]
+            { sender: 'careers@sunridge-energy.seed.peso-connect.test', text: 'Good day, Rogelio. We reviewed your solar and electrical credentials. Can you attend a practical trade test this Friday at 8:00 AM?' },
+            { sender: 'rogelio.paderanga@seed.peso-connect.test', text: 'Yes, I can attend on Friday. I will bring my TESDA and safety certificates.' },
+            { sender: 'careers@sunridge-energy.seed.peso-connect.test', text: 'Please report to our Codcod service yard and wear field-safe clothing.' },
+        ],
     },
     {
-        participants: ['rosa.lim@test.com', 'hr@sancarloscoop.test.com'],
-        job_title: 'Loan Officer',
+        participants: ['patricia.lloren@seed.peso-connect.test', 'jobs@harborview-hospitality.seed.peso-connect.test'],
+        job_slug: 'banquet-pastry-chef',
         messages: [
-            { sender: 'hr@sancarloscoop.test.com', text: 'Good day Ms. Lim! You have been shortlisted for the Loan Officer position. Can we schedule an interview?' },
-            { sender: 'rosa.lim@test.com', text: 'Good day! Yes, I would love to. I am available on weekdays after 5 PM since I still have my current job.' },
-        ]
+            { sender: 'jobs@harborview-hospitality.seed.peso-connect.test', text: 'Patricia, we are pleased to confirm your selection for the Banquet Pastry Chef role. Your tasting panel scored highest this cycle.' },
+            { sender: 'patricia.lloren@seed.peso-connect.test', text: 'Thank you. Please share the onboarding date and the documents I should bring on day one.' },
+            { sender: 'jobs@harborview-hospitality.seed.peso-connect.test', text: 'Orientation is on Monday at 9:00 AM. Bring a valid ID, health certificate, and your latest employment records.' },
+        ],
     },
     {
-        participants: ['maria.santos@test.com', 'hiring@greenfields-bpo.test.com'],
-        job_title: 'Customer Service Representative',
+        participants: ['sofia.madamba@seed.peso-connect.test', 'hiring@marketbridge-retail.seed.peso-connect.test'],
+        job_slug: 'ecommerce-catalog-specialist',
         messages: [
-            { sender: 'hiring@greenfields-bpo.test.com', text: 'Hi Maria! We received your application for CSR. Just want to confirm — are you comfortable with night shift schedules?' },
-            { sender: 'maria.santos@test.com', text: 'Hi! Yes, I am willing to work night shifts. I have a flexible schedule since I am freelancing right now.' },
-            { sender: 'hiring@greenfields-bpo.test.com', text: 'Great! We will review your application further and get back to you soon. Thank you!' },
-        ]
+            { sender: 'hiring@marketbridge-retail.seed.peso-connect.test', text: 'Hi Sofia, we like your spreadsheet and virtual catalog experience. Are you comfortable with a hybrid setup after the first month of onsite onboarding?' },
+            { sender: 'sofia.madamba@seed.peso-connect.test', text: 'Yes. I can complete onsite onboarding in San Carlos City and then transition to a hybrid schedule.' },
+            { sender: 'hiring@marketbridge-retail.seed.peso-connect.test', text: 'Noted. We will schedule your next interview with the catalog operations lead this week.' },
+        ],
     },
 ]
 
-// ═══════════════════════════════════════════════════════════════
-// SEEDING LOGIC
-// ═══════════════════════════════════════════════════════════════
+async function waitForPublicUser(userId) {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        const { data, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle()
 
-const PROFILE_TABLE = {
-    jobseeker: 'jobseeker_profiles',
-    employer: 'employer_profiles',
-    homeowner: 'homeowner_profiles',
+        if (error) throw error
+        if (data?.id) return data.id
+        await sleep(300)
+    }
+    throw new Error(`Timed out waiting for public.users row for ${userId}`)
 }
 
-// Map subtype to profile table for user role
-const SUBTYPE_PROFILE_TABLE = {
-    jobseeker: 'jobseeker_profiles',
-    homeowner: 'homeowner_profiles',
-}
-
-async function createUser(email, role, subtype, baseData, profileData) {
-    // 1. Create auth user (triggers handle_new_user which creates public.users row)
+async function createManagedUser(record, role, subtype = null) {
     const metadata = { role }
     if (subtype) metadata.subtype = subtype
+
+    let userId = null
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
+        email: record.email,
         password: PASSWORD,
         email_confirm: true,
         user_metadata: metadata,
     })
 
     if (authError) {
-        // If user already exists, look up their ID so we can still wire FKs
         if (authError.message?.includes('already been registered')) {
             const { data: existing } = await supabase
                 .from('users')
                 .select('id')
-                .eq('email', email)
+                .eq('email', record.email)
                 .maybeSingle()
-            return existing?.id || null
+            if (existing?.id) {
+                userId = existing.id
+            } else {
+                throw new Error(`Auth user already exists for ${record.email}, but no public.users row was found.`)
+            }
+        } else {
+            throw authError
         }
-        throw authError
+    } else {
+        userId = authData.user.id
     }
 
-    const userId = authData.user.id
+    await waitForPublicUser(userId)
 
-    // 2. Wait briefly for the trigger to create public.users row
-    await new Promise(r => setTimeout(r, 500))
+    const baseUpdate = {
+        ...record.base,
+        role,
+        subtype,
+        updated_at: NOW_ISO(),
+    }
 
-    // 3. Update public.users with base data
-    const updateData = { ...baseData, role }
-    if (subtype) updateData.subtype = subtype
     const { error: baseError } = await supabase
         .from('users')
-        .update(updateData)
+        .update(baseUpdate)
         .eq('id', userId)
-    if (baseError) console.warn(`  WARN: base update failed for ${email}: ${baseError.message}`)
 
-    // 4. Upsert role-specific profile
-    const profileTable = role === 'user' ? SUBTYPE_PROFILE_TABLE[subtype] : PROFILE_TABLE[role]
-    if (profileTable && Object.keys(profileData).length > 0) {
-        const { error: profileError } = await supabase
-            .from(profileTable)
-            .upsert({
-                id: userId,
-                ...profileData,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'id' })
-        if (profileError) console.warn(`  WARN: profile upsert failed for ${email}: ${profileError.message}`)
-    }
+    if (baseError) throw baseError
+
+    const profileTable = role === 'employer' ? 'employer_profiles' : 'jobseeker_profiles'
+    const { error: profileError } = await supabase
+        .from(profileTable)
+        .upsert({
+            id: userId,
+            ...record.profile,
+            updated_at: NOW_ISO(),
+        }, { onConflict: 'id' })
+
+    if (profileError) throw profileError
 
     return userId
 }
 
-function getNameByEmail(email) {
-    const allUsers = [...jobseekers, ...diagnosticJobseekers, ...homeowners]
-    const found = allUsers.find(u => u.email === email)
-    if (found) return found.profile?.full_name || found.base?.name || ''
-    const emp = employers.find(e => e.email === email)
-    return emp?.profile?.company_name || emp?.base?.name || ''
+function getDisplayNameByEmail(email) {
+    const jobseeker = jobseekers.find((record) => record.email === email)
+    if (jobseeker) return jobseeker.profile.full_name
+    const employer = employers.find((record) => record.email === email)
+    if (employer) return employer.profile.company_name
+    return email
+}
+
+function buildJobInsertPayload(job, employerId) {
+    return {
+        employer_id: employerId,
+        employer_name: getDisplayNameByEmail(job.employer_email),
+        title: job.title,
+        category: job.category,
+        type: job.type,
+        work_arrangement: job.work_arrangement,
+        work_province: job.work_province,
+        work_city: job.work_city,
+        location: `${job.work_city}, ${job.work_province}`,
+        vacancies: job.vacancies,
+        job_summary: job.job_summary,
+        key_responsibilities: job.key_responsibilities,
+        description: combineDescription(job.job_summary, job.key_responsibilities),
+        salary_range: `PHP ${job.salary_min.toLocaleString()} - PHP ${job.salary_max.toLocaleString()}`,
+        salary_min: job.salary_min,
+        salary_max: job.salary_max,
+        benefits: job.benefits,
+        education_level: job.education_level,
+        course_strand: job.course_strand,
+        experience_level: job.experience_level,
+        requirements: job.required_skills,
+        required_skills: job.required_skills,
+        preferred_skills: job.preferred_skills,
+        required_languages: job.required_languages,
+        licenses_certifications: job.licenses_certifications || null,
+        required_licenses: job.required_licenses,
+        accepts_pwd: job.accepts_pwd,
+        pwd_disabilities: job.accepts_pwd ? job.pwd_disabilities : [],
+        accepts_ofw: job.accepts_ofw,
+        other_qualifications: job.other_qualifications,
+        education_is_required: job.filter_mode === 'strict' && job.education_level !== 'none',
+        languages_are_required: job.filter_mode === 'strict' && job.required_languages.length > 0,
+        licenses_are_required: job.filter_mode === 'strict' && job.required_licenses.length > 0,
+        hard_filters_source: 'employer',
+        hard_filters_updated_at: NOW_ISO(),
+        filter_mode: job.filter_mode,
+        ai_matching_enabled: true,
+        deadline: daysFromNow(45),
+        status: job.status,
+    }
+}
+
+async function resetManagedDummyData() {
+    const { data: allUsers, error: usersError } = await supabase
+        .from('users')
+        .select('id, email, role, subtype')
+
+    if (usersError) throw usersError
+
+    const employerEmailSet = new Set(employers.map((record) => record.email))
+    const jobseekerEmailSet = new Set(jobseekers.map((record) => record.email))
+    const managedUsers = (allUsers || [])
+        .filter((row) => isManagedDummyEmail(row.email))
+
+    if (managedUsers.length === 0) {
+        console.log('No managed dummy employers or jobseekers found.')
+        return {
+            removedUsers: 0,
+            removedConversations: 0,
+            removedMessages: 0,
+            removedJobs: 0,
+            removedApplications: 0,
+        }
+    }
+
+    const employerIds = managedUsers
+        .filter((row) => row.role === 'employer' || employerEmailSet.has(row.email))
+        .map((row) => row.id)
+    const jobseekerIds = managedUsers
+        .filter((row) => (row.role === 'user' && row.subtype === 'jobseeker') || jobseekerEmailSet.has(row.email))
+        .map((row) => row.id)
+    const userIds = managedUsers.map((row) => row.id)
+    const userIdSet = new Set(userIds)
+
+    let jobIds = []
+    if (employerIds.length > 0) {
+        const { data: managedJobs, error: managedJobsError } = await supabase
+            .from('job_postings')
+            .select('id')
+            .in('employer_id', employerIds)
+
+        if (managedJobsError) throw managedJobsError
+        jobIds = (managedJobs || []).map((row) => row.id)
+    }
+
+    const { data: conversations, error: conversationFetchError } = await supabase
+        .from('conversations')
+        .select('id, participants')
+
+    if (conversationFetchError) throw conversationFetchError
+
+    const conversationIds = (conversations || [])
+        .filter((conversation) =>
+            Array.isArray(conversation.participants)
+            && conversation.participants.some((participantId) => userIdSet.has(participantId)))
+        .map((conversation) => conversation.id)
+
+    let removedMessages = 0
+    if (conversationIds.length > 0) {
+        const { data, error: messageDeleteError } = await supabase
+            .from('messages')
+            .delete()
+            .in('conversation_id', conversationIds)
+            .select('id')
+        if (messageDeleteError) throw messageDeleteError
+        if (data) {
+            removedMessages = data.length
+            console.log(`Removed managed messages: ${removedMessages}`)
+        }
+    }
+
+    if (conversationIds.length > 0) {
+        const { error: conversationDeleteError } = await supabase
+            .from('conversations')
+            .delete()
+            .in('id', conversationIds)
+        if (conversationDeleteError) throw conversationDeleteError
+    }
+
+    let removedApplications = 0
+    if (jobIds.length > 0 || jobseekerIds.length > 0) {
+        const applicationFilters = []
+
+        if (jobIds.length > 0) {
+            applicationFilters.push(supabase.from('applications').delete().in('job_id', jobIds).select('id'))
+        }
+        if (jobseekerIds.length > 0) {
+            applicationFilters.push(supabase.from('applications').delete().in('user_id', jobseekerIds).select('id'))
+        }
+
+        for (const request of applicationFilters) {
+            const { data, error } = await request
+            if (error) throw error
+            removedApplications += data?.length || 0
+        }
+    }
+
+    if (jobIds.length > 0) {
+        const cleanupTables = [
+            { table: 'saved_jobs', column: 'job_id' },
+            { table: 'match_scores_cache', column: 'job_id' },
+            { table: 'job_embeddings', column: 'job_id' },
+        ]
+
+        for (const cleanup of cleanupTables) {
+            const { error } = await supabase
+                .from(cleanup.table)
+                .delete()
+                .in(cleanup.column, jobIds)
+            if (error) throw error
+        }
+
+        const { error: jobDeleteError } = await supabase
+            .from('job_postings')
+            .delete()
+            .in('id', jobIds)
+        if (jobDeleteError) throw jobDeleteError
+    }
+
+    if (jobseekerIds.length > 0) {
+        const seekerCleanupTables = [
+            { table: 'saved_jobs', column: 'user_id' },
+            { table: 'match_scores_cache', column: 'user_id' },
+            { table: 'profile_embeddings', column: 'user_id' },
+        ]
+
+        for (const cleanup of seekerCleanupTables) {
+            const { error } = await supabase
+                .from(cleanup.table)
+                .delete()
+                .in(cleanup.column, jobseekerIds)
+            if (error) throw error
+        }
+    }
+
+    for (const row of managedUsers) {
+        const { error } = await supabase.auth.admin.deleteUser(row.id)
+        if (error && !error.message?.toLowerCase().includes('not found')) {
+            throw error
+        }
+    }
+
+    const { error: publicDeleteError } = await supabase
+        .from('users')
+        .delete()
+        .in('id', userIds)
+
+    if (publicDeleteError) throw publicDeleteError
+
+    return {
+        removedUsers: managedUsers.length,
+        removedConversations: conversationIds.length,
+        removedMessages,
+        removedJobs: jobIds.length,
+        removedApplications,
+    }
 }
 
 async function seed() {
-    console.log('=== PESO-Connect Seed Script ===\n')
+    console.log('=== PESO-Connect system test data rebuild ===')
     console.log(`Target: ${supabaseUrl}`)
-    console.log(`Password for all users: ${PASSWORD}\n`)
+    console.log(`Shared password: ${PASSWORD}\n`)
 
-    let created = 0
-    let skipped = 0
-    const userIdByEmail = {} // track user IDs for FK wiring
+    console.log('--- Reset managed dummy data ---')
+    const resetSummary = await resetManagedDummyData()
+    console.log(`Removed users: ${resetSummary.removedUsers}`)
+    console.log(`Removed conversations: ${resetSummary.removedConversations}`)
+    console.log(`Removed messages: ${resetSummary.removedMessages}`)
+    console.log(`Removed applications: ${resetSummary.removedApplications}`)
+    console.log(`Removed jobs: ${resetSummary.removedJobs}\n`)
 
-    // Helper to seed a group of users
-    async function seedGroup(label, list, role, subtype = null) {
-        console.log(`--- ${label} ---`)
-        for (const u of list) {
-            try {
-                const id = await createUser(u.email, role, subtype, u.base, u.profile)
-                if (id) {
-                    userIdByEmail[u.email] = id
-                    console.log(`  OK ${u.email} (${id})`)
-                    created++
-                } else {
-                    skipped++
-                }
-            } catch (err) {
-                console.error(`  FAIL ${u.email}: ${err.message}`)
-            }
-        }
+    const userIdByEmail = {}
+
+    console.log('--- Seed employers ---')
+    for (const employer of employers) {
+        const id = await createManagedUser(employer, 'employer')
+        userIdByEmail[employer.email] = id
+        console.log(`OK employer ${employer.email} (${id})`)
     }
 
-    // Seed users
-    await seedGroup('Jobseekers', jobseekers, 'user', 'jobseeker')
-    console.log()
-    await seedGroup('Employers', employers, 'employer')
-    console.log()
-    await seedGroup('Homeowners', homeowners, 'user', 'homeowner')
-    console.log()
-    await seedGroup('Diagnostic Test Jobseekers', diagnosticJobseekers, 'user', 'jobseeker')
+    console.log('\n--- Seed jobseekers ---')
+    for (const jobseeker of jobseekers) {
+        const id = await createManagedUser(jobseeker, 'user', 'jobseeker')
+        userIdByEmail[jobseeker.email] = id
+        console.log(`OK jobseeker ${jobseeker.email} (${id})`)
+    }
 
-    // ─── Job Postings ───
-    console.log('\n--- Job Postings ---')
-    const jobIdByTitle = {}
+    console.log('\n--- Seed job postings ---')
+    const jobIdBySlug = {}
     for (const job of jobPostings) {
         const employerId = userIdByEmail[job.employer_email]
         if (!employerId) {
-            console.log(`  SKIP "${job.title}" — employer ${job.employer_email} not found`)
-            continue
+            throw new Error(`Employer not seeded for job ${job.slug}: ${job.employer_email}`)
         }
-
-        const employerName = getNameByEmail(job.employer_email)
 
         const { data, error } = await supabase
             .from('job_postings')
-            .insert({
-                employer_id: employerId,
-                employer_name: employerName,
-                title: job.title,
-                description: job.description,
-                category: job.category,
-                type: job.type,
-                location: job.location,
-                salary_min: job.salary_min,
-                salary_max: job.salary_max,
-                salary_range: `${job.salary_min}-${job.salary_max}`,
-                experience_level: job.experience_level,
-                vacancies: job.vacancies,
-                requirements: job.requirements,
-                education_level: job.education_level,
-                deadline: job.deadline || null,
-                status: job.status,
-            })
+            .insert(buildJobInsertPayload(job, employerId))
             .select('id')
             .single()
 
-        if (error) {
-            console.warn(`  WARN "${job.title}": ${error.message}`)
-        } else {
-            jobIdByTitle[job.title] = data.id
-            console.log(`  OK "${job.title}" (${data.id})`)
-        }
+        if (error) throw error
+        jobIdBySlug[job.slug] = data.id
+        console.log(`OK job ${job.slug} (${data.id})`)
     }
 
-    // ─── Applications ───
-    console.log('\n--- Applications ---')
-    for (const app of seedApplications) {
-        const userId = userIdByEmail[app.applicant_email]
-        const jobId = jobIdByTitle[app.job_title]
-        if (!userId || !jobId) {
-            console.log(`  SKIP ${app.applicant_email} -> "${app.job_title}" — missing user or job`)
-            continue
-        }
+    console.log('\n--- Seed applications ---')
+    const applicationCountByJobId = new Map()
+    for (const application of seedApplications) {
+        const userId = userIdByEmail[application.applicant_email]
+        const jobId = jobIdBySlug[application.job_slug]
+        const applicantRecord = jobseekers.find((record) => record.email === application.applicant_email)
+        const jobRecord = jobPostings.find((record) => record.slug === application.job_slug)
 
-        const allJobseekers = [...jobseekers, ...diagnosticJobseekers]
-        const applicant = allJobseekers.find(js => js.email === app.applicant_email)
+        if (!userId || !jobId || !applicantRecord || !jobRecord) {
+            throw new Error(`Invalid application seed: ${JSON.stringify(application)}`)
+        }
 
         const { error } = await supabase
             .from('applications')
-            .upsert({
+            .insert({
                 job_id: jobId,
-                job_title: app.job_title,
+                job_title: jobRecord.title,
                 user_id: userId,
-                applicant_name: applicant?.profile?.full_name || applicant?.base?.name || '',
-                applicant_email: app.applicant_email,
-                applicant_skills: applicant?.profile?.skills || [],
-                status: app.status,
-            }, { onConflict: 'job_id,user_id' })
+                applicant_name: applicantRecord.profile.full_name,
+                applicant_email: application.applicant_email,
+                applicant_skills: [...applicantRecord.profile.predefined_skills, ...applicantRecord.profile.skills],
+                resume_url: applicantRecord.profile.resume_url,
+                status: application.status,
+                justification_text: jobRecord.filter_mode === 'flexible' ? 'Seeded for matching QA benchmark.' : null,
+                created_at: isoOffsetFromNow({ days: -4, minutes: applicationCountByJobId.size * 18 }),
+                updated_at: NOW_ISO(),
+            })
 
-        if (error) {
-            console.warn(`  WARN ${app.applicant_email} -> "${app.job_title}": ${error.message}`)
-        } else {
-            console.log(`  OK ${app.applicant_email} -> "${app.job_title}" (${app.status})`)
-        }
+        if (error) throw error
+        applicationCountByJobId.set(jobId, (applicationCountByJobId.get(jobId) || 0) + 1)
+        console.log(`OK application ${application.applicant_email} -> ${application.job_slug} (${application.status})`)
     }
 
-    // ─── Conversations & Messages ───
-    console.log('\n--- Conversations ---')
-    for (const convo of seedConversations) {
-        const [email1, email2] = convo.participants
-        const uid1 = userIdByEmail[email1]
-        const uid2 = userIdByEmail[email2]
-        if (!uid1 || !uid2) {
-            console.log(`  SKIP ${email1} <-> ${email2} — missing user(s)`)
-            continue
+    for (const [jobId, count] of applicationCountByJobId.entries()) {
+        const { error } = await supabase
+            .from('job_postings')
+            .update({ applications_count: count, updated_at: NOW_ISO() })
+            .eq('id', jobId)
+        if (error) throw error
+    }
+
+    console.log('\n--- Seed conversations ---')
+    for (let convoIndex = 0; convoIndex < seedConversations.length; convoIndex += 1) {
+        const convo = seedConversations[convoIndex]
+        const participantIds = convo.participants.map((email) => userIdByEmail[email])
+        if (participantIds.some((id) => !id)) {
+            throw new Error(`Missing participant in conversation ${convo.job_slug}`)
         }
 
-        // Conversation ID: sorted UIDs
-        const sortedUids = [uid1, uid2].sort()
-        const convoId = `${sortedUids[0]}_${sortedUids[1]}`
+        const sortedParticipantIds = [...participantIds].sort()
+        const conversationId = `${sortedParticipantIds[0]}_${sortedParticipantIds[1]}`
+        const participantInfo = Object.fromEntries(
+            convo.participants.map((email) => [
+                userIdByEmail[email],
+                { name: getDisplayNameByEmail(email), email },
+            ])
+        )
 
-        const participantInfo = {
-            [uid1]: { name: getNameByEmail(email1), email: email1 },
-            [uid2]: { name: getNameByEmail(email2), email: email2 },
-        }
+        const lastMessage = convo.messages[convo.messages.length - 1]
+        const lastSenderId = userIdByEmail[lastMessage.sender]
+        const baseTimestamp = isoOffsetFromNow({ days: -2 + convoIndex, minutes: -10 * convo.messages.length })
 
-        const jobId = convo.job_title ? (jobIdByTitle[convo.job_title] || null) : null
-        const lastMsg = convo.messages[convo.messages.length - 1]
-        const lastSenderId = userIdByEmail[lastMsg.sender]
-
-        const { error: convoError } = await supabase
+        const { error: conversationError } = await supabase
             .from('conversations')
-            .upsert({
-                id: convoId,
-                participants: sortedUids,
+            .insert({
+                id: conversationId,
+                participants: sortedParticipantIds,
                 participant_info: participantInfo,
                 last_message: {
-                    text: lastMsg.text,
+                    text: lastMessage.text,
                     sender_id: lastSenderId,
-                    created_at: new Date().toISOString(),
+                    created_at: baseTimestamp,
                 },
                 unread_count: {
-                    [uid1]: lastMsg.sender === email1 ? 0 : 1,
-                    [uid2]: lastMsg.sender === email2 ? 0 : 1,
+                    [sortedParticipantIds[0]]: lastSenderId === sortedParticipantIds[0] ? 0 : 1,
+                    [sortedParticipantIds[1]]: lastSenderId === sortedParticipantIds[1] ? 0 : 1,
                 },
-                job_id: jobId,
-                job_title: convo.job_title || null,
-            }, { onConflict: 'id' })
+                job_id: jobIdBySlug[convo.job_slug] || null,
+                job_title: (jobPostings.find((job) => job.slug === convo.job_slug) || {}).title || null,
+                created_at: baseTimestamp,
+                updated_at: NOW_ISO(),
+            })
 
-        if (convoError) {
-            console.warn(`  WARN convo ${email1} <-> ${email2}: ${convoError.message}`)
-            continue
-        }
-        console.log(`  OK convo ${email1} <-> ${email2}`)
+        if (conversationError) throw conversationError
 
-        // Seed messages with staggered timestamps
-        const baseTime = Date.now() - convo.messages.length * 60000
-        for (let i = 0; i < convo.messages.length; i++) {
-            const msg = convo.messages[i]
-            const senderId = userIdByEmail[msg.sender]
-            const otherEmail = convo.participants.find(p => p !== msg.sender)
-            const otherId = userIdByEmail[otherEmail]
-
-            const { error: msgError } = await supabase
+        for (let index = 0; index < convo.messages.length; index += 1) {
+            const message = convo.messages[index]
+            const senderId = userIdByEmail[message.sender]
+            const createdAt = isoOffsetFromNow({ days: -2 + convoIndex, minutes: -(convo.messages.length - index) * 5 })
+            const { error: messageError } = await supabase
                 .from('messages')
                 .insert({
-                    conversation_id: convoId,
-                    text: msg.text,
+                    conversation_id: conversationId,
+                    text: message.text,
                     sender_id: senderId,
-                    sender_name: getNameByEmail(msg.sender),
-                    read_by: [senderId, otherId].filter(Boolean),
-                    created_at: new Date(baseTime + i * 60000).toISOString(),
+                    sender_name: getDisplayNameByEmail(message.sender),
+                    read_by: sortedParticipantIds,
+                    created_at: createdAt,
                 })
-            if (msgError) console.warn(`    WARN msg #${i + 1}: ${msgError.message}`)
+            if (messageError) throw messageError
         }
+
+        console.log(`OK conversation ${convo.job_slug}`)
     }
 
-    // ─── Summary ───
-    console.log(`\n=== Done: ${created} users created, ${skipped} skipped ===`)
-    console.log(`Jobs: ${Object.keys(jobIdByTitle).length}`)
-    console.log(`\nAll users can log in with password: ${PASSWORD}`)
+    console.log('\n=== Rebuild complete ===')
+    console.log(`Employers: ${employers.length}`)
+    console.log(`Jobseekers: ${jobseekers.length}`)
+    console.log(`Jobs: ${jobPostings.length}`)
+    console.log(`Applications: ${seedApplications.length}`)
+    console.log(`Conversations: ${seedConversations.length}`)
+    console.log('\nBenchmark pairs to validate AI matching:')
+    console.log('- Strong fit: Arianne Villareal <-> Junior Full Stack Developer')
+    console.log('- Strong fit: Rogelio Paderanga <-> Solar Installation Technician')
+    console.log('- Strong fit: Patricia Lloren <-> Banquet Pastry Chef')
+    console.log('- Inclusive fit: Karen Torres <-> E-commerce Catalog Specialist')
+    console.log('- Transferable skills: Sofia Madamba <-> E-commerce Catalog Specialist')
+    console.log('- Overqualified edge: Dante Villasis <-> Retail Operations Supervisor')
+    console.log('- Hard-filter rejection edge: Miguel Soriano <-> Distribution Line Technician')
+    console.log(`\nAll seeded users use password: ${PASSWORD}`)
 }
 
-seed().catch(err => {
-    console.error('Fatal error:', err)
+seed().catch((error) => {
+    console.error('Fatal error:', error)
     process.exit(1)
 })

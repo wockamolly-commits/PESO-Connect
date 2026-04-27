@@ -42,6 +42,50 @@ describe('deterministic scoring parity', () => {
         expect(shared.matchScore).toBe(frontend.matchScore)
         expect(shared.technicalRequirementScore).toBe(frontend.technicalRequirementScore)
         expect(shared.matchingSkills).toEqual(frontend.matchingSkills)
+        expect(shared.relatedSkills).toEqual(frontend.relatedSkills)
+        expect(shared.missingSkills).toEqual(frontend.missingSkills)
+        expect(shared.requiredSkillSummary).toEqual(frontend.requiredSkillSummary)
         expect(shared.skillBreakdown).toEqual(frontend.skillBreakdown)
+    })
+
+    it('keeps field-relevance adjustments aligned between frontend and shared scorer', () => {
+        const relatedJob = {
+            title: 'Junior Full Stack Developer',
+            category: 'Information Technology',
+            requirements: ['React', 'API Development', 'JavaScript'],
+            education_level: '',
+            experience_level: 'entry',
+        }
+        const unrelatedJob = {
+            title: 'Heavy Equipment Operator',
+            category: 'Skilled Trades',
+            requirements: ['TESDA NC II Heavy Equipment Operation', 'Valid driver license'],
+            education_level: '',
+        }
+        const userData = {
+            skills: ['Graphic Design', 'Hardware Troubleshooting'],
+            highest_education: 'College Graduate',
+            course_or_field: 'Bachelor of Science in Computer Science',
+            experience_categories: [],
+            work_experiences: [],
+        }
+
+        const relatedFrontend = calculateFrontendScore(relatedJob, userData)
+        const relatedShared = calculateSharedScore(relatedJob, userData)
+        const unrelatedFrontend = calculateFrontendScore(unrelatedJob, userData)
+        const unrelatedShared = calculateSharedScore(unrelatedJob, userData)
+
+        expect(relatedShared).toMatchObject({
+            matchScore: relatedFrontend.matchScore,
+            educationScore: relatedFrontend.educationScore,
+            fieldAlignmentScore: relatedFrontend.fieldAlignmentScore,
+            fieldAlignmentRelation: relatedFrontend.fieldAlignmentRelation,
+        })
+        expect(unrelatedShared).toMatchObject({
+            matchScore: unrelatedFrontend.matchScore,
+            educationScore: unrelatedFrontend.educationScore,
+            fieldAlignmentScore: unrelatedFrontend.fieldAlignmentScore,
+            fieldAlignmentRelation: unrelatedFrontend.fieldAlignmentRelation,
+        })
     })
 })

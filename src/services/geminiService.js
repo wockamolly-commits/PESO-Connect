@@ -452,7 +452,7 @@ export const deepAnalyzeProfileSkills = async (formData = {}) => {
     const course = formData.course_or_field || ''
     const highestEducation = formData.highest_education || ''
     const vocational = (formData.vocational_training || [])
-        .map(t => [t.course_name, t.skills_acquired].filter(Boolean).join(': '))
+        .map(t => [t.course || t.course_name, t.skills_acquired].filter(Boolean).join(': '))
         .filter(Boolean)
         .join('; ')
     const experiences = (formData.work_experiences || [])

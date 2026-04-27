@@ -135,10 +135,9 @@ const Navbar = () => {
                                         <div className="text-xs text-gray-500 capitalize flex items-center justify-end gap-1 flex-wrap">
                                             {userData?.subtype || userData?.role}
                                             {userData?.is_verified && (
-                                                <span className="inline-block w-2 h-2 bg-green-500 rounded-full" title="Verified"></span>
-                                            )}
-                                            {userData?.is_verified && userData?.profile_modified_since_verification && (
-                                                <PendingReverificationBadge className="scale-90 origin-right" />
+                                                userData?.profile_modified_since_verification
+                                                    ? <PendingReverificationBadge variant="compact" />
+                                                    : <span className="inline-block w-2 h-2 bg-green-500 rounded-full" title="Verified"></span>
                                             )}
                                         </div>
                                     </div>

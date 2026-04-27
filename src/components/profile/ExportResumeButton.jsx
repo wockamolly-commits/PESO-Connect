@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Download, Loader2, AlertTriangle } from 'lucide-react'
+import { buildResumeExportData, normalizeResumeData } from '../../utils/resumeExport'
 
 const FIELD_CHECKS = [
   { key: 'profile_photo', label: 'Profile Photo', check: (v) => !!v },
@@ -14,7 +15,18 @@ const FIELD_CHECKS = [
 ]
 
 function getMissingFields(userData) {
-  return FIELD_CHECKS.filter(({ key, check }) => !check(userData?.[key]))
+  const normalized = normalizeResumeData(userData)
+  const fieldMap = {
+    profile_photo: normalized.profilePhoto,
+    skills: normalized.skills,
+    work_experiences: normalized.workExperiences,
+    highest_education: normalized.education?.highestEducation,
+    certifications: normalized.certifications,
+    languages: normalized.languages,
+    portfolio_url: normalized.portfolioUrl,
+  }
+
+  return FIELD_CHECKS.filter(({ key, check }) => !check(fieldMap[key]))
     .map(({ label }) => label)
 }
 
@@ -23,16 +35,17 @@ function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_')
 }
 
-export default function ExportResumeButton() {
+export default function ExportResumeButton({ resumeData: resumeDataOverride }) {
   const { userData } = useAuth()
   const [generating, setGenerating] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [missingFields, setMissingFields] = useState([])
   const [error, setError] = useState(null)
+  const resumeData = buildResumeExportData(userData, resumeDataOverride)
 
   function handleClick() {
     setError(null)
-    const missing = getMissingFields(userData)
+    const missing = getMissingFields(resumeData)
     if (missing.length > 0) {
       setMissingFields(missing)
       setShowWarning(true)
@@ -48,11 +61,11 @@ export default function ExportResumeButton() {
     try {
       const { pdf } = await import('@react-pdf/renderer')
       const { default: ResumeDocument } = await import('./ResumeDocument')
-      const blob = await pdf(<ResumeDocument userData={userData} />).toBlob()
+      const blob = await pdf(<ResumeDocument userData={resumeData} />).toBlob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${sanitizeFilename(userData?.display_name || userData?.full_name)}_Resume.pdf`
+      link.download = `${sanitizeFilename(resumeData?.full_name || resumeData?.display_name || userData?.display_name)}_Resume.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

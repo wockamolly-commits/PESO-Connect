@@ -413,7 +413,7 @@ const JobListings = () => {
                                                         matchScores[job.id].matchScore >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                                             matchScores[job.id].matchScore >= 40 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                                                                 'bg-gray-50 text-gray-700 border-gray-200'
-                                                    }`} title={`Skills: ${(matchScores[job.id]?.matchingSkills || []).join(', ') || 'None'}`}>
+                                                    }`} title={`Strong matches: ${(matchScores[job.id]?.matchingSkills || []).join(', ') || 'None'} | Transferable: ${(matchScores[job.id]?.relatedSkills || []).join(', ') || 'None'}`}>
                                                     <Sparkles className="w-3 h-3" />
                                                     {matchScores[job.id].matchScore}% Match
                                                 </div>

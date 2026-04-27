@@ -66,6 +66,7 @@ describe('uiMatcher', () => {
             explanation: 'Detailed explanation',
             skillBreakdown: [{ label: 'React', status: 'match' }],
             actionItems: ['Build a portfolio app'],
+            relatedSkills: ['API Development'],
         }
 
         const merged = mergeMatchResult({ fallback, hybrid, detail })
@@ -75,6 +76,7 @@ describe('uiMatcher', () => {
         expect(merged.evidence).toEqual([{ jobValue: 'React', matchMode: 'match' }])
         expect(merged.skillBreakdown).toEqual([{ label: 'React', status: 'match' }])
         expect(merged.actionItems).toEqual(['Build a portfolio app'])
+        expect(merged.relatedSkills).toEqual(['API Development'])
     })
 
     it('derives stable requirement statuses from breakdown, evidence, and gaps', () => {

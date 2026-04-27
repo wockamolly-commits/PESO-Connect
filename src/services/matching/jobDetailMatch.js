@@ -65,7 +65,7 @@ export const getPreferredBonus = (breakdown, preferredSkills = []) => {
         .map(entry => entry.label)
 }
 
-const STATUS_WEIGHT = { match: 1, partial: 0.5, gap: 0 }
+const STATUS_WEIGHT = { match: 1, partial: 0.4, gap: 0 }
 
 const bucketScore = (entries) => {
     if (!entries.length) return null
@@ -75,7 +75,7 @@ const bucketScore = (entries) => {
 
 // Buckets are derived from the authoritative skillBreakdown so the bars
 // can never contradict the per-requirement pill colors shown elsewhere
-// on the page. Status weights: match=1, partial=0.5, gap=0.
+// on the page. Status weights: match=1, partial=0.4, gap=0.
 export const getBucketBreakdown = (match) => {
     const breakdown = asArray(match?.skillBreakdown)
     if (breakdown.length === 0) return []

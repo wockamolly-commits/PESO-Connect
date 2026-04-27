@@ -8,9 +8,10 @@ const mockUserData = {
   full_name: 'Juan Dela Cruz',
   email: 'juan@example.com',
   profile_photo: 'https://example.com/photo.jpg',
+  predefined_skills: ['Computer Literate'],
   skills: ['JavaScript'],
-  work_experiences: [{ company: 'X', position: 'Y', duration: 'Z' }],
-  highest_education: 'College Graduate',
+  work_experiences: [{ company: 'X', position: 'Y', year_started: '2022', year_ended: '2024' }],
+  highest_education: 'Tertiary',
   certifications: ['AWS'],
   languages: [{ language: 'English', proficiency: 'Fluent' }],
   portfolio_url: 'https://juan.dev',
@@ -52,7 +53,7 @@ describe('getMissingFields', () => {
   })
 
   it('detects empty skills array', () => {
-    const data = { ...mockUserData, skills: [] }
+    const data = { ...mockUserData, predefined_skills: [], skills: [] }
     expect(getMissingFields(data)).toContain('Skills')
   })
 
@@ -69,6 +70,11 @@ describe('getMissingFields', () => {
   it('handles null userData', () => {
     const result = getMissingFields(null)
     expect(result.length).toBe(7)
+  })
+
+  it('treats predefined skills as valid resume skills', () => {
+    const data = { ...mockUserData, skills: [], predefined_skills: ['Computer Literate'] }
+    expect(getMissingFields(data)).not.toContain('Skills')
   })
 })
 
@@ -107,5 +113,13 @@ describe('ExportResumeButton', () => {
     // Button should eventually return to normal state after generation
     // The generating state is transient, so we check the button exists
     expect(screen.getByRole('button')).toBeTruthy()
+  })
+
+  it('uses resumeData override when checking completeness', async () => {
+    const user = userEvent.setup()
+    render(<ExportResumeButton resumeData={{ ...mockUserData, skills: [], predefined_skills: [] }} />)
+    await user.click(screen.getByText('Export as Resume'))
+    expect(screen.getByText('Some sections are incomplete')).toBeTruthy()
+    expect(screen.getByText('Skills')).toBeTruthy()
   })
 })

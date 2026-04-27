@@ -252,10 +252,11 @@ describe('geminiService', () => {
       expect(result.matchScore).toBe(100)
       expect(result.matchLevel).toBe('Excellent')
       expect(result.matchingSkills).toEqual(['Plumbing', 'Pipe Fitting'])
+      expect(result.relatedSkills).toEqual([])
       expect(result.missingSkills).toEqual([])
     })
 
-    it('matches via aliases (semantic matching)', () => {
+    it('matches explicit aliases as strong matches', () => {
       const job = { requirements: ['Metal Fabrication'], category: 'trades', education_level: null }
       const userData = {
         skills: [{ name: 'Welding' }],
@@ -266,6 +267,7 @@ describe('geminiService', () => {
       const result = calculateDeterministicScore(job, userData)
       expect(result.matchScore).toBeGreaterThanOrEqual(80)
       expect(result.matchingSkills).toContain('Metal Fabrication')
+      expect(result.relatedSkills).toEqual([])
     })
 
     it('uses word-boundary matching not raw substring', () => {
@@ -278,19 +280,25 @@ describe('geminiService', () => {
       }
       const result = calculateDeterministicScore(job, userData)
       expect(result.matchingSkills).not.toContain('Hospitality Management')
+      expect(result.relatedSkills).not.toContain('Hospitality Management')
     })
 
-    it('returns skillScore=100 when job has no requirements', () => {
+    it('caps low-density jobs at 55 instead of inflating them to 100', () => {
       const job = { requirements: [], category: 'trades', education_level: null }
       const userData = {
-        skills: [{ name: 'Welding' }], skill_aliases: {},
-        experience_categories: ['trades'], highest_education: 'High School Graduate',
+        skills: [{ name: 'Welding' }],
+        skill_aliases: {},
+        experience_categories: ['trades'],
+        highest_education: 'High School Graduate',
       }
       const result = calculateDeterministicScore(job, userData)
-      expect(result.matchScore).toBe(100)
+      expect(result.matchScore).toBe(55)
+      expect(result.matchLevel).toBe('Fair')
+      expect(result.requiredSkillSummary.total).toBe(0)
+      expect(result.scoreComposition.coverageCap).toBe(55)
     })
 
-    it('gives experienceScore=20 when category does not match', () => {
+    it('keeps required-skill matches dominant even when experience support is weak', () => {
       const job = { requirements: ['Cooking'], category: 'hospitality', education_level: null }
       const userData = {
         skills: [{ name: 'Cooking' }],
@@ -300,475 +308,400 @@ describe('geminiService', () => {
       }
       const result = calculateDeterministicScore(job, userData)
       expect(result.experienceScore).toBe(20)
-      expect(result.technicalCompetencyScore).toBe(80)
-      expect(result.matchScore).toBe(90)
+      expect(result.supportScore).toBe(20)
+      expect(result.technicalCompetencyScore).toBe(100)
+      expect(result.matchScore).toBe(84)
       expect(result.matchLevel).toBe('Excellent')
     })
 
-    it('scores education correctly when user is below requirement', () => {
+    it('uses education as support without letting baseline buckets drive the visible score', () => {
       const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
       const userData = {
-        skills: [{ name: 'Plumbing' }], skill_aliases: {},
-        experience_categories: ['trades'], highest_education: 'High School Graduate',
+        skills: [{ name: 'Plumbing' }],
+        skill_aliases: {},
+        experience_categories: ['trades'],
+        highest_education: 'High School Graduate',
       }
       const result = calculateDeterministicScore(job, userData)
-      // diff=2 (college 3 - HS 1) → educationScore=35 → 50+30+7=87
       expect(result.educationScore).toBe(35)
-      expect(result.baselineScore).toBe(68)
-      expect(result.matchScore).toBe(90)
+      expect(result.baselineScore).toBe(18)
+      expect(result.supportScore).toBe(61)
+      expect(result.matchScore).toBe(92)
     })
 
-    it('scores education=80 when user is half-level below', () => {
+    it('treats tertiary students as college undergraduates for education support', () => {
       const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
       const userData = {
-        skills: [{ name: 'Plumbing' }], skill_aliases: {},
-        experience_categories: ['trades'], highest_education: 'College Undergraduate',
-      }
-      const result = calculateDeterministicScore(job, userData)
-      // diff=0.5 (college 3 - undergrad 2.5) → educationScore=80 → 50+30+16=96
-      expect(result.educationScore).toBe(80)
-      expect(result.baselineScore).toBe(90)
-      expect(result.matchScore).toBe(97)
-    })
-
-    it('treats tertiary students as college undergraduates for education scoring', () => {
-      const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
-      const userData = {
-        skills: [{ name: 'Plumbing' }], skill_aliases: {},
+        skills: [{ name: 'Plumbing' }],
+        skill_aliases: {},
         experience_categories: ['trades'],
         highest_education: 'Tertiary',
         currently_in_school: true,
       }
       const result = calculateDeterministicScore(job, userData)
       expect(result.educationScore).toBe(80)
-      expect(result.matchScore).toBe(97)
+      expect(result.matchScore).toBe(98)
     })
 
-    it('handles null skill_aliases gracefully (pre-migration user)', () => {
+    it('handles null skill_aliases gracefully without inflating a 1-of-2 match', () => {
       const job = { requirements: ['Plumbing', 'Electrical'], category: 'trades', education_level: null }
       const userData = {
         skills: [{ name: 'Plumbing' }],
-        skill_aliases: null, experience_categories: null,
+        skill_aliases: null,
+        experience_categories: null,
         highest_education: 'High School Graduate',
       }
       const result = calculateDeterministicScore(job, userData)
       expect(result.technicalRequirementScore).toBe(50)
-      expect(result.matchScore).toBe(72)
-      expect(result.matchLevel).toBe('Good')
+      expect(result.requiredSkillSummary).toEqual(expect.objectContaining({
+        total: 2,
+        exact: 1,
+        partial: 0,
+        related: 0,
+        missing: 1,
+        strongCoverage: 0.5,
+      }))
+      expect(result.matchScore).toBe(40)
+      expect(result.matchLevel).toBe('Fair')
     })
 
     it('handles string skills (not objects)', () => {
       const job = { requirements: ['Welding'], category: 'trades', education_level: null }
       const userData = {
         skills: ['Welding', 'Plumbing'],
-        skill_aliases: null, experience_categories: ['trades'],
+        skill_aliases: null,
+        experience_categories: ['trades'],
         highest_education: 'High School Graduate',
       }
       const result = calculateDeterministicScore(job, userData)
       expect(result.matchingSkills).toContain('Welding')
     })
 
-    it('handles null requirements gracefully', () => {
+    it('caps null requirements jobs the same way as empty requirements', () => {
       const job = { requirements: null, category: 'trades', education_level: null }
       const userData = {
-        skills: [{ name: 'Welding' }], skill_aliases: {},
-        experience_categories: ['trades'], highest_education: 'High School Graduate',
+        skills: [{ name: 'Welding' }],
+        skill_aliases: {},
+        experience_categories: ['trades'],
+        highest_education: 'High School Graduate',
       }
       const result = calculateDeterministicScore(job, userData)
-      expect(result.matchScore).toBe(100)
+      expect(result.matchScore).toBe(55)
+      expect(result.requiredSkillSummary.total).toBe(0)
     })
 
-    it('defaults to ordinal 0 for unknown highest_education', () => {
+    it('falls back to ordinal 0 for unknown highest_education values', () => {
       const job = { requirements: ['Plumbing'], category: 'trades', education_level: 'college' }
       const userData = {
-        skills: [{ name: 'Plumbing' }], skill_aliases: {},
-        experience_categories: ['trades'], highest_education: 'Some Unknown Value',
+        skills: [{ name: 'Plumbing' }],
+        skill_aliases: {},
+        experience_categories: ['trades'],
+        highest_education: 'Some Unknown Value',
       }
       const result = calculateDeterministicScore(job, userData)
-      // diff=3 (college 3 - unknown 0) → educationScore=15 → 50+30+3=83
       expect(result.educationScore).toBe(15)
-      expect(result.baselineScore).toBe(58)
-      expect(result.matchScore).toBe(87)
+      expect(result.baselineScore).toBe(8)
+      expect(result.matchScore).toBe(90)
     })
 
-    describe('hierarchy matching', () => {
-      it('Layer 3 — child skill satisfies parent requirement', () => {
-        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Customer Service' }],
-          skill_aliases: {},
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Communication Skills')
-        expect(result.missingSkills).not.toContain('Communication Skills')
+    describe('transferable skill handling', () => {
+      it('records hierarchy matches as related instead of strong matches', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Problem Solving'], category: 'it', education_level: null },
+          {
+            skills: [{ name: 'Hardware Troubleshooting' }],
+            skill_aliases: {},
+            experience_categories: ['it'],
+            highest_education: 'College Graduate',
+          },
+        )
+
+        expect(result.matchingSkills).toEqual([])
+        expect(result.relatedSkills).toContain('Problem Solving')
+        expect(result.missingSkills).not.toContain('Problem Solving')
       })
 
-      it('Layer 4 — child matched via alias bridges to parent', () => {
-        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Client Support' }],
-          skill_aliases: { 'Client Support': ['Customer Service', 'Help Desk'] },
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Communication Skills')
+      it('records alias-bridged hierarchy matches as related', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Problem Solving'], category: 'it', education_level: null },
+          {
+            skills: [{ name: 'PC Repair' }],
+            skill_aliases: { 'PC Repair': ['Hardware Troubleshooting', 'Computer Troubleshooting'] },
+            experience_categories: ['it'],
+            highest_education: 'College Graduate',
+          },
+        )
+
+        expect(result.matchingSkills).toEqual([])
+        expect(result.relatedSkills).toContain('Problem Solving')
       })
 
-      it('parent does NOT satisfy child requirement (upward only)', () => {
-        const job = { requirements: ['Customer Service'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Communication Skills' }],
-          skill_aliases: {},
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
+      it('does not let parent skills satisfy a more specific child requirement', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Customer Service'], category: 'retail', education_level: null },
+          {
+            skills: [{ name: 'Communication Skills' }],
+            skill_aliases: {},
+            experience_categories: ['retail'],
+            highest_education: 'High School Graduate',
+          },
+        )
+
         expect(result.matchingSkills).not.toContain('Customer Service')
+        expect(result.relatedSkills).not.toContain('Customer Service')
         expect(result.missingSkills).toContain('Customer Service')
       })
 
-      it('non-hierarchy requirement falls through to Layer 1/2 only', () => {
-        const job = { requirements: ['Gardening'], category: 'agriculture', education_level: null }
-        const userData = {
-          skills: [{ name: 'Plumbing' }],
-          skill_aliases: {},
-          experience_categories: ['agriculture'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('Gardening')
+      it('treats built-in synonym-family matches as transferable evidence', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Metal Fabrication'], category: 'trades', education_level: null },
+          {
+            skills: [{ name: 'Welding' }],
+            skill_aliases: {},
+            experience_categories: ['trades'],
+            highest_education: 'High School Graduate',
+          },
+        )
+
+        expect(result.matchingSkills).toEqual([])
+        expect(result.relatedSkills).toContain('Metal Fabrication')
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Metal Fabrication',
+            matchType: 'related',
+            status: 'partial',
+            score: 0.4,
+          }),
+        ]))
       })
 
-      it('non-transitive — grandchild does NOT satisfy grandparent', () => {
-        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Cashiering' }],
-          skill_aliases: {},
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('Communication Skills')
-      })
+      it('gives exact credit to canonicalized variants like data entry/data encoding', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Data Encoding'], category: 'it', education_level: null },
+          {
+            skills: [{ name: 'Data Entry' }],
+            skill_aliases: {},
+            experience_categories: ['it'],
+            highest_education: 'College Graduate',
+          },
+        )
 
-      it('case-insensitive hierarchy lookup', () => {
-        const job = { requirements: ['COMMUNICATION SKILLS'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'customer service' }],
-          skill_aliases: {},
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('COMMUNICATION SKILLS')
-      })
-
-      it('exact match takes precedence over hierarchy (Layer 1 first)', () => {
-        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Communication Skills' }],
-          skill_aliases: {},
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Communication Skills')
-      })
-
-      it('Layer 4 works with null skill_aliases (pre-migration user)', () => {
-        const job = { requirements: ['Communication Skills'], category: 'retail', education_level: null }
-        const userData = {
-          skills: [{ name: 'Customer Service' }],
-          skill_aliases: null,
-          experience_categories: ['retail'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Communication Skills')
-      })
-    })
-
-    describe('built-in synonym matching', () => {
-      it('matches skill via built-in synonym (no AI alias needed)', () => {
-        const job = { requirements: ['Metal Fabrication'], category: 'trades', education_level: null }
-        const userData = {
-          skills: [{ name: 'Welding' }],
-          skill_aliases: {},
-          experience_categories: ['trades'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Metal Fabrication')
-        expect(result.missingSkills).not.toContain('Metal Fabrication')
-      })
-
-      it('matches cooking ↔ food preparation via synonym', () => {
-        const job = { requirements: ['Food Preparation'], category: 'hospitality', education_level: null }
-        const userData = {
-          skills: [{ name: 'Cooking' }],
-          skill_aliases: {},
-          experience_categories: ['hospitality'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Food Preparation')
-      })
-
-      it('matches data entry ↔ data encoding via synonym', () => {
-        const job = { requirements: ['Data Encoding'], category: 'it', education_level: null }
-        const userData = {
-          skills: [{ name: 'Data Entry' }],
-          skill_aliases: {},
-          experience_categories: ['it'],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
         expect(result.matchingSkills).toContain('Data Encoding')
-      })
-
-      it('does not false-positive match unrelated skills via synonyms', () => {
-        const job = { requirements: ['Welding'], category: 'trades', education_level: null }
-        const userData = {
-          skills: [{ name: 'Cooking' }],
-          skill_aliases: {},
-          experience_categories: ['trades'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('Welding')
+        expect(result.relatedSkills).toEqual([])
       })
     })
 
-    describe('adjacent category experience scoring', () => {
-      it('gives partial credit for adjacent categories', () => {
-        const job = { requirements: ['Welding'], category: 'Skilled Trades', education_level: null }
-        const userData = {
-          skills: [{ name: 'Welding' }],
-          skill_aliases: {},
-          experience_categories: ['energy'],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        // Adjacent category (energy→trades) → experienceScore=50
-        // skillScore=100, eduScore=100 → 50+15+20=85
-        expect(result.experienceScore).toBe(50)
-        expect(result.technicalCompetencyScore).toBe(88)
-        expect(result.matchScore).toBe(94)
-      })
+    describe('support and overqualification signals', () => {
+      it('applies adjacent-category support without inflating technical competency', () => {
+        const result = calculateDeterministicScore(
+          { requirements: ['Welding'], category: 'Skilled Trades', education_level: null },
+          {
+            skills: [{ name: 'Welding' }],
+            skill_aliases: {},
+            experience_categories: ['energy'],
+            highest_education: 'High School Graduate',
+          },
+        )
 
-      it('gives lowest experience score for unrelated categories', () => {
-        const job = { requirements: ['Cooking'], category: 'Hospitality', education_level: null }
-        const userData = {
-          skills: [{ name: 'Cooking' }],
-          skill_aliases: {},
-          experience_categories: ['it'],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        // Unrelated category → experienceScore=20 → 50+6+20=76
-        expect(result.experienceScore).toBe(20)
-        expect(result.technicalCompetencyScore).toBe(80)
+        expect(result.experienceScore).toBe(50)
+        expect(result.supportScore).toBe(50)
+        expect(result.technicalCompetencyScore).toBe(100)
         expect(result.matchScore).toBe(90)
       })
-    })
 
-    describe('inferential matching rules', () => {
-      it('infers attention to detail and analytical thinking from programming', () => {
-        const job = {
-          requirements: ['Attention to Detail', 'Analytical Thinking'],
-          category: 'it',
-          education_level: null,
-        }
-        const userData = {
-          skills: ['Programming'],
-          skill_aliases: null,
-          experience_categories: ['it'],
-          highest_education: 'College Graduate',
-        }
+      it('keeps unsupported soft-skill requirements as gaps in deterministic scoring', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Attention to Detail', 'Analytical Thinking'],
+            category: 'it',
+            education_level: null,
+          },
+          {
+            skills: ['Programming'],
+            skill_aliases: null,
+            experience_categories: ['it'],
+            highest_education: 'College Graduate',
+          },
+        )
 
-        const result = calculateDeterministicScore(job, userData)
-
-        expect(result.matchingSkills).toContain('Attention to Detail')
-        expect(result.matchingSkills).toContain('Analytical Thinking')
-        expect(result.inferredSoftSkillScore).toBe(100)
-        expect(result.inferredSoftSkills).toHaveLength(2)
-        expect(result.missingSkills).toEqual([])
+        expect(result.matchingSkills).toEqual([])
+        expect(result.relatedSkills).toEqual([])
+        expect(result.missingSkills).toEqual(['Attention to Detail', 'Analytical Thinking'])
+        expect(result.matchScore).toBe(20)
       })
 
-      it('marks high-tier applicants to low-tier precision roles as High-Precision Candidate', () => {
-        const job = {
-          title: 'Data Entry Clerk',
-          requirements: ['Data Entry', 'Typing Skills', 'Attention to Detail'],
-          category: 'retail',
-          education_level: 'high-school',
-        }
-        const userData = {
-          skills: ['Programming'],
-          skill_aliases: null,
-          experience_categories: ['it'],
-          highest_education: 'College Graduate',
-        }
+      it('limits overqualification transfer to abstract precision requirements instead of concrete admin tasks', () => {
+        const result = calculateDeterministicScore(
+          {
+            title: 'Data Entry Clerk',
+            requirements: ['Data Entry', 'Typing Skills', 'Attention to Detail'],
+            category: 'retail',
+            education_level: 'high-school',
+          },
+          {
+            skills: ['Programming'],
+            skill_aliases: null,
+            experience_categories: ['it'],
+            highest_education: 'College Graduate',
+          },
+        )
 
-        const result = calculateDeterministicScore(job, userData)
-
-        expect(result.missingSkills).toEqual([])
         expect(result.overqualificationSignal?.title).toBe('High-Precision Candidate')
         expect(result.candidateSignals[0]?.type).toBe('High-Precision Candidate')
-        expect(result.rebrandingSuggestions.length).toBeGreaterThan(0)
+        expect(result.matchingSkills).toEqual([])
+        expect(result.relatedSkills).toEqual(['Attention to Detail'])
+        expect(result.missingSkills).toEqual(['Data Entry', 'Typing Skills'])
       })
     })
 
-    describe('education requirements in requirements array', () => {
-      it('should recognize education strings and evaluate against user education, not skills', () => {
-        const job = {
-          requirements: ['Welding', 'High School Graduate'],
-          education_level: 'high-school',
-        }
-        const userData = {
-          skills: [{ name: 'Welding' }],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        // College Graduate exceeds High School Graduate — should NOT be a gap
+    describe('non-skill requirements', () => {
+      it('tracks education requirements in evidence and breakdown instead of matchingSkills', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Welding', 'High School Graduate'],
+            education_level: 'high-school',
+          },
+          {
+            skills: [{ name: 'Welding' }],
+            highest_education: 'College Graduate',
+          },
+        )
+
+        expect(result.matchingSkills).toContain('Welding')
+        expect(result.matchingSkills).not.toContain('High School Graduate')
         expect(result.missingSkills).not.toContain('High School Graduate')
-        expect(result.matchingSkills).toContain('High School Graduate')
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'High School Graduate',
+            kind: 'education',
+            status: 'match',
+            matchType: 'exact',
+          }),
+        ]))
+        expect(result.evidence).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            jobField: 'education',
+            jobValue: 'High School Graduate',
+          }),
+        ]))
+      })
+
+      it('tracks unmet education requirements as gaps instead of missingSkills pills', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Welding', 'College Graduate'],
+            education_level: 'college',
+          },
+          {
+            skills: [{ name: 'Welding' }],
+            highest_education: 'High School Graduate',
+          },
+        )
+
         expect(result.matchingSkills).toContain('Welding')
-      })
-
-      it('should treat "high school graduate or higher" as satisfied by a tertiary student', () => {
-        const job = {
-          requirements: ['Customer Service', 'High school graduate or higher'],
-          education_level: 'high-school',
-        }
-        const userData = {
-          skills: [{ name: 'Customer Service' }],
-          highest_education: 'Tertiary',
-          currently_in_school: true,
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).not.toContain('High school graduate or higher')
-        expect(result.matchingSkills).toContain('High school graduate or higher')
-      })
-
-      it('should mark education as missing when user does not meet it', () => {
-        const job = {
-          requirements: ['Welding', 'College Graduate'],
-          education_level: 'college',
-        }
-        const userData = {
-          skills: [{ name: 'Welding' }],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('College Graduate')
         expect(result.matchingSkills).not.toContain('College Graduate')
+        expect(result.missingSkills).not.toContain('College Graduate')
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'College Graduate',
+            kind: 'education',
+            status: 'gap',
+            matchType: 'gap',
+          }),
+        ]))
+        expect(result.gaps).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            jobField: 'education',
+            jobValue: 'College Graduate',
+          }),
+        ]))
       })
 
-      it('should not misclassify regular skills as education requirements', () => {
-        const job = {
-          requirements: ['Customer Service', 'Driving'],
-        }
-        const userData = {
-          skills: [{ name: 'Customer Service' }, { name: 'Driving' }],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Customer Service')
-        expect(result.matchingSkills).toContain('Driving')
-        expect(result.missingSkills).toHaveLength(0)
-      })
+      it('treats typing speed requirements as strong partial skill matches', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Typing speed 40+ WPM'],
+            category: 'it',
+            education_level: null,
+          },
+          {
+            skills: [{ name: 'Typing Skills' }],
+            skill_aliases: {},
+            experience_categories: ['it'],
+            highest_education: 'College Undergraduate',
+          },
+        )
 
-      it('should treat typing speed requirements as a partial match when the user has typing skills', () => {
-        const job = {
-          requirements: ['Typing speed 40+ WPM'],
-          category: 'it',
-          education_level: null,
-        }
-        const userData = {
-          skills: [{ name: 'Typing Skills' }],
-          skill_aliases: {},
-          experience_categories: ['it'],
-          highest_education: 'College Undergraduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).not.toContain('Typing speed 40+ WPM')
         expect(result.matchingSkills).toContain('Typing speed 40+ WPM')
-        expect(result.skillScore).toBe(70)
+        expect(result.relatedSkills).toEqual([])
+        expect(result.skillScore).toBe(75)
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Typing speed 40+ WPM',
+            kind: 'skill',
+            status: 'match',
+            matchType: 'partial',
+            score: 0.75,
+          }),
+        ]))
       })
-    })
 
-    describe('language requirements in requirements array', () => {
-      it('should recognize language requirements and match against user languages', () => {
-        const job = {
-          requirements: ['Welding', 'Good English Communication'],
-        }
-        const userData = {
-          skills: [{ name: 'Welding' }],
-          languages: [{ language: 'English', proficiency: 'Fluent' }],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).not.toContain('Good English Communication')
-        expect(result.matchingSkills).toContain('Good English Communication')
+      it('tracks matched language requirements through evidence and breakdown', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Welding', 'Good English Communication'],
+          },
+          {
+            skills: [{ name: 'Welding' }],
+            languages: [{ language: 'English', proficiency: 'Fluent' }],
+            highest_education: 'College Graduate',
+          },
+        )
+
         expect(result.matchingSkills).toContain('Welding')
+        expect(result.matchingSkills).not.toContain('Good English Communication')
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Good English Communication',
+            kind: 'language',
+            status: 'match',
+          }),
+        ]))
+        expect(result.evidence).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            jobField: 'language',
+            jobValue: 'Good English Communication',
+          }),
+        ]))
       })
 
-      it('should mark language requirement as missing when user lacks that language', () => {
-        const job = {
-          requirements: ['Fluent English Communication'],
-        }
-        const userData = {
-          skills: [],
-          languages: [{ language: 'Filipino', proficiency: 'Native' }],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('Fluent English Communication')
-      })
+      it('tracks missing language requirements as language gaps', () => {
+        const result = calculateDeterministicScore(
+          {
+            requirements: ['Fluent English Communication'],
+          },
+          {
+            skills: [],
+            languages: [{ language: 'Filipino', proficiency: 'Native' }],
+            highest_education: 'College Graduate',
+          },
+        )
 
-      it('should mark language as missing when proficiency is insufficient', () => {
-        const job = {
-          requirements: ['Fluent English Communication'],
-        }
-        const userData = {
-          skills: [],
-          languages: [{ language: 'English', proficiency: 'Basic' }],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).toContain('Fluent English Communication')
-      })
-
-      it('should match Filipino language requirements', () => {
-        const job = {
-          requirements: ['Filipino Speaking', 'Driving'],
-        }
-        const userData = {
-          skills: [{ name: 'Driving' }],
-          languages: [{ language: 'Filipino', proficiency: 'Native' }],
-          highest_education: 'High School Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.missingSkills).not.toContain('Filipino Speaking')
-        expect(result.matchingSkills).toContain('Filipino Speaking')
-      })
-
-      it('should not misclassify regular skills containing language-adjacent words', () => {
-        const job = {
-          requirements: ['Customer Service', 'Communication Skills'],
-        }
-        const userData = {
-          skills: [{ name: 'Customer Service' }, { name: 'Communication Skills' }],
-          languages: [],
-          highest_education: 'College Graduate',
-        }
-        const result = calculateDeterministicScore(job, userData)
-        expect(result.matchingSkills).toContain('Customer Service')
-        expect(result.matchingSkills).toContain('Communication Skills')
-        expect(result.missingSkills).toHaveLength(0)
+        expect(result.matchingSkills).toEqual([])
+        expect(result.missingSkills).toEqual([])
+        expect(result.skillBreakdown).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Fluent English Communication',
+            kind: 'language',
+            status: 'gap',
+          }),
+        ]))
+        expect(result.gaps).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            jobField: 'language',
+            jobValue: 'Fluent English Communication',
+          }),
+        ]))
       })
     })
   })

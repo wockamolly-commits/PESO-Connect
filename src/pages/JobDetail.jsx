@@ -26,6 +26,35 @@ import { getEmployerDisplayName } from '../utils/employerBranding'
 
 const getAllSkills = (userData) => [...(userData?.predefined_skills || []), ...(userData?.skills || [])]
 
+const normalizeTextKey = (value) => String(value || '').trim().toLowerCase()
+
+const uniqueStrings = (values = []) => {
+    const seen = new Set()
+    return values.filter((value) => {
+        const key = normalizeTextKey(value)
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
+
+const uniqueBy = (values = [], getKey) => {
+    const seen = new Set()
+    return values.filter((value) => {
+        const key = getKey(value)
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
+
+const formatMatchedSkillSource = (label, matchedSkill) => {
+    const normalizedLabel = normalizeTextKey(label)
+    const normalizedMatchedSkill = normalizeTextKey(matchedSkill)
+    if (!normalizedMatchedSkill || normalizedMatchedSkill === normalizedLabel) return label
+    return `${label} (from ${matchedSkill})`
+}
+
 const JobDetail = () => {
     const { id } = useParams()
     const navigate = useNavigate()
@@ -54,11 +83,31 @@ const JobDetail = () => {
         loadExplanation,
     } = useJobDetailMatch({ job, currentUser, userData, isJobseeker })
 
-    const matchingSkills = matchData?.skillBreakdown?.filter(sb => sb.tier === 'required' && sb.status === 'match').map(sb => sb.label) || []
-    const missingSkills = matchData?.skillBreakdown?.filter(sb => sb.tier === 'required' && sb.status === 'gap').map(sb => sb.label) || []
-    const relatedPartials = matchData?.skillBreakdown?.filter(sb => sb.status === 'partial' && sb.matchType === 'related') || []
-    const preferredMatches = matchData?.skillBreakdown?.filter(sb => sb.tier === 'preferred' && sb.status === 'match') || []
-
+    const matchingSkills = uniqueStrings(matchData?.matchingSkills || [])
+    const relatedSkills = uniqueStrings(matchData?.relatedSkills || [])
+    const missingSkills = uniqueStrings(matchData?.missingSkills || [])
+    const strongMatches = uniqueBy(
+        (matchData?.skillBreakdown?.filter(sb =>
+            sb.tier === 'required' && sb.kind === 'skill' && sb.status === 'match',
+        ) || []).map(sb => ({
+            ...sb,
+            supportingSkills: uniqueStrings([...(Array.isArray(sb.supportingSkills) ? sb.supportingSkills : []), sb.matchedSkill].filter(Boolean)),
+            displayLabel: formatMatchedSkillSource(sb.label, sb.matchedSkill),
+        })),
+        (sb) => `${normalizeTextKey(sb?.label)}|${normalizeTextKey(sb?.matchedSkill)}|${normalizeTextKey(sb?.reason)}`,
+    )
+    const relatedPartials = uniqueBy(
+        (matchData?.skillBreakdown?.filter(sb =>
+            sb.tier === 'required' && sb.kind === 'skill' && sb.matchType === 'related',
+        ) || []).map(sb => ({
+            ...sb,
+            supportingSkills: uniqueStrings([...(Array.isArray(sb.supportingSkills) ? sb.supportingSkills : []), sb.matchedSkill].filter(Boolean)),
+        })),
+        (sb) => `${normalizeTextKey(sb?.label)}|${normalizeTextKey(sb?.reason)}|${(sb?.supportingSkills || []).map(normalizeTextKey).join('|')}`,
+    )
+    const preferredMatches = matchData?.skillBreakdown?.filter(sb =>
+        sb.tier === 'preferred' && (sb.status === 'match' || sb.status === 'partial'),
+    ) || []
     useEffect(() => {
         fetchJob()
         if (currentUser) {
@@ -508,7 +557,13 @@ const JobDetail = () => {
                                     <p className="text-sm font-medium text-gray-700 mb-2">Related Skills That Count</p>
                                     <div className="space-y-1.5">
                                         {relatedPartials.map((sb, i) => (
-                                            <p key={i} className="text-xs text-gray-600 leading-relaxed">{sb.reason}</p>
+                                            <div key={i} className="text-xs text-gray-600 leading-relaxed">
+                                                <span className="font-medium text-gray-700">{sb.label}:</span>{' '}
+                                                <span>{sb.reason}</span>
+                                                {sb.supportingSkills?.length > 0 && (
+                                                    <span className="text-gray-500"> Supporting evidence: {sb.supportingSkills.join(', ')}.</span>
+                                                )}
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
@@ -648,6 +703,37 @@ const JobDetail = () => {
                                                 </div>
                                             )}
 
+                                            <div className="pt-3 border-t border-gray-100 space-y-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Score Attribution</p>
+                                                {matchData.scoreAttribution ? (
+                                                    <div className="space-y-2">
+                                                        {[
+                                                            { key: 'exact', label: 'Exact Matches', barClass: 'bg-green-500', textClass: 'text-green-700', data: matchData.scoreAttribution.exact },
+                                                            { key: 'related', label: 'Related / Transferable', barClass: 'bg-yellow-500', textClass: 'text-yellow-700', data: matchData.scoreAttribution.related },
+                                                            { key: 'support', label: 'Education & Experience', barClass: 'bg-blue-500', textClass: 'text-blue-700', data: matchData.scoreAttribution.support },
+                                                            { key: 'missing', label: 'Missing / Gaps', barClass: 'bg-red-400', textClass: 'text-red-700', data: matchData.scoreAttribution.missing },
+                                                        ].map((row) => (
+                                                            <div key={row.key}>
+                                                                <div className="flex items-center justify-between text-xs mb-0.5">
+                                                                    <span className="font-medium text-gray-700">{row.label}</span>
+                                                                    <span className={`font-semibold ${row.textClass}`}>{row.data?.percent ?? 0}%</span>
+                                                                </div>
+                                                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                                    <div className={`h-full ${row.barClass} rounded-full`} style={{ width: `${Math.max(0, Math.min(100, row.data?.percent ?? 0))}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        <p className="text-xs text-gray-500 leading-relaxed pt-1">
+                                                            {matchData.scoreAttribution.exact?.count || 0} exact, {matchData.scoreAttribution.related?.count || 0} related, {matchData.scoreAttribution.missing?.count || 0} missing requirement(s).
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-gray-500 leading-relaxed">
+                                                        Click <span className="font-medium text-gray-700">Explain My Match</span> for a tier-by-tier attribution of your score.
+                                                    </p>
+                                                )}
+                                            </div>
+
                                             {/* Preferred Skills Bonus */}
                                             {matchData.preferredSkillBonus > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
@@ -666,14 +752,45 @@ const JobDetail = () => {
                                                 </div>
                                             )}
 
-                                            {/* Your Strengths */}
+                                            {/* Exact Matches */}
                                             {matchingSkills.length > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Your Strengths</p>
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Exact Matches</p>
                                                     <div className="flex flex-wrap gap-1.5">
-                                                        {matchingSkills.map((skill, i) => (
-                                                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
-                                                                <CheckCircle className="w-2.5 h-2.5" />
+                                                        {(strongMatches.length > 0 ? strongMatches : matchingSkills.map((skill) => ({ label: skill, displayLabel: skill })) ).map((skill, i) => {
+                                                            const isAlias = skill.matchType === 'partial' && skill.matchedSkill && normalizeTextKey(skill.matchedSkill) !== normalizeTextKey(skill.label)
+                                                            return (
+                                                                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">
+                                                                    <CheckCircle className="w-2.5 h-2.5" />
+                                                                    {skill.label || skill.displayLabel}
+                                                                    {isAlias && (
+                                                                        <span className="text-green-600/70 font-normal">via {skill.matchedSkill}</span>
+                                                                    )}
+                                                                </span>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                    {strongMatches.some((skill) => skill.reason) && (
+                                                        <div className="mt-2 space-y-1.5">
+                                                            {strongMatches
+                                                                .filter((skill) => skill.reason)
+                                                                .map((skill, i) => (
+                                                                    <p key={`strength-reason-${i}`} className="text-xs text-gray-600 leading-relaxed">
+                                                                        <span className="font-medium text-gray-700">{skill.displayLabel}:</span> {skill.reason}
+                                                                    </p>
+                                                                ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {relatedSkills.length > 0 && (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Related / Transferable</p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {relatedSkills.map((skill, i) => (
+                                                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded-full text-xs font-medium border border-yellow-200">
+                                                                <Info className="w-2.5 h-2.5" />
                                                                 {skill}
                                                             </span>
                                                         ))}
@@ -681,10 +798,10 @@ const JobDetail = () => {
                                                 </div>
                                             )}
 
-                                            {/* Skill Gaps */}
+                                            {/* Missing / Gaps */}
                                             {missingSkills.length > 0 && (
                                                 <div className="pt-3 border-t border-gray-100">
-                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Skill Gaps</p>
+                                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Missing / Gaps</p>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {missingSkills.map((skill, i) => (
                                                             <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full text-xs font-medium border border-red-200">
@@ -701,14 +818,20 @@ const JobDetail = () => {
                         )}
 
                         {/* Skill Gap Analysis */}
-                        {currentUser && isJobseeker() && matchData && !matchError && (matchingSkills.length > 0 || missingSkills.length > 0) && !hasApplied && (
+                        {currentUser && isJobseeker() && matchData && !matchError && (matchingSkills.length > 0 || relatedSkills.length > 0 || missingSkills.length > 0) && !hasApplied && (
                             <div className="card">
                                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skill Match</h3>
                                 <div className="space-y-2">
-                                    {matchingSkills.map((skill, i) => (
+                                    {(strongMatches.length > 0 ? strongMatches : matchingSkills.map((skill) => ({ label: skill, displayLabel: skill })) ).map((skill, i) => (
                                         <div key={`m-${i}`} className="flex items-center gap-2 text-sm">
                                             <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                            <span className="text-gray-700">{skill}</span>
+                                            <span className="text-gray-700">{skill.displayLabel}</span>
+                                        </div>
+                                    ))}
+                                    {relatedSkills.map((skill, i) => (
+                                        <div key={`r-${i}`} className="flex items-center gap-2 text-sm">
+                                            <Info className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                                            <span className="text-yellow-700">{skill}</span>
                                         </div>
                                     ))}
                                     {missingSkills.map((skill, i) => (
@@ -719,7 +842,7 @@ const JobDetail = () => {
                                     ))}
                                 </div>
                                 <p className="text-xs text-gray-400 mt-3">
-                                    {matchingSkills.length} of {matchingSkills.length + missingSkills.length} requirements matched
+                                    {matchingSkills.length} strong matches, {relatedSkills.length} transferable, {missingSkills.length} missing
                                 </p>
                             </div>
                         )}
