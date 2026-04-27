@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
     calculateDeterministicScore,
+    computeCourseStrandAlignment,
+    computeCourseStrandBonus,
     computeEducationScore,
     computeExperienceScore,
     deduplicateSkills,
@@ -294,8 +296,8 @@ describe('computeEducationScore - field relevance support', () => {
         expect(computeEducationScore(technicalJob, userWithTechField)).toBe(100)
     })
 
-    it('blends level fit with unrelated field alignment for technical jobs', () => {
-        expect(computeEducationScore(technicalJob, userWithUnrelatedField)).toBe(68)
+    it('does not penalise an exact level match even when field is unrelated for technical jobs', () => {
+        expect(computeEducationScore(technicalJob, userWithUnrelatedField)).toBe(100)
     })
 
     it('treats missing course_or_field as unknown instead of forcing a penalty', () => {
@@ -303,8 +305,8 @@ describe('computeEducationScore - field relevance support', () => {
         expect(computeEducationScore(technicalJob, userWithNullField)).toBe(100)
     })
 
-    it('also reduces clearly unrelated nontechnical jobs when the field is clearly different', () => {
-        expect(computeEducationScore(nonTechnicalJob, userWithUnrelatedField)).toBe(68)
+    it('does not penalise an exact level match even for clearly different fields on nontechnical jobs', () => {
+        expect(computeEducationScore(nonTechnicalJob, userWithUnrelatedField)).toBe(100)
     })
 
     it('uses field relevance directly when the job has no explicit education requirement', () => {
@@ -313,12 +315,13 @@ describe('computeEducationScore - field relevance support', () => {
         expect(computeEducationScore(noEducationRequirementTradesJob, userWithTechField)).toBe(20)
     })
 
-    it('still blends underqualification with field relevance instead of ignoring it', () => {
+    it('does not penalise an underqualified candidate further when field is also unrelated', () => {
         const slightlyUnderqualifiedUser = {
             highest_education: 'College Undergraduate',
             course_or_field: 'Tourism Management',
         }
-        expect(computeEducationScore(technicalJob, slightlyUnderqualifiedUser)).toBe(56)
+        // educationScore=80 (diff=0.5), blended=Math.round(80*0.6+20*0.4)=56 → Math.max(80,56)=80
+        expect(computeEducationScore(technicalJob, slightlyUnderqualifiedUser)).toBe(80)
     })
 })
 
@@ -393,5 +396,115 @@ describe('computeExperienceScore - tiered adjacent bonus', () => {
         const score = computeExperienceScore(nonTechnicalJob, userAdjacentCategory)
         expect(typeof score).toBe('number')
         expect(score).toBe(50)
+    })
+})
+
+describe('course strand preferred alignment', () => {
+    const baseJob = {
+        title: 'IT Support Specialist',
+        category: 'Information Technology',
+        description: 'Provide IT support to staff.',
+        requirements: ['Customer Service'],
+        required_skills: ['Customer Service'],
+        preferred_skills: [],
+        experience_level: 'entry',
+        education_level: 'high-school',
+    }
+    const baseUser = {
+        predefined_skills: ['Customer Service'],
+        skills: [],
+        work_experiences: [],
+        highest_education: 'High School Graduate',
+        course_or_field: 'Information Technology',
+    }
+
+    it('returns not-applicable when job.course_strand is empty', () => {
+        const a = computeCourseStrandAlignment({ course_strand: '' }, baseUser)
+        expect(a.applicable).toBe(false)
+        expect(computeCourseStrandBonus(a)).toBe(0)
+    })
+
+    it('returns not-applicable when user.course_or_field is empty', () => {
+        const a = computeCourseStrandAlignment({ course_strand: 'ICT, ABM, or related track' }, { ...baseUser, course_or_field: '' })
+        expect(a.applicable).toBe(false)
+        expect(computeCourseStrandBonus(a)).toBe(0)
+    })
+
+    it('flags aligned families and yields a positive bonus', () => {
+        const a = computeCourseStrandAlignment(
+            { course_strand: 'ICT, ABM, or related track' },
+            { course_or_field: 'Information Technology' },
+        )
+        expect(a.applicable).toBe(true)
+        expect(a.relation).toBe('aligned')
+        expect(computeCourseStrandBonus(a)).toBe(3)
+    })
+
+    it('flags unrelated strand without yielding a penalty', () => {
+        const a = computeCourseStrandAlignment(
+            { course_strand: 'Hospitality or culinary arts' },
+            { course_or_field: 'Information Technology' },
+        )
+        expect(a.applicable).toBe(true)
+        expect(a.relation).toBe('unrelated')
+        expect(computeCourseStrandBonus(a)).toBe(0)
+    })
+
+    it('boosts matchScore when strand aligns with candidate field', () => {
+        // Use a job whose required-skill coverage is weak so the +3 bonus is observable
+        // (a fully-covered job would already sit at the coverage cap).
+        const partialJob = {
+            ...baseJob,
+            requirements: ['Customer Service', 'Network Administration', 'SQL'],
+            required_skills: ['Customer Service', 'Network Administration', 'SQL'],
+        }
+        const aligned = calculateDeterministicScore(
+            { ...partialJob, course_strand: 'ICT, ABM, or related track' },
+            baseUser,
+        )
+        const baseline = calculateDeterministicScore(
+            { ...partialJob, course_strand: '' },
+            baseUser,
+        )
+        expect(aligned.matchScore).toBeGreaterThan(baseline.matchScore)
+        expect(aligned.preferredAlignmentBonus).toBe(3)
+        expect(aligned.evidence.some((e) => e.type === 'course_strand_preferred_match')).toBe(true)
+    })
+
+    it('does not penalize when candidate has no course_or_field', () => {
+        const noField = { ...baseUser, course_or_field: '' }
+        const withStrand = calculateDeterministicScore(
+            { ...baseJob, course_strand: 'ICT, ABM, or related track' },
+            noField,
+        )
+        const noStrand = calculateDeterministicScore(
+            { ...baseJob, course_strand: '' },
+            noField,
+        )
+        expect(withStrand.matchScore).toBe(noStrand.matchScore)
+        expect(withStrand.evidence.some((e) => e.type === 'course_strand_preferred_match')).toBe(false)
+        expect(withStrand.gaps.some((g) => g.jobField === 'course_strand')).toBe(false)
+    })
+
+    it('does not penalize when strand is unrelated to candidate field', () => {
+        const userIT = { ...baseUser, course_or_field: 'Information Technology' }
+        const unrelated = calculateDeterministicScore(
+            { ...baseJob, course_strand: 'Hospitality or culinary arts' },
+            userIT,
+        )
+        const noStrand = calculateDeterministicScore(
+            { ...baseJob, course_strand: '' },
+            userIT,
+        )
+        expect(unrelated.matchScore).toBeGreaterThanOrEqual(noStrand.matchScore)
+        expect(unrelated.evidence.some((e) => e.type === 'course_strand_preferred_match')).toBe(false)
+    })
+
+    it('keeps total preferred uplift bounded by coverage cap', () => {
+        const result = calculateDeterministicScore(
+            { ...baseJob, course_strand: 'ICT, ABM, or related track' },
+            baseUser,
+        )
+        expect(result.matchScore).toBeLessThanOrEqual(result.scoreComposition.coverageCap)
     })
 })

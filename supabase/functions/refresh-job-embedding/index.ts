@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: job, error } = await supabase
       .from('job_postings')
-      .select('id, title, category, description, requirements, required_skills, experience_level, education_level, type, location')
+      .select('id, title, category, description, requirements, required_skills, experience_level, education_level, type, location, course_strand')
       .eq('id', jobId)
       .maybeSingle()
 

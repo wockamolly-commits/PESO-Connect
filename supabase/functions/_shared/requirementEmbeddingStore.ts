@@ -1,7 +1,7 @@
-import { embedTexts, type CohereInputType } from './cohere.ts'
+import { embedTexts, type VoyageInputType as CohereInputType } from './voyage.ts'
 import { sha256 } from './hash.ts'
 
-const COHERE_BATCH_LIMIT = 96
+const COHERE_BATCH_LIMIT = 128
 
 // Content hash must include model + input_type so we never serve a
 // search_document vector where search_query was requested (or vice
@@ -44,7 +44,7 @@ type SupabaseLike = {
 export const getOrCreateRequirementEmbeddings = async (
   supabase: SupabaseLike,
   normalizedTexts: string[],
-  inputType: CohereInputType = 'search_query',
+  inputType: CohereInputType = 'query',
 ): Promise<{
   map: Map<string, number[]>
   stats: { requested: number; hits: number; misses: number }

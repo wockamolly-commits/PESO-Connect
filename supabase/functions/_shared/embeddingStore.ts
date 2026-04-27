@@ -1,4 +1,4 @@
-import { embedTexts } from './cohere.ts'
+import { embedTexts } from './voyage.ts'
 import { sha256 } from './hash.ts'
 import { buildJobText, buildProfileText } from './matchingText.ts'
 
@@ -48,7 +48,7 @@ export const ensureJobEmbedding = async (
     }
   }
 
-  const { embeddings, model, dimension } = await embedTexts([sourceText], 'search_document')
+  const { embeddings, model, dimension } = await embedTexts([sourceText], 'document')
   const embedding = embeddings[0]
 
   const { error: upsertError } = await supabase
@@ -115,7 +115,7 @@ export const ensureProfileEmbedding = async (
     }
   }
 
-  const { embeddings, model, dimension } = await embedTexts([sourceText], 'search_document')
+  const { embeddings, model, dimension } = await embedTexts([sourceText], 'document')
   const embedding = embeddings[0]
 
   const { error: upsertError } = await supabase

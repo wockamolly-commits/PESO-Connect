@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     const { data: profile, error } = await supabase
       .from('jobseeker_profiles')
-      .select('id, user_id, predefined_skills, skills, work_experiences, highest_education, course_or_field, preferred_occupations, preferred_job_type, preferred_local_locations, preferred_overseas_locations, experience_categories, languages, certifications, professional_licenses, vocational_training, portfolio_url, employment_status, willing_to_relocate, expected_salary_min, expected_salary_max')
+      .select('id, predefined_skills, skills, work_experiences, highest_education, course_or_field, preferred_occupations, preferred_job_type, preferred_local_locations, preferred_overseas_locations, experience_categories, languages, certifications, professional_licenses, vocational_training, portfolio_url, employment_status, willing_to_relocate, expected_salary_min, expected_salary_max')
       .eq('id', userId)
       .maybeSingle()
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Profile not found' }, { status: 404 })
     }
 
-    const ensured = await ensureProfileEmbedding(supabase as never, profile as unknown as Record<string, unknown>)
+    const ensured = await ensureProfileEmbedding(supabase as never, { ...profile, user_id: profile.id } as unknown as Record<string, unknown>)
 
     return jsonResponse({
       userId,

@@ -88,4 +88,29 @@ describe('deterministic scoring parity', () => {
             fieldAlignmentRelation: unrelatedFrontend.fieldAlignmentRelation,
         })
     })
+
+    it('keeps course_strand preferred-alignment bonus aligned between scorers', () => {
+        const job = {
+            title: 'IT Support Specialist',
+            category: 'Information Technology',
+            requirements: ['Customer Service'],
+            experience_level: 'entry',
+            education_level: 'high-school',
+            course_strand: 'ICT, ABM, or related track',
+        }
+        const userData = {
+            skills: ['Customer Service'],
+            highest_education: 'High School Graduate',
+            course_or_field: 'Information Technology',
+            work_experiences: [],
+            experience_categories: [],
+        }
+
+        const frontend = calculateFrontendScore(job, userData)
+        const shared = calculateSharedScore(job, userData)
+
+        expect(shared.matchScore).toBe(frontend.matchScore)
+        expect(shared.preferredAlignmentBonus).toBe(frontend.preferredAlignmentBonus)
+        expect(shared.courseStrandAlignment.relation).toBe(frontend.courseStrandAlignment.relation)
+    })
 })

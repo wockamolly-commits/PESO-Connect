@@ -28,7 +28,7 @@ import {
     TrendingUp,
     Brain,
 } from 'lucide-react'
-import { deepAnalyzeJobRequirements } from '../../services/geminiService'
+import { deepAnalyzeJobRequirements, expandJobRequirementAliases } from '../../services/geminiService'
 import Select from '../../components/common/Select'
 import psgcData from '../../data/psgc.json'
 import coursesData from '../../data/courses.json'
@@ -619,6 +619,7 @@ const PostJobWizard = () => {
                 employer_name: userData?.name || 'Unknown',
             }
 
+            let savedJobId = null
             if (isEditMode) {
                 jobDocument.updated_at = new Date().toISOString()
                 const { error } = await supabase
@@ -627,12 +628,34 @@ const PostJobWizard = () => {
                     .eq('id', editId)
                     .eq('employer_id', currentUser.uid)
                 if (error) throw error
+                savedJobId = editId
             } else {
                 jobDocument.status = 'open'
-                const { error } = await supabase
+                const { data: insertedJob, error } = await supabase
                     .from('job_postings')
                     .insert(jobDocument)
+                    .select('id')
+                    .single()
                 if (error) throw error
+                savedJobId = insertedJob.id
+            }
+
+            if (savedJobId) {
+                ;(async () => {
+                    try {
+                        const allRequirements = [...jobData.requiredSkills, ...finalPreferredSkills].filter(Boolean)
+                        if (!allRequirements.length) return
+                        const aliases = await expandJobRequirementAliases(allRequirements)
+                        if (!aliases || !Object.keys(aliases).length) return
+                        await supabase
+                            .from('job_postings')
+                            .update({ requirement_aliases: aliases })
+                            .eq('id', savedJobId)
+                            .eq('employer_id', currentUser.uid)
+                    } catch (err) {
+                        console.warn('expandJobRequirementAliases background update failed:', err?.message)
+                    }
+                })()
             }
 
             if (DRAFT_KEY) localStorage.removeItem(DRAFT_KEY)

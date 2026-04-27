@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { embedTexts } from '../_shared/cohere.ts'
+import { embedTexts } from '../_shared/voyage.ts'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
 import {
   buildRequiredSkillSummary,
@@ -685,7 +685,7 @@ const ensureJobEmbeddings = async (supabase: ReturnType<typeof createClient>, jo
 
   for (const group of chunk(missing, 96)) {
     const texts = group.map((item) => item.sourceText)
-    const { embeddings, model, dimension } = await embedTexts(texts, 'search_document')
+    const { embeddings, model, dimension } = await embedTexts(texts, 'document')
     const rows = group.map((item, index) => ({
       job_id: item.job.id,
       content_hash: item.contentHash,
@@ -761,7 +761,7 @@ Deno.serve(async (req) => {
     if (jobIdFilter) {
       const { data: singleJob, error: singleJobError } = await supabase
         .from('job_postings')
-        .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode, required_skills, required_licenses, required_languages, education_is_required, languages_are_required, licenses_are_required')
+        .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode, required_skills, required_licenses, required_languages, education_is_required, languages_are_required, licenses_are_required, requirement_aliases, course_strand')
         .eq('id', jobIdFilter)
         .maybeSingle()
 
@@ -771,7 +771,7 @@ Deno.serve(async (req) => {
       const today = new Date().toISOString().split('T')[0]
       let query = supabase
         .from('job_postings')
-        .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode, required_skills, required_licenses, required_languages, education_is_required, languages_are_required, licenses_are_required')
+        .select('id, title, category, description, requirements, preferred_skills, experience_level, education_level, type, location, salary_min, salary_max, status, deadline, created_at, filter_mode, required_skills, required_licenses, required_languages, education_is_required, languages_are_required, licenses_are_required, requirement_aliases, course_strand')
         .eq('status', 'open')
         .or(`deadline.is.null,deadline.gte.${today}`)
         .order('created_at', { ascending: false })

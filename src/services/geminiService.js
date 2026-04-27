@@ -191,6 +191,40 @@ Return JSON:
     }
 }
 
+export const expandJobRequirementAliases = async (requirements) => {
+    if (!Array.isArray(requirements) || requirements.length === 0) return {}
+
+    const unique = [...new Set(requirements.map(r => String(r || '').trim()).filter(Boolean))].slice(0, 30)
+    if (unique.length === 0) return {}
+
+    const prompt = `You are a job matching assistant for PESO (Public Employment Service Office) in the Philippines. Employers use formal or professional language; workers describe their skills in everyday terms.
+
+For each requirement below, provide 3-5 common-language aliases that a Filipino worker with that skill might use on their resume or profile. Focus on plain, everyday, or vocational terms for blue-collar, service, agricultural, healthcare, hospitality, and trades roles.
+
+Requirements:
+${unique.map((req, i) => `${i + 1}. ${req}`).join('\n')}
+
+Return ONLY a JSON object where each key is the exact requirement text from the list, and the value is an array of 3-5 common-language aliases.
+Example: {"Agricultural Operations": ["Farming", "Crop Growing", "Crop Production", "Field Work"], "Culinary Arts": ["Cooking", "Food Preparation", "Kitchen Work"]}`
+
+    try {
+        const response = await callAI(prompt, { timeoutMs: 15000, maxTokens: 1024 })
+        const parsed = parseAIJSON(response)
+        if (!parsed || typeof parsed !== 'object') return {}
+
+        const result = {}
+        for (const [req, aliases] of Object.entries(parsed)) {
+            if (Array.isArray(aliases)) {
+                result[req] = aliases.map(a => String(a || '').trim()).filter(Boolean).slice(0, 5)
+            }
+        }
+        return result
+    } catch (err) {
+        console.warn('expandJobRequirementAliases failed (non-blocking):', err?.message)
+        return {}
+    }
+}
+
 /**
  * Analyze resume/profile text and extract structured data with normalization.
  */
@@ -608,5 +642,6 @@ export default {
     normalizeEducationLevel,
     calculateDeterministicScore,
     expandProfileAliases,
+    expandJobRequirementAliases,
     deepAnalyzeProfileSkills,
 }

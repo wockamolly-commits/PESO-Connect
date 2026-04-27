@@ -172,6 +172,7 @@ export const buildJobText = (job: Record<string, unknown>) => {
     `Licenses & certifications: ${str('licenses_certifications', 'None')}`,
     `Experience level: ${str('experience_level', 'Any')}`,
     `Education level: ${str('education_level', 'None')}`,
+    `Preferred course or strand: ${str('course_strand', 'Not specified')}`,
     `Employment type: ${str('type')}`,
     `Work arrangement: ${str('work_arrangement')}`,
     `Location: ${str('location')}`,
