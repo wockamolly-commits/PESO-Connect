@@ -366,7 +366,7 @@ const Dashboard = () => {
                                     <p className="text-gray-500">No skills added yet.</p>
                                 )
                             })()}
-                            <Link to="/profile" className="btn-secondary w-full mt-4 flex items-center justify-center gap-2">
+                            <Link to="/profile/edit" state={{ scrollTo: 'skills' }} className="btn-secondary w-full mt-4 flex items-center justify-center gap-2">
                                 Update Skills <ArrowRight className="w-4 h-4" />
                             </Link>
                         </div>

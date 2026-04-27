@@ -29,7 +29,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const MAX_CANDIDATES = 500
 const SEMANTIC_SHORTLIST_SIZE = 50
 const MAX_USER_SKILL_TEXTS = 96
-const MATCHER_VERSION = 'skill-first-v11'
+const MATCHER_VERSION = 'skill-first-v13'
 const EMPTY_USER_AFFINITY: UserAffinity = {
   categoryWeights: new Map<string, number>(),
   totalSignals: 0,
@@ -390,14 +390,19 @@ const getUserSkillNames = (profile: ProfileRecord) => {
     ...(Array.isArray(profile.skills) ? profile.skills : []),
   ]
 
+  // Sort by normalized name so rule-matching and LLM judge input are stable
+  // regardless of the insertion order stored in the DB. Prevents match results
+  // from changing when skills are removed and re-added in a different order.
   return uniqueStrings(
-    merged.map((item) => {
-      if (typeof item === 'string') return item
-      if (item && typeof item === 'object' && 'name' in item && typeof item.name === 'string') {
-        return item.name
-      }
-      return ''
-    }),
+    merged
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'name' in item && typeof item.name === 'string') {
+          return item.name
+        }
+        return ''
+      })
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
   )
 }
 
@@ -593,48 +598,73 @@ const computeHybridSkillScore = (
     }
   }
 
+  // true once the LLM judge has run for this request; its verdict (including
+  // explicit 'gap') takes precedence over synonym-based fallback results.
+  const llmRan = llmJudgments.size > 0
+
+  // Hybrid resolution chain per skill:
+  //   1. Strong deterministic (exact / partial / alias) — always wins
+  //   2. LLM primary — used when LLM ran; explicit gap suppresses synonym fallback
+  //   3. Synonym fallback — used only when LLM was unavailable
+  const resolveSkillEntry = (skill: string): {
+    score: number
+    status: 'match' | 'partial' | 'gap'
+    matchType: string
+    matchedSkill?: string
+    reason?: string
+    supportingSkills?: string[]
+  } => {
+    const ruleMatch = matchRequirementToSkillSet(skill, userSkills, aliasMap)
+    const isStrongRule = ruleMatch.matched && ruleMatch.matchType !== 'related'
+
+    if (isStrongRule) {
+      return {
+        score: ruleMatch.credit,
+        status: ruleMatch.status as 'match' | 'partial' | 'gap',
+        matchType: ruleMatch.matchType,
+        matchedSkill: ruleMatch.matchedSkill || undefined,
+        reason: ruleMatch.reason || undefined,
+        supportingSkills: (ruleMatch.supportingSkills as string[] | undefined)?.length
+          ? (ruleMatch.supportingSkills as string[])
+          : undefined,
+      }
+    }
+
+    if (llmRan) {
+      const llmVerdict = buildLlmRelatedVerdict(llmJudgments.get(normalizeRequirementKey(skill)))
+      return {
+        score: llmVerdict?.score ?? 0,
+        status: (llmVerdict?.status ?? 'gap') as 'match' | 'partial' | 'gap',
+        matchType: llmVerdict?.matchType ?? 'gap',
+        matchedSkill: llmVerdict?.matchedSkill,
+        reason: llmVerdict?.reason,
+        supportingSkills: llmVerdict?.supportingSkills,
+      }
+    }
+
+    // Synonym fallback — LLM was not available for this request
+    return {
+      score: ruleMatch.credit,
+      status: ruleMatch.status as 'match' | 'partial' | 'gap',
+      matchType: ruleMatch.matchType !== 'gap' ? ruleMatch.matchType : 'gap',
+      matchedSkill: ruleMatch.matchedSkill || undefined,
+      reason: ruleMatch.reason || undefined,
+      supportingSkills: (ruleMatch.supportingSkills as string[] | undefined)?.length
+        ? (ruleMatch.supportingSkills as string[])
+        : undefined,
+    }
+  }
+
   const requiredScores = requiredSkills.map((skill) => {
-    const directMatch = matchRequirementToSkillSet(skill, userSkills, aliasMap)
-    const relatedOnly = !directMatch.matched
-      ? buildLlmRelatedVerdict(llmJudgments.get(normalizeRequirementKey(skill)))
-      : null
-    const score = directMatch.matched ? directMatch.credit : (relatedOnly?.score ?? 0)
-
-    breakdown.push({
-      label: skill,
-      tier: 'required',
-      kind: 'skill',
-      score,
-      status: directMatch.matched ? directMatch.status : (relatedOnly?.status ?? 'gap'),
-      reason: directMatch.reason || relatedOnly?.reason,
-      matchedSkill: directMatch.matchedSkill || relatedOnly?.matchedSkill,
-      supportingSkills: relatedOnly?.supportingSkills,
-      matchType: directMatch.matchType !== 'gap' ? directMatch.matchType : (relatedOnly?.matchType ?? 'gap'),
-    })
-
-    return score
+    const entry = resolveSkillEntry(skill)
+    breakdown.push({ label: skill, tier: 'required', kind: 'skill', ...entry })
+    return entry.score
   })
 
   const preferredScores = preferredSkills.map((skill) => {
-    const directMatch = matchRequirementToSkillSet(skill, userSkills, aliasMap)
-    const relatedOnly = !directMatch.matched
-      ? buildLlmRelatedVerdict(llmJudgments.get(normalizeRequirementKey(skill)))
-      : null
-    const score = directMatch.matched ? directMatch.credit : (relatedOnly?.score ?? 0)
-
-    breakdown.push({
-      label: skill,
-      tier: 'preferred',
-      kind: 'skill',
-      score,
-      status: directMatch.matched ? directMatch.status : (relatedOnly?.status ?? 'gap'),
-      reason: directMatch.reason || relatedOnly?.reason,
-      matchedSkill: directMatch.matchedSkill || relatedOnly?.matchedSkill,
-      supportingSkills: relatedOnly?.supportingSkills,
-      matchType: directMatch.matchType !== 'gap' ? directMatch.matchType : (relatedOnly?.matchType ?? 'gap'),
-    })
-
-    return score
+    const entry = resolveSkillEntry(skill)
+    breakdown.push({ label: skill, tier: 'preferred', kind: 'skill', ...entry })
+    return entry.score
   })
 
   const preferredScore = preferredScores.length > 0

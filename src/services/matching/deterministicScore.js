@@ -1017,7 +1017,13 @@ const hasStrongPhraseOverlap = (a, b) => {
     if (shorterTokens.length >= 2 && buildWholePhraseRegex(shorter).test(longer)) return true
 
     const sharedCount = shorterTokens.filter(token => longerTokens.has(token)).length
-    return shorterTokens.length >= 2 && sharedCount >= Math.max(2, Math.ceil(shorterTokens.length * 0.75))
+    if (shorterTokens.length >= 2 && sharedCount >= Math.max(2, Math.ceil(shorterTokens.length * 0.75))) return true
+
+    // Single-token containment: "Animation" deterministically matches "Keyframe Animation".
+    // The \b-based regex prevents short-token false positives ("Java" won't match "JavaScript").
+    if (shorterTokens.length === 1 && shorter.length >= 4 && buildWholePhraseRegex(shorter).test(longer)) return true
+
+    return false
 }
 
 export const skillMatches = (a, b) => {

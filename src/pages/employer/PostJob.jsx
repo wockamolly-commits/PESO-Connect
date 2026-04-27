@@ -128,6 +128,14 @@ const PostJobWizard = () => {
 
     // Current step (1-5)
     const [currentStep, setCurrentStep] = useState(1)
+    const prevStepRef = useRef(currentStep)
+    useEffect(() => {
+        if (currentStep !== prevStepRef.current) {
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+        prevStepRef.current = currentStep
+    }, [currentStep])
+
     const [fetchingJob, setFetchingJob] = useState(false)
 
     const DRAFT_KEY = currentUser ? `peso-job-draft-${currentUser.uid}` : null

@@ -136,6 +136,14 @@ const EmployerRegistration = () => {
 
     const passwordStrength = validators.passwordStrength(formData.password)
 
+    const prevStepRef = useRef(currentStep)
+    useEffect(() => {
+        if (currentStep !== prevStepRef.current) {
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+        prevStepRef.current = currentStep
+    }, [currentStep])
+
     // Resume from saved step (only once on initial load)
     useEffect(() => {
         if (restoredRef.current) return

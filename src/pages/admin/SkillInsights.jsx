@@ -3,12 +3,14 @@ import { TrendingUp, AlertTriangle, Sparkles, Loader2, RefreshCw, BarChart2, Zap
 import { supabase } from '../../config/supabase'
 
 const SOURCE_META = {
-  deterministic: { label: 'Course-based', icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-  ai_enrichment: { label: 'Work Experience', icon: Zap, color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
-  demand_side:   { label: 'Market Demand',  icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  deterministic: { label: 'Course-based',   icon: BookOpen,   color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20' },
+  ai_enrichment: { label: 'Work Experience', icon: Zap,        color: 'text-violet-400',  bg: 'bg-violet-500/10',  border: 'border-violet-500/20' },
+  demand_side:   { label: 'Market Demand',   icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  ai_deep_scan:  { label: 'AI Deep Scan',    icon: Sparkles,   color: 'text-pink-400',    bg: 'bg-pink-500/10',    border: 'border-pink-500/20' },
 }
 
 const GAP_THRESHOLD = 50 // gap_ratio below this = "high demand, low supply"
+const getInsightKey = ({ skill_name, category }) => `${category}:${skill_name}`
 
 function StatCard({ icon: Icon, label, value, sub, color = 'text-indigo-400', bg = 'bg-indigo-500/10' }) {
   return (
@@ -26,19 +28,15 @@ function StatCard({ icon: Icon, label, value, sub, color = 'text-indigo-400', bg
 }
 
 function GapBar({ demand, supply }) {
-  const max = Math.max(demand, 1)
-  const supplyPct = Math.min(100, Math.round((supply / max) * 100))
+  const supplyPct = Math.min(100, Math.round((supply / Math.max(demand, 1)) * 100))
+  const fillColor = supplyPct < 30 ? 'bg-red-500' : supplyPct < 60 ? 'bg-amber-500' : 'bg-emerald-500'
   return (
     <div className="flex items-center gap-2 mt-1.5">
-      <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `100%` }} />
+      {/* Single track: indigo background = demand, colored fill = supply coverage */}
+      <div className="flex-1 h-1.5 bg-indigo-500/20 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${fillColor}`} style={{ width: `${supplyPct}%` }} />
       </div>
-      <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${supplyPct < 30 ? 'bg-red-500' : supplyPct < 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-          style={{ width: `${supplyPct}%` }}
-        />
-      </div>
+      <span className="text-xs text-slate-500 w-8 text-right flex-shrink-0">{supplyPct}%</span>
     </div>
   )
 }
@@ -53,6 +51,10 @@ export default function SkillInsights() {
     setLoading(true)
     setError(null)
     try {
+      // Refresh the materialized demand view first so the UI reflects the
+      // latest open job postings, not a potentially stale snapshot.
+      await supabase.rpc('refresh_skill_demand_by_category')
+
       const [insightRes, sourceRes] = await Promise.all([
         supabase.rpc('get_skill_gap_insights', { p_limit: 30 }),
         supabase.rpc('get_telemetry_source_stats'),
@@ -105,7 +107,7 @@ export default function SkillInsights() {
             Skill Insights
           </h2>
           <p className="text-slate-400 text-sm mt-1">
-            Labor market intelligence for San Carlos City — demand vs. jobseeker supply.
+            Labor market intelligence for San Carlos City — employer demand vs. verified jobseeker skills.
           </p>
         </div>
         <button
@@ -157,14 +159,14 @@ export default function SkillInsights() {
           ) : (
             <ol className="space-y-2">
               {top10.map((s, i) => (
-                <li key={s.skill_name} className="flex items-center gap-3">
+                <li key={getInsightKey(s)} className="flex items-center gap-3">
                   <span className="w-5 text-center text-xs font-bold text-slate-600">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-slate-200 truncate">{s.skill_name}</span>
                       <div className="flex items-center gap-3 flex-shrink-0 text-xs text-slate-500">
                         <span className="text-indigo-400 font-semibold">{s.demand_count} jobs</span>
-                        <span>{s.supply_count} accepted</span>
+                        <span>{s.supply_count} jobseekers</span>
                       </div>
                     </div>
                     <GapBar demand={s.demand_count} supply={Number(s.supply_count)} />
@@ -174,8 +176,10 @@ export default function SkillInsights() {
             </ol>
           )}
           <div className="mt-4 flex items-center gap-4 text-xs text-slate-600">
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-indigo-500 inline-block" /> Demand</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-emerald-500 inline-block" /> Supply</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-indigo-500/40 inline-block" /> Demand track</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-emerald-500 inline-block" /> ≥60% supply</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-amber-500 inline-block" /> 30–59%</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-red-500 inline-block" /> &lt;30%</span>
           </div>
         </div>
 
@@ -199,7 +203,7 @@ export default function SkillInsights() {
                 const severity = ratio < 20 ? 'text-red-400' : ratio < 40 ? 'text-amber-400' : 'text-yellow-400'
                 const badge = ratio < 20 ? 'bg-red-500/15 text-red-400 border-red-500/25' : ratio < 40 ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' : 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25'
                 return (
-                  <li key={s.skill_name} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                  <li key={getInsightKey(s)} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50">
                     <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${severity}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-200 truncate">{s.skill_name}</p>
@@ -226,9 +230,10 @@ export default function SkillInsights() {
         {sourceStats.length === 0 ? (
           <p className="text-slate-500 text-sm text-center py-6">No telemetry recorded yet. Data will appear after jobseekers click skill suggestions during registration.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {['deterministic', 'ai_enrichment', 'demand_side'].map(src => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Object.keys(SOURCE_META).map(src => {
               const meta = SOURCE_META[src]
+              const barColor = { deterministic: 'bg-blue-500', ai_enrichment: 'bg-violet-500', demand_side: 'bg-emerald-500', ai_deep_scan: 'bg-pink-500' }
               const row = sourceStats.find(r => r.source === src)
               const count = row ? Number(row.total_accepted) : 0
               const pct = totalAccepted > 0 ? Math.round((count / totalAccepted) * 100) : 0
@@ -242,7 +247,7 @@ export default function SkillInsights() {
                   <p className="text-xs text-slate-400">acceptances</p>
                   <div className="mt-3 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${src === 'deterministic' ? 'bg-blue-500' : src === 'ai_enrichment' ? 'bg-violet-500' : 'bg-emerald-500'}`}
+                      className={`h-full rounded-full transition-all ${barColor[src]}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>

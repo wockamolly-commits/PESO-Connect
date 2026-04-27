@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../config/supabase'
 import {
@@ -144,6 +144,21 @@ function findMunicipalityByName(province, municipalityName) {
 const JobseekerProfileEdit = () => {
     const { userData, currentUser, fetchUserData, isVerified } = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
+
+    const hasScrolledToSkillsRef = useRef(false)
+    useEffect(() => {
+        if (hasScrolledToSkillsRef.current) return
+        if (location.state?.scrollTo !== 'skills') return
+        if (!userData) return
+        const timer = setTimeout(() => {
+            if (hasScrolledToSkillsRef.current) return
+            hasScrolledToSkillsRef.current = true
+            const el = document.getElementById('skills-section')
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [location.state, userData])
 
     const [formData, setFormData] = useState({
         // Personal Information (Step 2)
@@ -228,6 +243,12 @@ const JobseekerProfileEdit = () => {
     const [trainingValidationError, setTrainingValidationError] = useState('')
     const [isDirty, setIsDirty] = useState(false)
     const initialFormDataRef = useRef(null)
+
+    useEffect(() => {
+        if (!loading && success) {
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+    }, [loading, success])
 
     const [demandSkills, setDemandSkills] = useState([])
     // AI skill suggestions panel
@@ -1297,7 +1318,7 @@ const JobseekerProfileEdit = () => {
                     {/* ============================================================ */}
                     {/* 5. SKILLS & QUALIFICATIONS */}
                     {/* ============================================================ */}
-                    <div>
+                    <div id="skills-section">
                         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                             <Award className="w-5 h-5 text-primary-600" />
                             Skills & Qualifications

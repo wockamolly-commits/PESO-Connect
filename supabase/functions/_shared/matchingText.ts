@@ -179,10 +179,20 @@ export const buildJobText = (job: Record<string, unknown>) => {
   ].filter(Boolean).join('\n')
 }
 
+const sortSkills = (skills: unknown[]) =>
+  [...skills].sort((a, b) => {
+    const aName = (typeof a === 'string' ? a : (a && typeof a === 'object' && 'name' in a && typeof (a as Record<string, unknown>).name === 'string' ? String((a as Record<string, unknown>).name) : ''))
+    const bName = (typeof b === 'string' ? b : (b && typeof b === 'object' && 'name' in b && typeof (b as Record<string, unknown>).name === 'string' ? String((b as Record<string, unknown>).name) : ''))
+    return aName.toLowerCase().localeCompare(bName.toLowerCase())
+  })
+
 export const buildProfileText = (profile: Record<string, unknown>) => {
   const predefinedSkills = Array.isArray(profile.predefined_skills) ? profile.predefined_skills : []
   const customSkills = Array.isArray(profile.skills) ? profile.skills : []
-  const mergedSkills = [...predefinedSkills, ...customSkills]
+  // Sort before merging so that identical skill sets always produce an identical
+  // source text (and therefore the same SHA-256 hash) regardless of the insertion
+  // order in the DB — preventing spurious embedding and match-cache invalidation.
+  const mergedSkills = sortSkills([...predefinedSkills, ...customSkills])
   const skillsText = stringifyList(mergedSkills, 'Not specified')
 
   const courseField = typeof profile.course_or_field === 'string' && profile.course_or_field.trim()

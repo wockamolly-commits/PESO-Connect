@@ -151,7 +151,7 @@ export const judgeSkillSemanticMatches = async ({
     profileSignals: cleanedSignals,
   })
 
-  const response = await chatJSON(prompt, { maxTokens: 1200, temperature: 0.1 })
+  const response = await chatJSON(prompt, { maxTokens: 1200, temperature: 0 })
   const parsed = JSON.parse(response.text)
   return normalizeSemanticSkillJudgments(parsed, cleanedRequirements)
 }

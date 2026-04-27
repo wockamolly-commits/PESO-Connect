@@ -113,6 +113,12 @@ const EmployerProfileEdit = () => {
     const [success, setSuccess] = useState('')
     const [showHeadsUpToast, setShowHeadsUpToast] = useState(false)
     const restoredRef = useRef(false)
+
+    useEffect(() => {
+        if (!loading && success) {
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+    }, [loading, success])
     const hasShownHeadsUpRef = useRef(false)
 
     useEffect(() => {
