@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { ALL_PERMISSIONS, SUPER_ADMIN_ONLY_PERMISSIONS, isSuperAdmin, getPermissionLabel } from '../../utils/adminPermissions'
-import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle, Trash2 } from 'lucide-react'
+import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle, Trash2, AlertTriangle } from 'lucide-react'
 import { InviteAdminModal } from './InviteAdminModal'
 import { DeleteUserModal } from './DeleteUserModal'
 
@@ -293,6 +293,20 @@ const AdminAccessEditor = ({ user, access, canManage, isSelf, saving, feedback, 
                     </div>
                 )}
             </div>
+
+            {/* Excessive permissions warning */}
+            {!isReadOnly && adminLevel === 'sub-admin' && selectedPerms.length >= Math.ceil(DELEGATABLE_PERMISSIONS.length * 0.8) && (
+                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <p className="text-xs text-amber-400 font-medium">High permission count</p>
+                        <p className="text-xs text-amber-400/70 mt-0.5">
+                            This sub-admin has {selectedPerms.length} of {DELEGATABLE_PERMISSIONS.length} permissions — near-full access.
+                            Consider promoting to super-admin if they need complete control, or reduce permissions to match their actual scope.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Super-admin-only notice */}
             {!isReadOnly && adminLevel === 'sub-admin' && (
