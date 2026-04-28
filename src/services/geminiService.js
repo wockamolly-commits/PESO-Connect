@@ -337,14 +337,8 @@ export const calculateJobMatch = async (job, profile, deterministicResults = nul
     const langStr = (profile.languages || [])
         .map(l => typeof l === 'string' ? l : `${l.language} (${l.proficiency})`)
         .join(', ') || 'Not specified'
-    const inferredSoftSkills = det.inferredSoftSkills?.length
-        ? det.inferredSoftSkills.map(item => `${item.requirement} <- ${item.inferredSkill}: ${item.recruiterReason}`).join('; ')
-        : 'None'
     const candidateSignals = det.candidateSignals?.length
         ? det.candidateSignals.map(item => `${item.type}: ${item.detail}`).join('; ')
-        : 'None'
-    const rebrandingSuggestions = det.rebrandingSuggestions?.length
-        ? det.rebrandingSuggestions.join(' | ')
         : 'None'
     const overqualificationSignal = det.overqualificationSignal
         ? `${det.overqualificationSignal.title}: ${det.overqualificationSignal.detail}`
@@ -376,12 +370,9 @@ Match Score: ${det.matchScore}/100 (${det.matchLevel})
 Matched Skills: ${det.matchingSkills?.length > 0 ? det.matchingSkills.join(', ') : 'None'}
 Missing Skills: ${det.missingSkills?.length > 0 ? det.missingSkills.join(', ') : 'None'}
 Technical Competency Score: ${det.technicalCompetencyScore ?? det.skillScore ?? 0}/100
-Inferred Soft Skills Score: ${det.inferredSoftSkillScore ?? 0}/100
 Baseline Score: ${det.baselineScore ?? det.educationScore ?? 0}/100
-Inferred Soft Skills: ${inferredSoftSkills}
 Candidate Signals: ${candidateSignals}
 Overqualification Signal: ${overqualificationSignal}
-Rebranding Suggestions: ${rebrandingSuggestions}
 
 IMPORTANT:
 - The matched/missing skills above are FINAL. Do NOT contradict them.

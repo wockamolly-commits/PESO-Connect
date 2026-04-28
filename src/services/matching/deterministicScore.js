@@ -37,7 +37,6 @@ const MATCH_CREDITS = {
 const MATCH_STATUS = {
     exact: 'match',
     partial: 'match',
-    quantified: 'match',
     related: 'partial',
     inferred: 'partial',
     gap: 'gap',
@@ -200,7 +199,7 @@ export const parseEducationRequirementLevel = (requirement = '') => {
     if (!requirement) return ''
     const raw = requirement.toLowerCase().trim()
     if (!raw) return ''
-    if (USER_EDUCATION_ORDINAL[requirement]) return requirement
+    if (USER_EDUCATION_ORDINAL[requirement] !== undefined) return requirement
     if (raw.includes('doctor') || raw.includes('phd')) return 'Doctoral Degree'
     if (raw.includes('master') || raw.includes('post-graduate') || raw.includes('graduate studies')) return 'Masteral Degree'
     if (
@@ -281,14 +280,14 @@ export const SKILL_SYNONYM_GROUPS = [
     ['driving', 'vehicle operation', 'driver'],
     ['forklift operation', 'forklift driving', 'forklift operator'],
     ['motorcycle operation', 'motorcycle driving'],
-    ['delivery', 'delivery service', 'courier'],
+    ['delivery', 'delivery service', 'courier', 'delivery driving', 'route driving'],
     ['logistics', 'supply chain', 'warehousing'],
     ['cooking', 'culinary', 'food preparation', 'food prep'],
     ['baking', 'pastry making', 'bread making'],
     ['food safety', 'food handling', 'food sanitation'],
     ['bartending', 'mixology', 'bar service'],
     ['barista', 'coffee making', 'coffee preparation'],
-    ['housekeeping', 'room attendant', 'hotel housekeeping', 'cleaning'],
+    ['housekeeping', 'room attendant', 'hotel housekeeping', 'cleaning', 'room cleaning', 'sanitation'],
     ['laundry', 'laundry service', 'laundry operation'],
     ['waitstaff', 'food service', 'table service', 'serving'],
     ['farming', 'agriculture', 'crop production'],
@@ -307,9 +306,9 @@ export const SKILL_SYNONYM_GROUPS = [
     ['programming', 'software development', 'coding', 'software engineering'],
     ['web development', 'frontend development', 'backend development', 'full stack development'],
     ['graphic design', 'visual design', 'ui design', 'layout design'],
-    ['cashiering', 'cash handling', 'cashier operation', 'pos operation'],
+    ['cashiering', 'cash handling', 'cashier operation', 'pos operation', 'point of sale', 'pos'],
     ['sales', 'selling', 'retail sales'],
-    ['inventory management', 'stock management', 'inventory control'],
+    ['inventory management', 'stock management', 'inventory control', 'stock replenishment', 'stock handling'],
     ['merchandising', 'product display', 'visual merchandising'],
     ['hairdressing', 'hair cutting', 'hairstyling', 'hair styling'],
     ['manicure', 'nail care', 'nail art'],
@@ -334,13 +333,9 @@ export const SKILL_SYNONYM_GROUPS = [
     ['reception', 'front desk', 'guest reception'],
     ['calendar management', 'scheduling', 'appointment setting'],
     ['email management', 'email correspondence', 'business correspondence'],
-    ['inventory management', 'stock replenishment', 'stock handling'],
     ['retail sales', 'sales floor assistance', 'upselling'],
-    ['cashiering', 'point of sale', 'pos', 'cash handling'],
-    ['housekeeping', 'room cleaning', 'sanitation'],
     ['food preparation', 'kitchen prep', 'meal preparation'],
     ['guest service', 'guest relations', 'hotel service'],
-    ['delivery driving', 'delivery', 'route driving', 'courier'],
     ['route planning', 'delivery scheduling', 'trip planning'],
     ['caregiving', 'elderly care', 'home care assistance'],
     ['child care', 'babysitting', 'child supervision'],
@@ -467,20 +462,6 @@ export const ADJACENT_CATEGORIES = {
     'construction': ['trades', 'energy'],
 }
 
-const SOFT_SKILL_INFERENCE_RULES = [
-    {
-        requirementPatterns: [/\battention to detail\b/i, /\bdetail[- ]oriented\b/i, /\baccuracy\b/i, /\bprecision\b/i],
-        triggerPatterns: [/\bprogramming\b/i, /\bcoding\b/i, /\bsoftware\b/i, /\bweb development\b/i, /\bfrontend\b/i, /\bbackend\b/i, /\bfull stack\b/i, /\bgraphic design\b/i, /\bvisual design\b/i, /\bui\b/i, /\bux\b/i, /\badobe photoshop\b/i, /\badobe illustrator\b/i],
-        inferredSkill: 'Attention to Detail',
-        recruiterReason: 'Their programming or design background signals strong accuracy, version control, and precision in execution.',
-    },
-    {
-        requirementPatterns: [/\banalytical thinking\b/i, /\banalytical skills\b/i, /\bcritical thinking\b/i],
-        triggerPatterns: [/\bprogramming\b/i, /\bcoding\b/i, /\bsoftware\b/i, /\bdebugging\b/i, /\bweb development\b/i, /\bfrontend\b/i, /\bbackend\b/i, /\bfull stack\b/i, /\bgraphic design\b/i, /\bvisual design\b/i, /\bui\b/i, /\bux\b/i],
-        inferredSkill: 'Analytical Thinking',
-        recruiterReason: 'Their technical and design workflow already relies on structured analysis, iteration, and problem solving.',
-    },
-]
 
 const BASELINE_REQUIREMENT_PATTERNS = [/\btyping\b/i, /\btyping speed\b/i, /\bdata entry\b/i, /\bdata encoding\b/i, /\bbasic computer\b/i, /\bcomputer literacy\b/i, /\bms office\b/i, /\bmicrosoft office\b/i, /\bhigh school\b/i, /\bsenior high\b/i]
 const LOW_TIER_ROLE_PATTERNS = [/\bdata entry\b/i, /\bdata encoder\b/i, /\bencoder\b/i, /\badmin assistant\b/i, /\badministrative assistant\b/i, /\bclerical\b/i, /\boffice assistant\b/i, /\bback office\b/i, /\bdocumentation\b/i]
@@ -745,7 +726,7 @@ const LANGUAGE_NAMES = /\b(english|filipino|tagalog|cebuano|bisaya|ilokano|iloca
 const LANGUAGE_KEYWORDS = /\b(speak|fluent|proficien|communicat|literate|language)/i
 const PROFICIENCY_ORDINAL = { 'Basic': 1, 'Conversational': 2, 'Fluent': 3, 'Native': 4 }
 const AGE_REQUIREMENT_PATTERN = /\b(?:at least\s*)?(\d{1,2})\s*(?:years?\s*old|yrs?\s*old|y\/o)?\s*(?:and above|above|or older|old and above|up)\b/i
-const AGE_RANGE_REQUIREMENT_PATTERN = /\b(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\s*(?:years?\s*old)?\b/i
+const AGE_RANGE_REQUIREMENT_PATTERN = /\b(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\s+years?\s*old\b/i
 
 const requirementMatchesAnyPattern = (requirement, patterns = []) =>
     patterns.some((pattern) => pattern.test(requirement))
@@ -1302,11 +1283,6 @@ const isLowTierRole = (job = {}, requirements = []) => {
     return signals.some((signal) => LOW_TIER_ROLE_PATTERNS.some((pattern) => pattern.test(signal)))
 }
 
-const inferSoftSkillMatch = () => null
-
-const buildRebrandingSuggestions = ({ job, profileSkills, missingSkills, inferredSoftSkills, overqualificationSignal }) => {
-    return []
-}
 
 const computeBucketScore = (earned, possible) => {
     if (possible <= 0) return 0
@@ -1462,7 +1438,6 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
     const matchingSkills = []
     const relatedSkills = []
     const missingSkills = []
-    const inferredSoftSkills = []
     const candidateSignals = []
     const requirementMatches = []
     const skillBreakdown = []
@@ -1471,8 +1446,6 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
 
     let technicalEarned = 0
     let technicalPossible = 0
-    let inferredEarned = 0
-    let inferredPossible = 0
     let baselineEarned = 0
     let baselinePossible = 0
     let languageEarned = 0
@@ -1537,25 +1510,6 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
             continue
         }
 
-        const inferredMatch = inferSoftSkillMatch(req, skillSignals)
-        if (inferredMatch) {
-            inferredPossible += 1
-            inferredEarned += inferredMatch.credit
-            relatedSkills.push(req)
-            inferredSoftSkills.push({
-                requirement: req,
-                inferredSkill: inferredMatch.inferredSkill,
-                recruiterReason: inferredMatch.recruiterReason,
-            })
-            const score = inferredMatch.credit
-            const status = getMatchStatus('related')
-            const reason = `Credited from ${inferredMatch.inferredSkill}: ${inferredMatch.recruiterReason}`
-            requirementMatches.push({ requirement: req, kind: 'skill', bucket: 'technical', matchType: 'related', credit: score, status, matchedSkill: inferredMatch.inferredSkill, reason })
-            skillBreakdown.push({ label: req, tier: 'required', kind: 'skill', score, status, matchType: 'related', matchedSkill: inferredMatch.inferredSkill, supportingSkills: [inferredMatch.inferredSkill], reason })
-            evidence.push({ type: 'skill_required_inferred', jobField: 'skill', jobValue: req, candidateField: 'skill', candidateValue: inferredMatch.inferredSkill, matchMode: status, score, reason })
-            continue
-        }
-
         const bucket = isBaselineRequirement(req) ? 'baseline' : 'technical'
         if (bucket === 'baseline') baselinePossible += 1
         else technicalPossible += 1
@@ -1606,20 +1560,17 @@ export const classifyRequirements = (requirements, skills, aliases, userData, jo
         matchingSkills: deduplicateRequirementLabels(matchingSkills),
         relatedSkills: deduplicateRequirementLabels(relatedSkills),
         missingSkills,
-        inferredSoftSkills,
         candidateSignals,
         technicalRequirementScore: computeBucketScore(technicalEarned, technicalPossible),
-        inferredSoftSkillScore: computeBucketScore(inferredEarned, inferredPossible),
         baselineRequirementScore: computeBucketScore(baselineEarned, baselinePossible),
         languageRequirementScore: computeBucketScore(languageEarned, languagePossible),
         languageRequirementApplicable: languagePossible > 0,
-        inferredSoftSkillApplicable: inferredPossible > 0,
         requirementMatches,
         skillBreakdown,
         evidence,
         gaps,
         skillScore: requirements.length > 0
-            ? Math.round(((technicalEarned + inferredEarned + baselineEarned) / requirements.length) * 100)
+            ? Math.round(((technicalEarned + baselineEarned + languageEarned) / requirements.length) * 100)
             : 100,
         overqualificationSignal: highPrecisionCandidate
             ? { title: 'High-Precision Candidate', detail: OVERQUALIFICATION_MESSAGE }
@@ -1818,7 +1769,6 @@ export const calculateDeterministicScore = (job, userData) => {
         experienceScore,
         educationScore,
         technicalCompetencyScore,
-        inferredSoftSkillScore: classified.inferredSoftSkillScore,
         baselineRequirementScore: classified.baselineRequirementScore,
         baselineScore,
         technicalRequirementScore: classified.technicalRequirementScore,
@@ -1830,15 +1780,7 @@ export const calculateDeterministicScore = (job, userData) => {
         preferredSkillBonus,
         courseStrandAlignment,
         preferredAlignmentBonus,
-        inferredSoftSkills: classified.inferredSoftSkills,
         candidateSignals: classified.candidateSignals,
         overqualificationSignal: classified.overqualificationSignal,
-        rebrandingSuggestions: buildRebrandingSuggestions({
-            job,
-            profileSkills: skills,
-            missingSkills: classified.missingSkills,
-            inferredSoftSkills: classified.inferredSoftSkills,
-            overqualificationSignal: classified.overqualificationSignal,
-        }),
     }
 }

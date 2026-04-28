@@ -8,7 +8,9 @@
 // - Sub-admins only have the permissions listed in their permissions column.
 
 export const ALL_PERMISSIONS = [
-    'view_overview',
+    'view_employer_overview',
+    'view_jobseeker_overview',
+    'view_overall_overview',
     'view_employers',
     'approve_employers',
     'reject_employers',
@@ -29,12 +31,15 @@ export const ALL_PERMISSIONS = [
 // 'reverify_profiles' gates the Reverification Queue sidebar section and is
 // automatically granted when either reverify_jobseeker_profiles or
 // reverify_employer_profiles is present.
-export const DERIVED_PERMISSIONS = ['reverify_profiles']
+// 'view_overview' gates the Overview sidebar section and is automatically
+// granted when any of the three granular overview permissions is present.
+export const DERIVED_PERMISSIONS = ['reverify_profiles', 'view_overview']
 
 // Permissions that are always super-admin-only regardless of grants.
 export const SUPER_ADMIN_ONLY_PERMISSIONS = [
     'manage_admins',
     'manage_system_settings',
+    'view_overall_overview',
 ]
 
 // Map each dashboard section ID to the permission that gates it.
@@ -75,6 +80,19 @@ export const hasAdminPermission = (adminAccess, permission) => {
     if (!Array.isArray(adminAccess.permissions)) return false
     if (SUPER_ADMIN_ONLY_PERMISSIONS.includes(permission)) return false
 
+    // ── Derived: view_overview (sidebar gate) ──
+    // Granted when any of the three granular overview permissions is present,
+    // or the legacy 'view_overview' string exists in the array.
+    if (permission === 'view_overview') {
+        return (
+            adminAccess.permissions.includes('view_overview')
+            || adminAccess.permissions.includes('view_employer_overview')
+            || adminAccess.permissions.includes('view_jobseeker_overview')
+            || adminAccess.permissions.includes('view_overall_overview')
+        )
+    }
+
+    // ── Derived: reverify_profiles (sidebar gate) ──
     if (permission === 'reverify_profiles') {
         return (
             adminAccess.permissions.includes('reverify_profiles')

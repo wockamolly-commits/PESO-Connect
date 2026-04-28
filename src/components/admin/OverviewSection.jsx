@@ -33,40 +33,66 @@ const ProgressBar = ({ label, count, color, total }) => (
     </div>
 )
 
-const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts, setActiveSection, setActiveTab, adminAccess }) => {
+const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, employerCounts: rawEmployerCounts, jobseekerCounts: rawJobseekerCounts, setActiveSection, setActiveTab, adminAccess }) => {
     const isSuper = isSuperAdmin(adminAccess)
-    const canViewEmployers = isSuper || hasAdminPermission(adminAccess, 'view_employers')
-    const canViewJobseekers = isSuper || hasAdminPermission(adminAccess, 'view_jobseekers')
-    const canViewBoth = canViewEmployers && canViewJobseekers
+
+    // Granular overview permissions
+    const canViewOverall = isSuper || hasAdminPermission(adminAccess, 'view_overall_overview')
+    const canViewEmployerOverview = isSuper || hasAdminPermission(adminAccess, 'view_employer_overview')
+    const canViewJobseekerOverview = isSuper || hasAdminPermission(adminAccess, 'view_jobseeker_overview')
+
+    // ── Defensive data scoping ──
+    // Strip anything outside this admin's overview permission scope.
+    const ZERO_COUNTS = { pending: 0, approved: 0, verified: 0, rejected: 0, expired: 0, total: 0 }
+    const employerCounts = (canViewOverall || canViewEmployerOverview) ? rawEmployerCounts : ZERO_COUNTS
+    const jobseekerCounts = (canViewOverall || canViewJobseekerOverview) ? rawJobseekerCounts : ZERO_COUNTS
+
+    const allUsers = isSuper
+        ? rawAllUsers
+        : rawAllUsers.filter(u => {
+            if ((canViewOverall || canViewEmployerOverview) && u.role === 'employer') return true
+            if ((canViewOverall || canViewJobseekerOverview) && u.role === 'user' && u.subtype === 'jobseeker') return true
+            return false
+        })
+    const employers = (canViewOverall || canViewEmployerOverview) ? rawEmployers : []
 
     // Build stat cards based on permissions
     const stats = []
 
-    if (canViewBoth) {
+    if (canViewOverall) {
         stats.push({ label: 'Total Users', value: allUsers.length, color: 'from-indigo-500 to-indigo-600', dotColor: 'bg-indigo-400', icon: Users })
         stats.push({ label: 'Pending Review', value: employerCounts.pending + jobseekerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock })
         stats.push({ label: 'Verified', value: employerCounts.approved + jobseekerCounts.verified, color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle })
         stats.push({ label: 'Expired', value: (employerCounts.expired || 0) + (jobseekerCounts.expired || 0), color: 'from-orange-500 to-amber-500', dotColor: 'bg-orange-400', icon: AlertTriangle })
         stats.push({ label: 'Rejected', value: employerCounts.rejected + jobseekerCounts.rejected, color: 'from-red-500 to-rose-500', dotColor: 'bg-red-400', icon: XCircle })
-    } else if (canViewEmployers) {
+    } else if (canViewEmployerOverview && !canViewJobseekerOverview) {
         stats.push({ label: 'Total Employers', value: employerCounts.total, color: 'from-violet-500 to-purple-500', dotColor: 'bg-violet-400', icon: Building2 })
         stats.push({ label: 'Pending', value: employerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock })
         stats.push({ label: 'Approved', value: employerCounts.approved, color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle })
         stats.push({ label: 'Expired', value: employerCounts.expired || 0, color: 'from-orange-500 to-amber-500', dotColor: 'bg-orange-400', icon: AlertTriangle })
         stats.push({ label: 'Rejected', value: employerCounts.rejected, color: 'from-red-500 to-rose-500', dotColor: 'bg-red-400', icon: XCircle })
-    } else if (canViewJobseekers) {
+    } else if (canViewJobseekerOverview && !canViewEmployerOverview) {
         stats.push({ label: 'Total Jobseekers', value: jobseekerCounts.total, color: 'from-blue-500 to-cyan-500', dotColor: 'bg-blue-400', icon: Users })
         stats.push({ label: 'Pending', value: jobseekerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock })
         stats.push({ label: 'Verified', value: jobseekerCounts.verified, color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle })
         stats.push({ label: 'Expired', value: jobseekerCounts.expired || 0, color: 'from-orange-500 to-amber-500', dotColor: 'bg-orange-400', icon: AlertTriangle })
         stats.push({ label: 'Rejected', value: jobseekerCounts.rejected, color: 'from-red-500 to-rose-500', dotColor: 'bg-red-400', icon: XCircle })
+    } else if (canViewEmployerOverview && canViewJobseekerOverview) {
+        // Both scoped permissions but NOT view_overall_overview — show scoped combined
+        stats.push({ label: 'Employers', value: employerCounts.total, color: 'from-violet-500 to-purple-500', dotColor: 'bg-violet-400', icon: Building2 })
+        stats.push({ label: 'Jobseekers', value: jobseekerCounts.total, color: 'from-blue-500 to-cyan-500', dotColor: 'bg-blue-400', icon: Users })
+        stats.push({ label: 'Pending Review', value: employerCounts.pending + jobseekerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock })
+        stats.push({ label: 'Verified', value: employerCounts.approved + (jobseekerCounts.verified || 0), color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle })
+        stats.push({ label: 'Rejected', value: employerCounts.rejected + jobseekerCounts.rejected, color: 'from-red-500 to-rose-500', dotColor: 'bg-red-400', icon: XCircle })
     }
 
-    const scopeLabel = canViewBoth
+    const scopeLabel = canViewOverall
         ? 'Platform statistics and recent activity'
-        : canViewEmployers
-            ? 'Employer statistics for your assigned scope'
-            : 'Jobseeker statistics for your assigned scope'
+        : canViewEmployerOverview && canViewJobseekerOverview
+            ? 'Employer & Jobseeker statistics for your assigned scope'
+            : canViewEmployerOverview
+                ? 'Employer statistics for your assigned scope'
+                : 'Jobseeker statistics for your assigned scope'
 
     return (
         <div className="animate-fade-in">
@@ -83,8 +109,8 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                 ))}
             </div>
 
-            {/* Role breakdown — only for super-admins or those with both scopes */}
-            {canViewBoth && (
+            {/* Role breakdown — only for view_overall_overview */}
+            {canViewOverall && (
                 <div className="grid md:grid-cols-2 gap-4 mb-8">
                     <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
                         <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2 uppercase tracking-wide">
@@ -139,10 +165,10 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                 </div>
             )}
 
-            {/* Scoped breakdown — single-role sub-admins */}
-            {!canViewBoth && (
+            {/* Scoped breakdown — sub-admins without view_overall_overview */}
+            {!canViewOverall && (
                 <div className="grid md:grid-cols-1 gap-4 mb-8 max-w-lg">
-                    {canViewEmployers && (
+                    {canViewEmployerOverview && (
                         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
                             <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2 uppercase tracking-wide">
                                 <Building2 className="w-4 h-4 text-violet-400" />
@@ -160,7 +186,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                             </div>
                         </div>
                     )}
-                    {canViewJobseekers && (
+                    {canViewJobseekerOverview && (
                         <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-2xl p-6">
                             <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2 uppercase tracking-wide">
                                 <Users className="w-4 h-4 text-blue-400" />
@@ -183,7 +209,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
 
             {/* Quick actions — only show sections the admin has access to */}
             <div className="space-y-4">
-                {canViewEmployers && employerCounts.pending > 0 && (
+                {(canViewOverall || canViewEmployerOverview) && employerCounts.pending > 0 && (
                     <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-2xl p-5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-violet-500/20 rounded-xl flex items-center justify-center">
@@ -203,7 +229,7 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
                     </div>
                 )}
 
-                {canViewJobseekers && jobseekerCounts.pending > 0 && (
+                {(canViewOverall || canViewJobseekerOverview) && jobseekerCounts.pending > 0 && (
                     <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-2xl p-5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
@@ -229,3 +255,4 @@ const OverviewSection = ({ allUsers, employers, employerCounts, jobseekerCounts,
 
 export { OverviewSection }
 export default OverviewSection
+

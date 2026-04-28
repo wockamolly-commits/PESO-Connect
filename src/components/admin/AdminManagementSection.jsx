@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { ALL_PERMISSIONS, SUPER_ADMIN_ONLY_PERMISSIONS, isSuperAdmin, getPermissionLabel } from '../../utils/adminPermissions'
-import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle, Trash2, AlertTriangle } from 'lucide-react'
+import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle, Trash2, AlertTriangle, Pin } from 'lucide-react'
 import { InviteAdminModal } from './InviteAdminModal'
 import { DeleteUserModal } from './DeleteUserModal'
 
@@ -43,7 +43,14 @@ const AdminManagementSection = ({ adminAccess }) => {
                 .select('*')
             if (accessError) throw accessError
 
-            setAdminUsers(users || [])
+            // Sort users so that super-admins appear first
+            const sortedUsers = (users || []).sort((a, b) => {
+                const aLevel = (access || []).find(r => r.user_id === a.id)?.admin_level === 'admin' ? 0 : 1
+                const bLevel = (access || []).find(r => r.user_id === b.id)?.admin_level === 'admin' ? 0 : 1
+                return aLevel - bLevel
+            })
+
+            setAdminUsers(sortedUsers)
             setAccessRows(access || [])
         } catch (err) {
             console.error('Error loading admin data:', err)
@@ -136,63 +143,77 @@ const AdminManagementSection = ({ adminAccess }) => {
                     const isExpanded = expandedId === user.id
                     const level = access?.admin_level || 'no access record'
                     const grantedPerms = access?.permissions || []
+                    const isPinned = level === 'admin'
 
                     return (
-                        <div key={user.id} className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-                            <div
-                                className="flex items-center justify-between p-5 cursor-pointer"
-                                onClick={() => {
-                                    if (isExpanded) setFeedback(prev => ({ ...prev, [user.id]: null }))
-                                    setExpandedId(isExpanded ? null : user.id)
-                                }}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-indigo-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                                        <Shield className="w-5 h-5 text-indigo-400" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-slate-200">{user.name || user.email}</p>
-                                        <p className="text-xs text-slate-500">{user.email}</p>
+                        <div key={user.id} className="relative">
+                            {isPinned && (
+                                <div className="absolute -left-2 -top-2 z-10 animate-bounce-subtle">
+                                    <div className="bg-emerald-500 p-1.5 rounded-lg shadow-lg shadow-emerald-500/20 border border-emerald-400">
+                                        <Pin className="w-4 h-4 text-white fill-current" />
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    {canManage && user.id !== currentUser?.id && level === 'sub-admin' && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setPendingDelete(user) }}
-                                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            title="Delete sub-admin"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                                        level === 'admin'
-                                            ? 'bg-indigo-500/15 text-indigo-400'
-                                            : level === 'sub-admin'
-                                                ? 'bg-amber-500/15 text-amber-400'
-                                                : 'bg-slate-700 text-slate-400'
-                                    }`}>
-                                        {level}
-                                    </span>
-                                    {isExpanded
-                                        ? <ChevronUp className="w-5 h-5 text-slate-600" />
-                                        : <ChevronDown className="w-5 h-5 text-slate-600" />
-                                    }
-                                </div>
-                            </div>
-
-                            {isExpanded && (
-                                <AdminAccessEditor
-                                    key={user.id}
-                                    user={user}
-                                    access={access}
-                                    canManage={canManage && user.id !== currentUser?.id}
-                                    isSelf={user.id === currentUser?.id}
-                                    saving={saving === user.id}
-                                    feedback={feedback[user.id]}
-                                    onSave={handleSaveAccess}
-                                />
                             )}
+                            <div className={`bg-slate-900/80 border rounded-2xl overflow-hidden transition-all duration-300 ${
+                                isPinned ? 'border-emerald-500/30 ring-1 ring-emerald-500/20 shadow-lg shadow-emerald-500/5' : 'border-slate-800'
+                            }`}>
+                                <div
+                                    className="flex items-center justify-between p-5 cursor-pointer"
+                                    onClick={() => {
+                                        if (isExpanded) setFeedback(prev => ({ ...prev, [user.id]: null }))
+                                        setExpandedId(isExpanded ? null : user.id)
+                                    }}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                            isPinned ? 'bg-emerald-500/15' : 'bg-indigo-500/15'
+                                        }`}>
+                                            <Shield className={`w-5 h-5 ${isPinned ? 'text-emerald-400' : 'text-indigo-400'}`} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-slate-200">{user.name || user.email}</p>
+                                            <p className="text-xs text-slate-500">{user.email}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        {canManage && user.id !== currentUser?.id && level === 'sub-admin' && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setPendingDelete(user) }}
+                                                className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                title="Delete sub-admin"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                                            level === 'admin'
+                                                ? 'bg-emerald-500/15 text-emerald-400'
+                                                : level === 'sub-admin'
+                                                    ? 'bg-amber-500/15 text-amber-400'
+                                                    : 'bg-slate-700 text-slate-400'
+                                        }`}>
+                                            {level}
+                                        </span>
+                                        {isExpanded
+                                            ? <ChevronUp className="w-5 h-5 text-slate-600" />
+                                            : <ChevronDown className="w-5 h-5 text-slate-600" />
+                                        }
+                                    </div>
+                                </div>
+
+                                {isExpanded && (
+                                    <AdminAccessEditor
+                                        key={user.id}
+                                        user={user}
+                                        access={access}
+                                        canManage={canManage && user.id !== currentUser?.id}
+                                        isSelf={user.id === currentUser?.id}
+                                        saving={saving === user.id}
+                                        feedback={feedback[user.id]}
+                                        onSave={handleSaveAccess}
+                                    />
+                                )}
+                            </div>
                         </div>
                     )
                 })}
@@ -313,7 +334,7 @@ const AdminAccessEditor = ({ user, access, canManage, isSelf, saving, feedback, 
                 <div className="mb-4 p-3 bg-slate-800/60 border border-slate-700 rounded-lg">
                     <p className="text-xs text-slate-400">
                         The following permissions are always super-admin only and cannot be delegated:
-                        {' '}{SUPER_ADMIN_ONLY_PERMISSIONS.join(', ')}.
+                        {' '}{SUPER_ADMIN_ONLY_PERMISSIONS.map(getPermissionLabel).join(', ')}.
                     </p>
                 </div>
             )}

@@ -6,6 +6,7 @@ import {
     computeEducationScore,
     computeExperienceScore,
     deduplicateSkills,
+    isAgeRequirement,
     matchRequirementToSkillSet,
     normalizeSkillKey,
 } from './deterministicScore'
@@ -266,6 +267,24 @@ describe('deterministicScore', () => {
         expect(oneStrong.matchScore).toBeLessThan(twoStrong.matchScore)
         expect(oneStrong.matchScore - none.matchScore).toBeLessThanOrEqual(25)
         expect(twoStrong.matchScore - oneStrong.matchScore).toBeLessThanOrEqual(20)
+    })
+})
+
+describe('isAgeRequirement', () => {
+    it('recognises explicit age requirements', () => {
+        expect(isAgeRequirement('18 years old and above')).toBe(true)
+        expect(isAgeRequirement('at least 21 years old')).toBe(true)
+        expect(isAgeRequirement('18-35 years old')).toBe(true)
+        expect(isAgeRequirement('25 to 40 years old')).toBe(true)
+        expect(isAgeRequirement('21 yrs old or older')).toBe(true)
+    })
+
+    it('does not classify experience-year strings as age requirements', () => {
+        expect(isAgeRequirement('2-3 years experience')).toBe(false)
+        expect(isAgeRequirement('3 to 5 years work experience')).toBe(false)
+        expect(isAgeRequirement('5-10 years of experience')).toBe(false)
+        expect(isAgeRequirement('at least 2 years experience')).toBe(false)
+        expect(isAgeRequirement('1-2 years in a similar role')).toBe(false)
     })
 })
 

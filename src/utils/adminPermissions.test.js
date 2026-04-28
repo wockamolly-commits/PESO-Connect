@@ -22,7 +22,7 @@ const subAdminWithAll = {
 
 const subAdminReadOnly = {
     admin_level: 'sub-admin',
-    permissions: ['view_overview', 'view_employers', 'view_jobseekers'],
+    permissions: ['view_employer_overview', 'view_employers', 'view_jobseeker_overview', 'view_jobseekers'],
 }
 
 const subAdminApproveEmployers = {
@@ -101,17 +101,17 @@ describe('hasAdminPermission', () => {
     })
 
     it('returns false for null adminAccess', () => {
-        expect(hasAdminPermission(null, 'view_overview')).toBe(false)
+        expect(hasAdminPermission(null, 'view_employer_overview')).toBe(false)
     })
 
     it('returns false when permissions array is empty', () => {
         const emptyRow = { admin_level: 'sub-admin', permissions: [] }
-        expect(hasAdminPermission(emptyRow, 'view_overview')).toBe(false)
+        expect(hasAdminPermission(emptyRow, 'view_employer_overview')).toBe(false)
     })
 
     it('returns false when permissions is not an array', () => {
         const malformed = { admin_level: 'sub-admin', permissions: null }
-        expect(hasAdminPermission(malformed, 'view_overview')).toBe(false)
+        expect(hasAdminPermission(malformed, 'view_employer_overview')).toBe(false)
     })
 
     it('delete_users is NOT in SUPER_ADMIN_ONLY_PERMISSIONS', () => {
@@ -145,7 +145,7 @@ describe('getVisibleAdminSections', () => {
     })
 
     it('admin_management section is super-admin only', () => {
-        const noManage = { admin_level: 'sub-admin', permissions: ['view_overview'] }
+        const noManage = { admin_level: 'sub-admin', permissions: ['view_employer_overview'] }
         expect(getVisibleAdminSections(noManage)).not.toContain('admin_management')
 
         const withManage = { admin_level: 'sub-admin', permissions: ['manage_admins'] }
@@ -158,7 +158,9 @@ describe('getVisibleAdminSections', () => {
 describe('getPermissionLabel', () => {
     it('returns mapped labels for known permissions', () => {
         expect(getPermissionLabel('manage_system_settings')).toBe('Manage System Settings')
-        expect(getPermissionLabel('view_overview')).toBe('View Overview')
+        expect(getPermissionLabel('view_employer_overview')).toBe('View Employer Overview')
+        expect(getPermissionLabel('view_jobseeker_overview')).toBe('View Jobseeker Overview')
+        expect(getPermissionLabel('view_overall_overview')).toBe('View Overall Overview')
         expect(getPermissionLabel('reverify_jobseeker_profiles')).toBe('Reverify Jobseeker Profiles')
         expect(getPermissionLabel('reverify_employer_profiles')).toBe('Reverify Employer Profiles')
     })
@@ -211,10 +213,46 @@ describe('formatPermissionList', () => {
     })
 
     it('reverification section requires reverify_profiles permission', () => {
-        const noReverify = { admin_level: 'sub-admin', permissions: ['view_overview'] }
+        const noReverify = { admin_level: 'sub-admin', permissions: ['view_employer_overview'] }
         expect(getVisibleAdminSections(noReverify)).not.toContain('reverification')
 
         const withReverify = { admin_level: 'sub-admin', permissions: ['reverify_profiles'] }
         expect(getVisibleAdminSections(withReverify)).toContain('reverification')
+    })
+})
+
+describe('granular overview permissions', () => {
+    it('view_overview is derived when any granular overview permission is present', () => {
+        const empOverview = { admin_level: 'sub-admin', permissions: ['view_employer_overview'] }
+        const jsOverview = { admin_level: 'sub-admin', permissions: ['view_jobseeker_overview'] }
+
+        expect(hasAdminPermission(empOverview, 'view_overview')).toBe(true)
+        expect(hasAdminPermission(jsOverview, 'view_overview')).toBe(true)
+    })
+
+    it('view_overview is false when no overview permission is present', () => {
+        const noOverview = { admin_level: 'sub-admin', permissions: ['view_employers'] }
+        expect(hasAdminPermission(noOverview, 'view_overview')).toBe(false)
+    })
+
+    it('legacy view_overview string still derives view_overview', () => {
+        const legacy = { admin_level: 'sub-admin', permissions: ['view_overview'] }
+        expect(hasAdminPermission(legacy, 'view_overview')).toBe(true)
+    })
+
+    it('view_overall_overview is super-admin-only', () => {
+        const subWithOverall = { admin_level: 'sub-admin', permissions: ['view_overall_overview'] }
+        expect(hasAdminPermission(subWithOverall, 'view_overall_overview')).toBe(false)
+        expect(hasAdminPermission(superAdminRow, 'view_overall_overview')).toBe(true)
+    })
+
+    it('overview section appears for sub-admin with employer overview permission', () => {
+        const empOverview = { admin_level: 'sub-admin', permissions: ['view_employer_overview'] }
+        expect(getVisibleAdminSections(empOverview)).toContain('overview')
+    })
+
+    it('overview section appears for sub-admin with jobseeker overview permission', () => {
+        const jsOverview = { admin_level: 'sub-admin', permissions: ['view_jobseeker_overview'] }
+        expect(getVisibleAdminSections(jsOverview)).toContain('overview')
     })
 })

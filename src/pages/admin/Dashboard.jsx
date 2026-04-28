@@ -217,6 +217,9 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
         users: false,
     })
 
+    const isSuper = adminAccess?.admin_level === 'admin'
+    const canViewEmployers = hasAdminPermission(adminAccess, 'view_employers')
+    const canViewJobseekers = hasAdminPermission(adminAccess, 'view_jobseekers')
     const canApproveEmployers = hasAdminPermission(adminAccess, 'approve_employers')
     const canRejectEmployers = hasAdminPermission(adminAccess, 'reject_employers')
     const canApproveJobseekers = hasAdminPermission(adminAccess, 'approve_jobseekers')
@@ -353,9 +356,29 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                 return out
             }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
 
-            setAllUsers(merged)
-            setEmployers(merged.filter(u => u.role === 'employer'))
-            setJobseekers(merged.filter(u => u.role === 'user' && u.subtype === 'jobseeker'))
+            // ── Role-based data scoping for sub-admins ──
+            // Super-admins see everything. Sub-admins only receive data
+            // for their assigned scope (employer / jobseeker) to prevent
+            // leaking system-wide analytics through state or DevTools.
+            const scopedUsers = isSuper
+                ? merged
+                : merged.filter(u => {
+                    if (canViewEmployers && u.role === 'employer') return true
+                    if (canViewJobseekers && u.role === 'user' && u.subtype === 'jobseeker') return true
+                    return false
+                })
+
+            setAllUsers(scopedUsers)
+            setEmployers(
+                canViewEmployers
+                    ? merged.filter(u => u.role === 'employer')
+                    : []
+            )
+            setJobseekers(
+                canViewJobseekers
+                    ? merged.filter(u => u.role === 'user' && u.subtype === 'jobseeker')
+                    : []
+            )
 
             if (currentUser) {
                 try {
@@ -728,21 +751,31 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
         return filtered
     }
 
-    const employerCounts = {
-        pending: employers.filter(e => (e.employer_status || 'pending') === 'pending').length,
-        approved: employers.filter(e => e.employer_status === 'approved').length,
-        rejected: employers.filter(e => e.employer_status === 'rejected').length,
-        expired: employers.filter(e => e.employer_status === 'expired').length,
-        total: employers.length,
-    }
+    // ── Scoped analytics counts ──
+    // Sub-admins only see counts for the role they are authorized to manage.
+    // The employers/jobseekers arrays are already scoped in fetchData,
+    // but we defensively zero-out counts for out-of-scope roles here too.
+    const EMPTY_COUNTS = { pending: 0, approved: 0, verified: 0, rejected: 0, expired: 0, total: 0 }
 
-    const jobseekerCounts = {
-        pending: jobseekers.filter(j => (j.jobseeker_status || 'pending') === 'pending').length,
-        verified: jobseekers.filter(j => j.jobseeker_status === 'verified').length,
-        rejected: jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
-        expired: jobseekers.filter(j => j.jobseeker_status === 'expired').length,
-        total: jobseekers.length,
-    }
+    const employerCounts = canViewEmployers
+        ? {
+            pending: employers.filter(e => (e.employer_status || 'pending') === 'pending').length,
+            approved: employers.filter(e => e.employer_status === 'approved').length,
+            rejected: employers.filter(e => e.employer_status === 'rejected').length,
+            expired: employers.filter(e => e.employer_status === 'expired').length,
+            total: employers.length,
+        }
+        : EMPTY_COUNTS
+
+    const jobseekerCounts = canViewJobseekers
+        ? {
+            pending: jobseekers.filter(j => (j.jobseeker_status || 'pending') === 'pending').length,
+            verified: jobseekers.filter(j => j.jobseeker_status === 'verified').length,
+            rejected: jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
+            expired: jobseekers.filter(j => j.jobseeker_status === 'expired').length,
+            total: jobseekers.length,
+        }
+        : EMPTY_COUNTS
 
     if (loading) {
         return (
