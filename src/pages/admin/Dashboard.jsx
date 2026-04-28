@@ -811,6 +811,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                                 jobseekerCounts={jobseekerCounts}
                                 setActiveSection={setActiveSection}
                                 setActiveTab={setActiveTab}
+                                adminAccess={adminAccess}
                             />
                             : renderUnauthorized('Overview')
                     )}
