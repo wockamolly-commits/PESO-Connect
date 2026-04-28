@@ -29,7 +29,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 // Permissions that can never be delegated to a sub-admin, regardless of what the caller sends.
-const SUPER_ADMIN_ONLY_PERMISSIONS = ['manage_admins', 'manage_system_settings', 'delete_users']
+const SUPER_ADMIN_ONLY_PERMISSIONS = ['manage_admins', 'manage_system_settings']
 
 // Exhaustive allowlist of valid permission strings. Anything else is silently dropped.
 const ALL_DELEGATABLE_PERMISSIONS = [
