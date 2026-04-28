@@ -17,7 +17,6 @@ export const ALL_PERMISSIONS = [
     'reject_jobseekers',
     'view_users',
     'export_jobseekers',
-    'reverify_profiles',
     'reverify_jobseeker_profiles',
     'reverify_employer_profiles',
     'view_skill_insights',
@@ -25,6 +24,12 @@ export const ALL_PERMISSIONS = [
     'manage_system_settings',
     'delete_users',
 ]
+
+// Permissions that are auto-derived and hidden from the UI.
+// 'reverify_profiles' gates the Reverification Queue sidebar section and is
+// automatically granted when either reverify_jobseeker_profiles or
+// reverify_employer_profiles is present.
+export const DERIVED_PERMISSIONS = ['reverify_profiles']
 
 // Permissions that are always super-admin-only regardless of grants.
 export const SUPER_ADMIN_ONLY_PERMISSIONS = [
