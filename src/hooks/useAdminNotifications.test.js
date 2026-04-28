@@ -89,6 +89,7 @@ describe('useAdminNotifications', () => {
     })
 
     it('markNotificationAsRead optimistically updates state', async () => {
+        getAdminUnreadCount.mockResolvedValueOnce(1).mockResolvedValue(0)
         const { result } = renderHook(() => useAdminNotifications())
 
         await waitFor(() => {
@@ -105,6 +106,7 @@ describe('useAdminNotifications', () => {
     })
 
     it('markAllNotificationsAsRead optimistically updates all', async () => {
+        getAdminUnreadCount.mockResolvedValueOnce(1).mockResolvedValue(0)
         const { result } = renderHook(() => useAdminNotifications())
 
         await waitFor(() => {

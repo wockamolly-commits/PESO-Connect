@@ -19,7 +19,7 @@ const mockUpdate = vi.fn()
 const mockFrom = vi.fn()
 
 mockSelect.mockReturnValue({ eq: mockEq })
-mockEq.mockReturnValue({ single: mockSingle, eq: mockEq })
+mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle, eq: mockEq })
 mockInsert.mockResolvedValue({ error: null })
 mockUpdateEq.mockResolvedValue({ error: null })
 mockUpdate.mockReturnValue({ eq: mockUpdateEq })
@@ -58,7 +58,7 @@ describe('AuthContext', () => {
 
     // Reset builder chain mocks
     mockSelect.mockReturnValue({ eq: mockEq })
-    mockEq.mockReturnValue({ single: mockSingle, eq: mockEq })
+    mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle, eq: mockEq })
     mockInsert.mockResolvedValue({ error: null })
     mockUpdateEq.mockResolvedValue({ error: null })
     mockUpdate.mockReturnValue({ eq: mockUpdateEq })
@@ -164,8 +164,7 @@ describe('AuthContext', () => {
         )
       })
 
-      expect(mockSignUp).toHaveBeenCalledWith({ email: 'new@test.com', password: 'password123' })
-      expect(mockInsert).toHaveBeenCalled()
+      expect(mockSignUp).toHaveBeenCalledWith({ email: 'new@test.com', password: 'password123', options: { data: { role: 'jobseeker' } } })
       expect(response.user.uid).toBe('new-user-1')
       expect(response.userData.role).toBe('jobseeker')
       expect(response.userData.name).toBe('John Doe')
@@ -216,7 +215,7 @@ describe('AuthContext', () => {
     })
 
     it('detects jobseeker role correctly', async () => {
-      setupSignedInUser({ uid: 'js-1', role: 'jobseeker', is_verified: false })
+      setupSignedInUser({ uid: 'js-1', role: 'user', subtype: 'jobseeker', is_verified: false })
 
       const { result } = renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(result.current.loading).toBe(false))

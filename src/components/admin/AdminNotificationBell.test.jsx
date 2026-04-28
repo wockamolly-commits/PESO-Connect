@@ -3,27 +3,16 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AdminNotificationBell } from './AdminNotificationBell'
 
-// Stub the hook — we only care about render-path escaping here.
-vi.mock('../../hooks/useAdminNotifications', () => ({
-    useAdminNotifications: () => ({
-        notifications: [
-            {
-                id: 'n1',
-                type: 'user_report',
-                priority: 'medium',
-                title: '<img src=x onerror="window.xssBell=true">',
-                message: '<script>window.xssBell=true</script>',
-                created_at: new Date().toISOString(),
-                is_read: false,
-                reference_link: '/admin',
-            },
-        ],
-        unreadCount: 1,
-        loading: false,
-        markNotificationAsRead: vi.fn(),
-        markAllNotificationsAsRead: vi.fn(),
-    }),
-}))
+const xssNotification = {
+    id: 'n1',
+    type: 'user_report',
+    priority: 'medium',
+    title: '<img src=x onerror="window.xssBell=true">',
+    message: '<script>window.xssBell=true</script>',
+    created_at: new Date().toISOString(),
+    is_read: false,
+    reference_link: '/admin',
+}
 
 describe('AdminNotificationBell XSS posture', () => {
     it('renders HTML in title/message as plain text, not markup', () => {
@@ -31,7 +20,13 @@ describe('AdminNotificationBell XSS posture', () => {
 
         render(
             <MemoryRouter>
-                <AdminNotificationBell />
+                <AdminNotificationBell
+                    notifications={[xssNotification]}
+                    unreadCount={1}
+                    loading={false}
+                    onMarkAsRead={vi.fn()}
+                    onMarkAllAsRead={vi.fn()}
+                />
             </MemoryRouter>
         )
 

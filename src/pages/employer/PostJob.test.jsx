@@ -45,6 +45,7 @@ async function fillAndPassStep1(user) {
     'Plumber'
   )
   await user.click(screen.getByText('Skilled Trades'))
+  await user.click(screen.getByText('Work from Home / Remote'))
   await user.click(screen.getByRole('button', { name: /continue/i }))
 
   // Wait for step 2 to render (salary placeholder is step-2-only)
@@ -56,6 +57,7 @@ async function fillAndPassStep1(user) {
 describe('PostJob wizard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     mockUseAuth.mockReturnValue({
       currentUser: { uid: 'emp-1' },
       userData: { name: 'Test Employer', role: 'employer', is_verified: true },
@@ -106,6 +108,7 @@ describe('PostJob wizard', () => {
       'Senior Plumber'
     )
     await user.click(screen.getByText('Skilled Trades'))
+    await user.click(screen.getByText('Work from Home / Remote'))
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     // Step 2 content: salary fields

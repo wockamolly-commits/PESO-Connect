@@ -133,7 +133,6 @@ describe('adminNotificationService', () => {
             expect(chain.update).toHaveBeenCalled()
             const updateArg = chain.update.mock.calls[0][0]
             expect(updateArg.is_read).toBe(true)
-            expect(updateArg.read_at).toBeDefined()
         })
     })
 

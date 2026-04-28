@@ -71,10 +71,7 @@ export function useAdminNotifications() {
                 refreshUnreadCount()
                 // Only toast for notifications that arrive after initial load
                 if (initialFetchDone.current) {
-                    const toastFn = newRow.priority === 'critical' || newRow.priority === 'high'
-                        ? toast.warning
-                        : toast.info
-                    toastFn(newRow.title, {
+                    toast(newRow.title, {
                         description: newRow.message,
                         duration: 5000,
                     })

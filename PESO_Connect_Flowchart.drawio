@@ -1,0 +1,259 @@
+<mxfile host="app.diagrams.net">
+    <diagram name="PESO Connect Application Flow" id="peso-connect-flow">
+        <mxGraphModel dx="2726" dy="1037" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+
+                <!-- Outer dashed border -->
+                <mxCell id="border" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;strokeColor=#000000;fillColor=none;strokeWidth=2;dashPattern=8 4;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="30" width="1500" height="1110" as="geometry"/>
+                </mxCell>
+
+                <!-- START -->
+                <mxCell id="start" value="START" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;fontSize=16;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="50" width="140" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- Landing Page -->
+                <mxCell id="landing" value="Landing Page&#10;(Login / Register)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="755" y="130" width="210" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- Decision -->
+                <mxCell id="decision" value="Already have&#10;an account?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="220" width="180" height="80" as="geometry"/>
+                </mxCell>
+
+                <!-- Register -->
+                <mxCell id="register" value="Register&#10;(Choose Role)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="490" y="265" width="180" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- Login -->
+                <mxCell id="login" value="Login&#10;(Enter Credentials)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="1050" y="265" width="180" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- Select Role -->
+                <mxCell id="selectRole" value="Select Role" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=14;fontStyle=1;fontColor=#000000;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="360" width="210" height="45" as="geometry"/>
+                </mxCell>
+
+                <!-- COLUMN HEADERS -->
+                <mxCell id="jsHeader" value="JOBSEEKER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=1;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="450" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="empHeader" value="EMPLOYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=1;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="450" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="indHeader" value="INDIVIDUAL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=1;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="450" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="adminHeader" value="ADMIN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=1;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="450" width="220" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- Admin note -->
+                <mxCell id="adminNote" value="(Login only — not selectable during registration)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#000000;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1060" y="505" width="240" height="35" as="geometry"/>
+                </mxCell>
+
+                <!-- JOBSEEKER ITEMS -->
+                <mxCell id="jsReg" value="Jobseeker Registration&#10;(6 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="530" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="jsDash" value="Jobseeker Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="610" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="jsBrowse" value="Browse Jobs&#10;(Hybrid AI Match &amp; Breakdown)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="685" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="jsApply" value="Apply to Job" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="765" width="200" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- EMPLOYER ITEMS -->
+                <mxCell id="empReg" value="Employer Registration&#10;(4 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="550" y="530" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="empDash" value="Employer Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="550" y="610" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="empPost" value="Post Job&#10;(AI Skill Recs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="550" y="685" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="empReview" value="Review Applicants&#10;(inferential-v9 scores)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="550" y="765" width="200" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- INDIVIDUAL ITEMS -->
+                <mxCell id="indReg" value="Individual Registration&#10;(2 steps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="530" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="indDash" value="Individual Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="610" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="indDiag" value="Diagnostic Search&#10;(Service Needs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="685" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="indWorkers" value="View Matched Workers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="765" width="200" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- ADMIN ITEMS -->
+                <mxCell id="adminDash" value="Admin Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="550" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="adminVerify" value="Verify Users&#10;(Approve / Reject &amp; Email)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="625" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="adminStats" value="View Platform Stats&#10;&amp; Telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=12;fontColor=#000000;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="705" width="200" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- MESSAGING -->
+                <mxCell id="messaging" value="REAL-TIME MESSAGING SYSTEM&#10;(All Users)&#10;Communicate between Jobseekers, Employers, and Individuals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontStyle=1;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="880" width="860" height="80" as="geometry"/>
+                </mxCell>
+
+                <!-- Logout center -->
+                <mxCell id="logoutMain" value="Logout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="755" y="995" width="210" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- END -->
+                <mxCell id="end" value="END" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;fontSize=16;fontColor=#000000;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="1070" width="140" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- Logout Left -->
+                <mxCell id="logoutLeft" value="Logout&#10;(from any Dashboard)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="600" width="150" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- Logout Right -->
+                <mxCell id="logoutRight" value="Logout&#10;(from any Dashboard)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=11;fontColor=#000000;strokeWidth=1;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="1370" y="655" width="150" height="55" as="geometry"/>
+                </mxCell>
+
+                <!-- EDGES — all black -->
+                <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="start" target="landing" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="landing" target="decision" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="No" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="decision" target="register" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="Yes" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;fontSize=12;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="decision" target="login" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="register" target="selectRole" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="User" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="login" target="selectRole" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6b" value="Admin" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;fontSize=11;fontStyle=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" parent="1" source="login" target="adminHeader" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1300" y="293"/>
+                            <mxPoint x="1300" y="425"/>
+                            <mxPoint x="1190" y="425"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.1;exitY=1;" parent="1" source="selectRole" target="jsHeader" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.5;exitY=1;" parent="1" source="selectRole" target="empHeader" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.9;exitY=1;" parent="1" source="selectRole" target="indHeader" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="jsHeader" target="jsReg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="jsReg" target="jsDash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="jsDash" target="jsBrowse" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="jsBrowse" target="jsApply" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="empHeader" target="empReg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="empReg" target="empDash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="empDash" target="empPost" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="empPost" target="empReview" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="indHeader" target="indReg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="indReg" target="indDash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="indDash" target="indDiag" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="indDiag" target="indWorkers" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="adminHeader" target="adminDash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="adminDash" target="adminVerify" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e25" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="adminVerify" target="adminStats" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e26" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.5;exitY=1;entryX=0.08;entryY=1;" parent="1" source="jsApply" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e27" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.5;exitY=1;entryX=0.35;entryY=1;" parent="1" source="empReview" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e28" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.5;exitY=1;entryX=0.62;entryY=1;" parent="1" source="indWorkers" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e29" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;exitX=0.5;exitY=1;entryX=0.9;entryY=1;" parent="1" source="adminStats" target="messaging" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e30" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="messaging" target="logoutMain" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e31" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;" parent="1" source="logoutMain" target="end" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e32" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;strokeWidth=1.5;dashed=1;exitX=0.5;exitY=0;entryX=0;entryY=0.5;" parent="1" source="logoutLeft" target="landing" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="155" y="158"/>
+                            <mxPoint x="755" y="158"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e33" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#000000;fontColor=#000000;strokeWidth=1.5;dashed=1;exitX=0.5;exitY=0;entryX=1;entryY=0.5;" parent="1" source="logoutRight" target="landing" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1445" y="158"/>
+                            <mxPoint x="965" y="158"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

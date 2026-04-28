@@ -517,6 +517,9 @@ export const AuthProvider = ({ children }) => {
         // with no network round-trip, eliminating the 1-3s delay on free tier.
         // The access token expires naturally on the server (~1 hour).
         await supabase.auth.signOut({ scope: 'local' })
+        setCurrentUser(null)
+        setUserData(null)
+        setAdminAccess(null)
         // Don't clear the profile cache — it's keyed by user ID and helps
         // the navbar load instantly on the user's next login
         window.location.href = '/login'

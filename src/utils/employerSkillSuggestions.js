@@ -58,6 +58,7 @@ export async function getSkillSupplyCounts(category) {
     const rows = Array.isArray(data) ? data : []
     const map = new Map()
     for (const row of rows) {
+      if (row.category?.toLowerCase() !== category.toLowerCase()) continue
       map.set(row.skill_name.toLowerCase(), Number(row.supply_count))
     }
     return map
