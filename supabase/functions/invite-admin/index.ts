@@ -28,6 +28,17 @@ const handleCorsPreflightRequest = () => new Response('ok', { headers: corsHeade
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+// Permissions that can never be delegated to a sub-admin, regardless of what the caller sends.
+const SUPER_ADMIN_ONLY_PERMISSIONS = ['manage_admins', 'manage_system_settings', 'delete_users']
+
+// Exhaustive allowlist of valid permission strings. Anything else is silently dropped.
+const ALL_DELEGATABLE_PERMISSIONS = [
+  'view_overview', 'view_employers', 'approve_employers', 'reject_employers',
+  'view_jobseekers', 'approve_jobseekers', 'reject_jobseekers', 'view_users',
+  'export_jobseekers', 'reverify_profiles', 'reverify_jobseeker_profiles',
+  'reverify_employer_profiles', 'view_skill_insights', 'delete_users',
+]
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleCorsPreflightRequest()
 
@@ -46,6 +57,11 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(normalizedEmail)) {
+      return jsonResponse({ error: 'Invalid email address format.' }, { status: 400 })
+    }
 
     // ----------------------------------------------------------------
     // Verify caller is a super-admin using their JWT
@@ -143,13 +159,18 @@ Deno.serve(async (req) => {
     // The public.users row is created by handle_new_user() during
     // inviteUserByEmail — so the FK is safe to reference immediately.
     // ----------------------------------------------------------------
+    // Strip super-admin-only and unknown permissions before persisting.
+    const safePermissions = permissions.filter(
+      (p: string) => ALL_DELEGATABLE_PERMISSIONS.includes(p) && !SUPER_ADMIN_ONLY_PERMISSIONS.includes(p)
+    )
+
     const { error: accessInsertError } = await adminClient
       .from('admin_access')
       .upsert(
         {
           user_id: invitedUserId,
           admin_level: 'sub-admin',
-          permissions,
+          permissions: safePermissions,
           created_by: callerUser.id,
           updated_at: new Date().toISOString(),
         },

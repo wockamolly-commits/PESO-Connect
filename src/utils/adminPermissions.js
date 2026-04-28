@@ -30,7 +30,6 @@ export const ALL_PERMISSIONS = [
 export const SUPER_ADMIN_ONLY_PERMISSIONS = [
     'manage_admins',
     'manage_system_settings',
-    'delete_users',
 ]
 
 // Map each dashboard section ID to the permission that gates it.

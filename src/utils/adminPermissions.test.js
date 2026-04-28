@@ -76,6 +76,16 @@ describe('hasAdminPermission', () => {
         expect(hasAdminPermission(subAdminApproveEmployers, 'manage_admins')).toBe(false)
     })
 
+    it('sub-admin with delete_users in their list can exercise it', () => {
+        const row = { admin_level: 'sub-admin', permissions: ['view_users', 'delete_users'] }
+        expect(hasAdminPermission(row, 'delete_users')).toBe(true)
+    })
+
+    it('sub-admin without delete_users in their list is denied', () => {
+        const row = { admin_level: 'sub-admin', permissions: ['view_users'] }
+        expect(hasAdminPermission(row, 'delete_users')).toBe(false)
+    })
+
     it('sub-admin is rejected for super-admin-only permissions even if listed', () => {
         // hasAdminPermission rejects SUPER_ADMIN_ONLY_PERMISSIONS for sub-admins
         // regardless of what's in their permissions array. This protects against
@@ -102,6 +112,10 @@ describe('hasAdminPermission', () => {
     it('returns false when permissions is not an array', () => {
         const malformed = { admin_level: 'sub-admin', permissions: null }
         expect(hasAdminPermission(malformed, 'view_overview')).toBe(false)
+    })
+
+    it('delete_users is NOT in SUPER_ADMIN_ONLY_PERMISSIONS', () => {
+        expect(SUPER_ADMIN_ONLY_PERMISSIONS).not.toContain('delete_users')
     })
 })
 
