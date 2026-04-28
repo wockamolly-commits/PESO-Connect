@@ -29,6 +29,8 @@ const JobseekerVerificationSection = ({
     onViewDocument,
     canApprove = true,
     canReject = true,
+    canDelete = false,
+    onDelete,
 }) => {
     const tabs = [
         { id: 'pending', label: 'Pending', count: jobseekerCounts.pending, icon: Clock, activeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
@@ -114,6 +116,8 @@ const JobseekerVerificationSection = ({
                             onViewDocument={onViewDocument}
                             canApprove={canApprove}
                             canReject={canReject}
+                            canDelete={canDelete}
+                            onDelete={onDelete}
                         />
                     ))
                 )}

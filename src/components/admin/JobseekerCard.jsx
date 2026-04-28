@@ -1,7 +1,7 @@
 import {
     User, FileText, Maximize2,
     ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2,
-    Briefcase, GraduationCap, Award, ChevronRight
+    Briefcase, GraduationCap, Award, ChevronRight, Trash2
 } from 'lucide-react'
 import PendingReverificationBadge from '../common/PendingReverificationBadge'
 import { getCertificateSignedUrl } from '../../utils/certificateUtils'
@@ -16,6 +16,8 @@ const JobseekerCard = ({
     onViewDocument,
     canApprove = true,
     canReject = true,
+    canDelete = false,
+    onDelete,
 }) => {
     const isExpanded = expandedId === jobseeker.id
     const status = jobseeker.jobseeker_status || 'pending'
@@ -390,8 +392,18 @@ const JobseekerCard = ({
                                 <CheckCircle className="w-4 h-4" /> Jobseeker is verified
                             </span>
                         )}
-                        {!canApprove && !canReject && status !== 'verified' && (
+                        {!canApprove && !canReject && status !== 'verified' && !canDelete && (
                             <span className="text-slate-500 text-xs">View only</span>
+                        )}
+                        {canDelete && (
+                            <button
+                                onClick={() => onDelete(jobseeker)}
+                                disabled={actionLoading === jobseeker.id}
+                                className="flex items-center gap-2 px-4 py-2.5 ml-auto text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                            </button>
                         )}
                     </div>
                 </div>

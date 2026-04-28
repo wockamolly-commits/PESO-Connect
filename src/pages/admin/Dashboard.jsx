@@ -31,6 +31,7 @@ import {
     JobseekerExportSection,
     DocumentViewer,
     RejectModal,
+    DeleteUserModal,
     EMPTY_FILTERS
 } from '../../components/admin'
 import {
@@ -172,6 +173,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     const [jobseekers, setJobseekers] = useState([])
     const [allUsers, setAllUsers] = useState([])
     const [adminAccessRows, setAdminAccessRows] = useState([])
+    const [pendingDeleteUser, setPendingDeleteUser] = useState(null)
     const [loading, setLoading] = useState(true)
 
     const [activeSection, setActiveSection] = useState(initialSection)
@@ -841,6 +843,8 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                                 onViewDocument={handleViewDocument}
                                 canApprove={canApproveEmployers}
                                 canReject={canRejectEmployers}
+                                canDelete={canDeleteUsers}
+                                onDelete={setPendingDeleteUser}
                             />
                             : renderUnauthorized('Employer Verification')
                     )}
@@ -873,6 +877,8 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                                 onViewDocument={handleViewDocument}
                                 canApprove={canApproveJobseekers}
                                 canReject={canRejectJobseekers}
+                                canDelete={canDeleteUsers}
+                                onDelete={setPendingDeleteUser}
                             />
                             : renderUnauthorized('Jobseeker Verification')
                     )}
@@ -957,6 +963,23 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
 
             {showSetupPassword && (
                 <SetupPasswordModal onClose={() => setDismissSetup(true)} />
+            )}
+
+            {pendingDeleteUser && (
+                <DeleteUserModal
+                    user={pendingDeleteUser}
+                    onClose={() => setPendingDeleteUser(null)}
+                    onSuccess={(deletedId) => {
+                        setPendingDeleteUser(null)
+                        handleDeleteUser(deletedId)
+                        // Also remove from employer/jobseeker section rows
+                        setSectionRows(prev => ({
+                            ...prev,
+                            employers: prev.employers.filter(u => u.id !== deletedId),
+                            jobseekers: prev.jobseekers.filter(u => u.id !== deletedId),
+                        }))
+                    }}
+                />
             )}
         </div>
     )

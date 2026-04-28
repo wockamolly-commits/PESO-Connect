@@ -1,6 +1,6 @@
 import {
     Building2, User, FileText, Shield, Maximize2,
-    ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2
+    ChevronDown, ChevronUp, CheckCircle, XCircle, Loader2, Trash2
 } from 'lucide-react'
 import PendingReverificationBadge from '../common/PendingReverificationBadge'
 
@@ -16,6 +16,8 @@ const EmployerCard = ({
     onViewDocument,
     canApprove = true,
     canReject = true,
+    canDelete = false,
+    onDelete,
 }) => {
     const isExpanded = expandedId === employer.id
     const status = employer.employer_status || 'pending'
@@ -292,8 +294,18 @@ const EmployerCard = ({
                                 <CheckCircle className="w-4 h-4" /> Employer is active{employer.verified_for_year ? ` (${employer.verified_for_year})` : ''}
                             </span>
                         )}
-                        {!canApprove && !canReject && status !== 'approved' && (
+                        {!canApprove && !canReject && status !== 'approved' && !canDelete && (
                             <span className="text-slate-500 text-xs">View only</span>
+                        )}
+                        {canDelete && (
+                            <button
+                                onClick={() => onDelete(employer)}
+                                disabled={actionLoading === employer.id}
+                                className="flex items-center gap-2 px-4 py-2.5 ml-auto text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                            </button>
                         )}
                     </div>
                 </div>
