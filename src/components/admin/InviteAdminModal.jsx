@@ -17,12 +17,6 @@ const ROLE_TEMPLATES = [
         description: 'Reviews and approves/rejects jobseeker accounts.',
         permissions: ['view_overview', 'view_jobseekers', 'approve_jobseekers', 'reject_jobseekers'],
     },
-    {
-        id: 'moderator',
-        label: 'Moderator',
-        description: 'Views all users and can remove accounts.',
-        permissions: ['view_overview', 'view_users', 'delete_users'],
-    },
 ]
 
 const RoleTemplateSelect = ({ value, onChange }) => {
