@@ -48,18 +48,10 @@ const RoleTemplateSelect = ({ value, onChange }) => {
 
         const updateDropdownPosition = () => {
             const triggerRect = triggerRef.current?.getBoundingClientRect()
-            const dropdownHeight = dropdownRef.current?.offsetHeight || 260
             if (!triggerRect) return
 
-            const spaceBelow = window.innerHeight - triggerRect.bottom
-            const spaceAbove = triggerRect.top
-            const shouldOpenUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
-            const top = shouldOpenUpward
-                ? Math.max(12, triggerRect.top - dropdownHeight - 8)
-                : Math.min(window.innerHeight - dropdownHeight - 12, triggerRect.bottom + 8)
-
             setDropdownStyle({
-                top,
+                top: triggerRect.bottom + 8,
                 left: triggerRect.left,
                 width: triggerRect.width,
             })
