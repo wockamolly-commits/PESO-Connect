@@ -171,6 +171,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     const [employers, setEmployers] = useState([])
     const [jobseekers, setJobseekers] = useState([])
     const [allUsers, setAllUsers] = useState([])
+    const [adminAccessRows, setAdminAccessRows] = useState([])
     const [loading, setLoading] = useState(true)
 
     const [activeSection, setActiveSection] = useState(initialSection)
@@ -226,6 +227,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
         ...(canReverifyJobseekers ? ['jobseeker'] : []),
         ...(canReverifyEmployers ? ['employer'] : []),
     ]
+    const canDeleteUsers = hasAdminPermission(adminAccess, 'delete_users')
 
     useEffect(() => { fetchData() }, [])
 
@@ -299,6 +301,11 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
         try {
             const { data: users, error } = await supabase.from('users').select('*')
             if (error) throw error
+
+            const { data: accessRows } = await supabase
+                .from('admin_access')
+                .select('user_id, admin_level')
+            setAdminAccessRows(accessRows || [])
 
             const [empRes, jsRes, hoRes] = await Promise.allSettled([
                 supabase.from('employer_profiles').select('*'),
@@ -388,6 +395,16 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
         ]
 
         return directoryRows.find(u => u.id === userId) || allUsers.find(u => u.id === userId)
+    }
+
+    const handleDeleteUser = (deletedUserId) => {
+        setAllUsers(prev => prev.filter(u => u.id !== deletedUserId))
+        setSectionRows(prev => ({
+            ...prev,
+            users: prev.users.filter(u => u.id !== deletedUserId),
+        }))
+        setSectionTotals(prev => ({ ...prev, users: Math.max(0, prev.users - 1) }))
+        toast.success('User deleted successfully.')
     }
 
     const updateProfileRobust = async (profileTable, fullPayload) => {
@@ -877,6 +894,10 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                                 setFilters={setFilters}
                                 sortOrder={sortOrder}
                                 setSortOrder={setSortOrder}
+                                canDeleteUsers={canDeleteUsers}
+                                adminAccessRows={adminAccessRows}
+                                currentUserId={currentUser?.id}
+                                onDeleteUser={handleDeleteUser}
                             />
                             : renderUnauthorized('User Management')
                     )}
