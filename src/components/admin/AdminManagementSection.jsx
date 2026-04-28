@@ -1,24 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { ALL_PERMISSIONS, SUPER_ADMIN_ONLY_PERMISSIONS, isSuperAdmin } from '../../utils/adminPermissions'
-import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import { ALL_PERMISSIONS, SUPER_ADMIN_ONLY_PERMISSIONS, isSuperAdmin, getPermissionLabel } from '../../utils/adminPermissions'
+import { Shield, UserCog, Save, Loader2, ChevronDown, ChevronUp, Plus, CheckCircle, Trash2 } from 'lucide-react'
 import { InviteAdminModal } from './InviteAdminModal'
-
-const PERMISSION_LABELS = {
-    view_overview: 'View Overview',
-    view_employers: 'View Employers',
-    approve_employers: 'Approve Employers',
-    reject_employers: 'Reject Employers',
-    view_jobseekers: 'View Jobseekers',
-    approve_jobseekers: 'Approve Jobseekers',
-    reject_jobseekers: 'Reject Jobseekers',
-    view_users: 'View All Users',
-    export_jobseekers: 'Export Jobseekers',
-    reverify_profiles: 'Review Re-verification Queue',
-    manage_admins: 'Manage Admins (super-admin only)',
-    manage_system_settings: 'System Settings (super-admin only)',
-    delete_users: 'Delete Users (super-admin only)',
-}
+import { DeleteUserModal } from './DeleteUserModal'
 
 // Permissions a super-admin may delegate to sub-admins
 const DELEGATABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
@@ -34,7 +20,9 @@ const AdminManagementSection = ({ adminAccess }) => {
     const [feedback, setFeedback] = useState({})
     const [showInviteModal, setShowInviteModal] = useState(false)
     const [inviteSuccess, setInviteSuccess] = useState('')
+    const [pendingDelete, setPendingDelete] = useState(null)
 
+    const { currentUser } = useAuth()
     const canManage = isSuperAdmin(adminAccess)
 
     useEffect(() => {
@@ -153,7 +141,10 @@ const AdminManagementSection = ({ adminAccess }) => {
                         <div key={user.id} className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
                             <div
                                 className="flex items-center justify-between p-5 cursor-pointer"
-                                onClick={() => setExpandedId(isExpanded ? null : user.id)}
+                                onClick={() => {
+                                    if (isExpanded) setFeedback(prev => ({ ...prev, [user.id]: null }))
+                                    setExpandedId(isExpanded ? null : user.id)
+                                }}
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 bg-indigo-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -165,6 +156,15 @@ const AdminManagementSection = ({ adminAccess }) => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    {canManage && user.id !== currentUser?.id && level === 'sub-admin' && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setPendingDelete(user) }}
+                                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            title="Delete sub-admin"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
                                     <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
                                         level === 'admin'
                                             ? 'bg-indigo-500/15 text-indigo-400'
@@ -183,9 +183,11 @@ const AdminManagementSection = ({ adminAccess }) => {
 
                             {isExpanded && (
                                 <AdminAccessEditor
+                                    key={user.id}
                                     user={user}
                                     access={access}
-                                    canManage={canManage}
+                                    canManage={canManage && user.id !== currentUser?.id}
+                                    isSelf={user.id === currentUser?.id}
                                     saving={saving === user.id}
                                     feedback={feedback[user.id]}
                                     onSave={handleSaveAccess}
@@ -202,11 +204,22 @@ const AdminManagementSection = ({ adminAccess }) => {
                     </div>
                 )}
             </div>
+
+            {pendingDelete && (
+                <DeleteUserModal
+                    user={pendingDelete}
+                    onClose={() => setPendingDelete(null)}
+                    onSuccess={() => {
+                        setPendingDelete(null)
+                        fetchAdminData()
+                    }}
+                />
+            )}
         </div>
     )
 }
 
-const AdminAccessEditor = ({ user, access, canManage, saving, feedback, onSave }) => {
+const AdminAccessEditor = ({ user, access, canManage, isSelf, saving, feedback, onSave }) => {
     const [adminLevel, setAdminLevel] = useState(access?.admin_level || 'sub-admin')
     const [selectedPerms, setSelectedPerms] = useState(access?.permissions || [])
 
@@ -220,6 +233,11 @@ const AdminAccessEditor = ({ user, access, canManage, saving, feedback, onSave }
 
     return (
         <div className="px-5 pb-5 border-t border-slate-800 pt-5 animate-fade-in">
+            {isSelf && (
+                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg">
+                    <p className="text-xs text-amber-400">You cannot modify your own access record.</p>
+                </div>
+            )}
             {/* Admin level */}
             <div className="mb-4">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Admin Level</p>
@@ -269,7 +287,7 @@ const AdminAccessEditor = ({ user, access, canManage, saving, feedback, onSave }
                                     disabled={isReadOnly}
                                     className="w-4 h-4 accent-indigo-500 flex-shrink-0"
                                 />
-                                <span className="text-xs text-slate-300">{PERMISSION_LABELS[perm] || perm}</span>
+                                <span className="text-xs text-slate-300">{getPermissionLabel(perm)}</span>
                             </label>
                         ))}
                     </div>
