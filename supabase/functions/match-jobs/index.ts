@@ -26,7 +26,7 @@ import { judgeSkillSemanticMatches, type SemanticSkillJudgment } from '../_share
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-const MAX_CANDIDATES = 500
+const MAX_CANDIDATES = 150
 const SEMANTIC_SHORTLIST_SIZE = 50
 const MAX_USER_SKILL_TEXTS = 96
 const MATCHER_VERSION = 'skill-first-v13'
