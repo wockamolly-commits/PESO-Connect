@@ -8,14 +8,14 @@ const ROLE_TEMPLATES = [
     {
         id: 'employer_validator',
         label: 'Employer Validator',
-        description: 'Reviews and approves/rejects employer registrations.',
-        permissions: ['view_overview', 'view_employers', 'approve_employers', 'reject_employers'],
+        description: 'Reviews, approves/rejects, and re-verifies employer registrations.',
+        permissions: ['view_overview', 'view_employers', 'approve_employers', 'reject_employers', 'reverify_profiles', 'reverify_employer_profiles'],
     },
     {
         id: 'jobseeker_support',
         label: 'Jobseeker Support',
-        description: 'Reviews and approves/rejects jobseeker accounts.',
-        permissions: ['view_overview', 'view_jobseekers', 'approve_jobseekers', 'reject_jobseekers'],
+        description: 'Reviews, approves/rejects, and re-verifies jobseeker accounts.',
+        permissions: ['view_overview', 'view_jobseekers', 'approve_jobseekers', 'reject_jobseekers', 'reverify_profiles', 'reverify_jobseeker_profiles'],
     },
 ]
 
