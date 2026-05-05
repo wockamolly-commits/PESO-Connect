@@ -7,6 +7,11 @@ import PendingReverificationBadge from '../common/PendingReverificationBadge'
 import { getCertificateSignedUrl } from '../../utils/certificateUtils'
 import { getResumeSignedUrl } from '../../utils/resumeUtils'
 
+const firstPresentValue = (...values) =>
+    values
+        .map(value => String(value ?? '').trim())
+        .find(Boolean) || ''
+
 const JobseekerCard = ({
     jobseeker,
     expandedId,
@@ -22,6 +27,7 @@ const JobseekerCard = ({
 }) => {
     const isExpanded = expandedId === jobseeker.id
     const status = jobseeker.jobseeker_status || 'pending'
+    const identityName = firstPresentValue(jobseeker.display_name, jobseeker.full_name, jobseeker.name)
 
     const handleCertPathClick = async (e, path, title) => {
         e.stopPropagation()
@@ -37,7 +43,7 @@ const JobseekerCard = ({
         e.stopPropagation()
         try {
             const url = await getResumeSignedUrl(jobseeker.resume_url)
-            if (url) onViewDocument(url, `Resume - ${jobseeker.display_name || jobseeker.full_name || jobseeker.name}`)
+            if (url) onViewDocument(url, `Resume - ${identityName || 'Jobseeker'}`)
         } catch {
             // Ignore stale paths; the admin can request a fresh upload.
         }
@@ -56,7 +62,7 @@ const JobseekerCard = ({
                     </div>
                     <div className="min-w-0">
                         <h3 className="font-semibold text-slate-100 truncate">
-                            {jobseeker.display_name || jobseeker.full_name || jobseeker.name || 'Unnamed User'}
+                            {identityName || 'Unnamed User'}
                         </h3>
                         <p className="text-sm text-slate-500 truncate">
                             {jobseeker.email} &bull; {((jobseeker.predefined_skills?.length || 0) + (jobseeker.skills?.length || 0))} skill(s)
@@ -100,7 +106,7 @@ const JobseekerCard = ({
                             </h4>
                             <div className="space-y-2.5 text-sm">
                                 {[
-                                    ['Full Name', jobseeker.display_name || jobseeker.full_name || jobseeker.name],
+                                    ['Full Name', identityName],
                                     ['Date of Birth', jobseeker.date_of_birth],
                                     ['Address', `${jobseeker.barangay || ''}, ${jobseeker.city || ''}, ${jobseeker.province || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || '\u2014'],
                                     ['Mobile', jobseeker.mobile_number],

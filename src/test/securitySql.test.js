@@ -132,8 +132,21 @@ describe('security SQL hardening artifacts', () => {
         expect(migration).toContain('preferred_job_type text[]')
         expect(migration).toContain('business_reg_number text')
         expect(migration).toContain('resume_url text')
+        expect(migration).toContain("concat_ws('' '', nullif(js.first_name")
+        expect(migration).toContain("concat_ws('' '', nullif(u.first_name")
         expect(migration).toMatch(/grant execute on function public\.admin_search_users\(text, text, text, text, integer, integer\) to authenticated/i)
         expect(directoryService).toMatch(/rpc\('admin_search_users'/)
+    })
+
+    it('guards completed jobseeker records against empty identity fields', () => {
+        const migration = readSql('supabase/migrations/202605060006_jobseeker_identity_integrity.sql')
+
+        expect(migration).toContain('users_completed_jobseeker_name_present')
+        expect(migration).toContain('jobseeker_profiles_completed_name_present')
+        expect(migration).toContain('not valid')
+        expect(migration).toContain('update public.jobseeker_profiles')
+        expect(migration).toContain('update public.users')
+        expect(migration).not.toContain('js.display_name')
     })
 
     it('aligns password policy to an 8 character letters-plus-digits minimum', () => {

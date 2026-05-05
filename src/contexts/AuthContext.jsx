@@ -11,17 +11,24 @@ const PROFILE_DERIVED_FIELDS = new Set([
     'display_name',
 ])
 
+const cleanNamePart = (value) => String(value ?? '').trim()
+
+const buildFullName = ({ first_name, middle_name, surname, full_name, name } = {}) => {
+    const splitName = [first_name, middle_name, surname]
+        .map(cleanNamePart)
+        .filter(Boolean)
+        .join(' ')
+    if (splitName) return splitName
+    return cleanNamePart(full_name) || cleanNamePart(name)
+}
+
 // Recompute display_name from the split name fields. Keeping this
 // helper alongside sanitizeLocalProfileSnapshot so derived values are
 // always freshly derived from the source-of-truth columns rather than
 // copied from potentially-stale state.
 const deriveDisplayName = (data) => {
     if (!data) return ''
-    if (data.first_name || data.surname) {
-        return [data.first_name, data.surname].filter(Boolean).join(' ')
-    }
-    if (data.full_name) return data.full_name
-    return data.name || ''
+    return buildFullName(data)
 }
 
 const sanitizeLocalProfileSnapshot = (data) => {
@@ -277,6 +284,20 @@ export const AuthProvider = ({ children }) => {
         return { base, profile }
     }
 
+    const normalizeIdentityFields = (fields = {}) => {
+        const normalized = { ...fields }
+        for (const key of ['surname', 'first_name', 'middle_name', 'suffix', 'full_name', 'name']) {
+            if (Object.prototype.hasOwnProperty.call(normalized, key)) {
+                normalized[key] = cleanNamePart(normalized[key])
+            }
+        }
+
+        const fullName = buildFullName(normalized)
+        if (fullName) normalized.name = fullName
+
+        return normalized
+    }
+
     const toSupabaseErrorMessage = (error) => {
         if (!error) return ''
         return [
@@ -408,22 +429,35 @@ export const AuthProvider = ({ children }) => {
     // Save registration step data to Supabase
     const saveRegistrationStep = async (stepData, stepNumber) => {
         if (!currentUser) throw new Error('No authenticated user')
-        const { base, profile } = splitFields(stepData)
+        const { base, profile } = splitFields(normalizeIdentityFields(stepData))
 
         const now = new Date().toISOString()
+        const role = userData?.role || currentUser?.user_metadata?.role
+        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
+        const identityProfileMirror = subtype === SUBTYPES.JOBSEEKER
+            ? {
+                surname: base.surname,
+                first_name: base.first_name,
+                middle_name: base.middle_name,
+                full_name: buildFullName(base),
+            }
+            : {}
+        const profileIdentity = Object.fromEntries(
+            Object.entries(identityProfileMirror).filter(([, value]) => cleanNamePart(value))
+        )
+
         const { error } = await supabase
             .from('users')
             .update({ ...base, registration_step: stepNumber, updated_at: now })
             .eq('id', currentUser.uid)
         if (error) throw error
 
-        const role = userData?.role || currentUser?.user_metadata?.role
-        const subtype = userData?.subtype || currentUser?.user_metadata?.subtype
         const profileTable = getProfileTable(role, subtype)
         if (profileTable) {
             // Write profile-specific fields + mirror registration_step in a single upsert
             await upsertProfileWithCompatibility(profileTable, {
                 id: currentUser.uid,
+                ...profileIdentity,
                 ...profile,
                 registration_step: stepNumber,
                 updated_at: now,
@@ -440,7 +474,7 @@ export const AuthProvider = ({ children }) => {
     // Mark registration as complete
     const completeRegistration = async (finalData = {}) => {
         if (!currentUser) throw new Error('No authenticated user')
-        const { base, profile } = splitFields(finalData)
+        const { base, profile } = splitFields(normalizeIdentityFields(finalData))
 
         const now = new Date().toISOString()
         const role = userData?.role || currentUser?.user_metadata?.role

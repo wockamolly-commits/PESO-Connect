@@ -133,4 +133,33 @@ describe('adminUserDirectoryService', () => {
             full_name: 'Maria Santos Reyes',
         })
     })
+
+    it('ignores whitespace-only name fields before falling back', async () => {
+        rpcMock.mockResolvedValue({
+            data: [{
+                id: 'jobseeker-1',
+                email: 'jobseeker@example.com',
+                name: 'Canonical User Name',
+                display_name: '   ',
+                full_name: '',
+                role: 'user',
+                subtype: 'jobseeker',
+                total_count: 1,
+            }],
+            error: null,
+        })
+
+        fromMock.mockImplementation(() => ({
+            select: () => ({
+                in: async () => ({ data: [], error: null }),
+            }),
+        }))
+
+        const result = await fetchAdminDirectoryPage({ role: 'jobseeker' })
+
+        expect(result.rows[0]).toMatchObject({
+            display_name: 'Canonical User Name',
+            full_name: 'Canonical User Name',
+        })
+    })
 })

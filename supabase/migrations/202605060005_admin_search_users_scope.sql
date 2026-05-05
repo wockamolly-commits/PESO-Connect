@@ -116,6 +116,9 @@ as '
         when u.role = ''admin'' then ''admin''
         else u.role
       end as directory_role,
+      coalesce(nullif(js.first_name, ''''), nullif(u.first_name, '''')) as first_name,
+      coalesce(nullif(js.middle_name, ''''), nullif(u.middle_name, '''')) as middle_name,
+      coalesce(nullif(js.surname, ''''), nullif(u.surname, '''')) as surname,
 
       ep.company_name,
       ep.representative_name,
@@ -149,8 +152,18 @@ as '
       ep.labor_compliance,
       ep.rejection_reason as employer_rejection_reason,
 
-      coalesce(nullif(js.display_name, ''''), nullif(js.full_name, ''''), nullif(u.name, '''')) as display_name,
-      js.full_name,
+      coalesce(
+        nullif(js.full_name, ''''),
+        nullif(concat_ws('' '', nullif(js.first_name, ''''), nullif(js.middle_name, ''''), nullif(js.surname, '''')), ''''),
+        nullif(concat_ws('' '', nullif(u.first_name, ''''), nullif(u.middle_name, ''''), nullif(u.surname, '''')), ''''),
+        nullif(u.name, '''')
+      ) as display_name,
+      coalesce(
+        nullif(js.full_name, ''''),
+        nullif(concat_ws('' '', nullif(js.first_name, ''''), nullif(js.middle_name, ''''), nullif(js.surname, '''')), ''''),
+        nullif(concat_ws('' '', nullif(u.first_name, ''''), nullif(u.middle_name, ''''), nullif(u.surname, '''')), ''''),
+        nullif(u.name, '''')
+      ) as full_name,
       coalesce(js.jobseeker_status, ''pending'') as jobseeker_status,
       js.date_of_birth,
       js.mobile_number,
@@ -214,6 +227,7 @@ as '
         or s.representative_name ilike ''%'' || trim(p_search) || ''%''
         or s.display_name ilike ''%'' || trim(p_search) || ''%''
         or s.full_name ilike ''%'' || trim(p_search) || ''%''
+        or concat_ws('' '', s.first_name, s.surname) ilike ''%'' || trim(p_search) || ''%''
       )
   )
   select

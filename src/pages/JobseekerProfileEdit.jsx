@@ -797,8 +797,14 @@ const JobseekerProfileEdit = () => {
         try {
             // Validation
             const allSkills = [...(formData.predefined_skills || []), ...(formData.skills || [])]
-            if (!formData.surname || !formData.first_name || !formData.mobile_number || allSkills.length === 0) {
+            const surname = formData.surname.trim()
+            const firstName = formData.first_name.trim()
+            const middleName = formData.middle_name.trim()
+            if (!surname || !firstName || !formData.mobile_number.trim() || allSkills.length === 0) {
                 throw new Error('Please fill in all required fields (surname, first name, mobile, at least one skill)')
+            }
+            if (surname.length < 2 || firstName.length < 2) {
+                throw new Error('Surname and first name must be at least 2 characters')
             }
             if (formData.portfolio_url && !/^https?:\/\//i.test(formData.portfolio_url.trim())) {
                 throw new Error('Portfolio URL must start with https:// or http://')
@@ -814,11 +820,18 @@ const JobseekerProfileEdit = () => {
             }
 
             // Compose display name
-            const displayName = [formData.first_name, formData.middle_name, formData.surname]
+            const displayName = [firstName, middleName, surname]
                 .filter(Boolean).join(' ')
 
             // Build the data to save
-            const profileData = { ...formData }
+            const profileData = {
+                ...formData,
+                surname,
+                first_name: firstName,
+                middle_name: middleName,
+                full_name: displayName,
+                mobile_number: formData.mobile_number.trim(),
+            }
 
             // Normalize scalar fields that may have been stored as stringified arrays
             profileData.employment_type = unwrapArrayValue(formData.employment_type)
@@ -885,9 +898,9 @@ const JobseekerProfileEdit = () => {
                 .from('users')
                 .update({
                     name: displayName,
-                    surname: formData.surname,
-                    first_name: formData.first_name,
-                    middle_name: formData.middle_name,
+                    surname,
+                    first_name: firstName,
+                    middle_name: middleName,
                     suffix: formData.suffix === 'None' ? '' : formData.suffix,
                     profile_photo: profileData.profile_photo,
                     updated_at: now,

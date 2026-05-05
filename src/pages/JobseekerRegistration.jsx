@@ -443,9 +443,9 @@ const JobseekerRegistration = () => {
             case 2: {
                 const heightCm = formData.height_cm === '' ? null : Number(formData.height_cm)
                 return {
-                    surname: formData.surname,
-                    first_name: formData.first_name,
-                    middle_name: formData.middle_name,
+                    surname: formData.surname.trim(),
+                    first_name: formData.first_name.trim(),
+                    middle_name: formData.middle_name.trim(),
                     suffix: formData.suffix === 'None' ? '' : formData.suffix,
                     date_of_birth: formData.date_of_birth,
                     sex: formData.sex,
