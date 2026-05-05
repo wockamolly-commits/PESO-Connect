@@ -53,7 +53,7 @@ const Step1AccountCredentials = ({
                         onChange={handleChange}
                         onBlur={handleBlur}
                         className={`input-field pl-12 pr-12 ${touchedFields?.password && fieldErrors?.password ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : ''}`}
-                        placeholder="Create a password (min. 6 characters)"
+                        placeholder="Create a password (min. 8 characters, letters and numbers)"
                         required
                     />
                     <button

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { getProfileTable } from '../utils/roles'
 import {
     MapPin, Briefcase, GraduationCap, Award, Globe, Calendar, Users,
     ExternalLink, MessageSquare, ArrowLeft, Loader2, Building
@@ -12,44 +11,17 @@ import PendingReverificationBadge from '../components/common/PendingReverificati
 const PublicProfile = () => {
     const { userId } = useParams()
     const navigate = useNavigate()
-    const { currentUser, userData } = useAuth()
+    const { currentUser } = useAuth()
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                // Fetch base user row
-                const { data: baseData, error } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('id', userId)
-                    .maybeSingle()
-
+                const { data, error } = await supabase
+                    .rpc('get_public_profile', { p_user_id: userId })
                 if (error) throw error
-                if (!baseData) return // profile not found — setProfile stays null, finally still runs
-
-                // Fetch role-specific profile
-                const profileTable = getProfileTable(baseData.role, baseData.subtype)
-                let profileData = {}
-                if (profileTable) {
-                    const { data: roleProfile } = await supabase
-                        .from(profileTable)
-                        .select('*')
-                        .eq('id', userId)
-                        .maybeSingle()
-                    if (roleProfile) profileData = roleProfile
-                }
-
-                // Merge: base fields first, then overlay non-empty profile fields
-                const merged = { ...baseData }
-                Object.entries(profileData).forEach(([key, val]) => {
-                    const isEmpty = val === null || val === '' ||
-                        (Array.isArray(val) && val.length === 0)
-                    if (!isEmpty) merged[key] = val
-                })
-
-                setProfile(merged)
+                setProfile(Array.isArray(data) ? data[0] || null : data || null)
             } catch (error) {
                 console.error('Error fetching profile:', error)
             } finally {
@@ -79,15 +51,10 @@ const PublicProfile = () => {
         )
     }
 
-    const isOwn = currentUser?.uid === userId
-    const initial = (profile.display_name || profile.full_name || profile.company_name || profile.name || '?').charAt(0).toUpperCase()
+    const isOwn = currentUser?.uid === userId || currentUser?.id === userId
+    const initial = (profile.display_name || profile.company_name || '?').charAt(0).toUpperCase()
 
-    // Privacy: check profile visibility settings
-    const isRestricted = !isOwn
-        && profile.privacy_settings?.profile_visibility === 'verified_only'
-        && !userData?.is_verified
-
-    if (isRestricted) {
+    if (profile.is_restricted && !isOwn) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
                 <div className="card max-w-md text-center">
@@ -106,7 +73,6 @@ const PublicProfile = () => {
                     <ArrowLeft className="w-5 h-5" /> Back
                 </button>
 
-                {/* Profile Header */}
                 <div className="card mb-6">
                     <div className="flex flex-col items-center text-center">
                         {profile.profile_photo ? (
@@ -117,17 +83,15 @@ const PublicProfile = () => {
                             </div>
                         )}
                         <h1 className="text-2xl font-bold text-gray-900">
-                            {profile.role === 'employer' ? profile.company_name : (profile.display_name || profile.full_name || profile.name)}
+                            {profile.role === 'employer' ? profile.company_name : profile.display_name}
                         </h1>
                         {profile.role === 'employer' && profile.nature_of_business && (
                             <p className="text-gray-500 mt-1">{profile.nature_of_business}</p>
                         )}
-                        {(profile.city || profile.province || profile.business_address) && (
+                        {(profile.city || profile.province) && (
                             <p className="text-gray-400 text-sm mt-1 flex items-center gap-1">
                                 <MapPin className="w-4 h-4" />
-                                {profile.role === 'employer'
-                                    ? profile.business_address
-                                    : [profile.city, profile.province].filter(Boolean).join(', ')}
+                                {[profile.city, profile.province].filter(Boolean).join(', ')}
                             </p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
@@ -146,12 +110,10 @@ const PublicProfile = () => {
                     </div>
                 </div>
 
-                {/* Role-specific content */}
                 {profile.subtype === 'jobseeker' && <JobseekerProfile profile={profile} />}
                 {profile.role === 'employer' && <EmployerProfile profile={profile} />}
                 {profile.subtype === 'homeowner' && <HomeownerProfile profile={profile} />}
 
-                {/* Actions */}
                 {currentUser && !isOwn && (
                     <div className="card mt-6">
                         <Link
@@ -176,13 +138,7 @@ const PublicProfile = () => {
 
 const JobseekerProfile = ({ profile }) => (
     <div className="space-y-6">
-        {profile.bio && (
-            <div className="card">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">About</h2>
-                <p className="text-gray-700 whitespace-pre-line">{profile.bio}</p>
-            </div>
-        )}
-        {profile.privacy_settings?.show_skills !== false && profile.skills?.length > 0 && (
+        {profile.skills?.length > 0 && (
             <div className="card">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">Skills</h2>
                 <div className="flex flex-wrap gap-2">
@@ -237,7 +193,7 @@ const JobseekerProfile = ({ profile }) => (
                 <div className="flex flex-wrap gap-2">
                     {profile.languages.map((lang, i) => (
                         <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                            {lang.language} — {lang.proficiency}
+                            {lang.language} - {lang.proficiency}
                         </span>
                     ))}
                 </div>

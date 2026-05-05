@@ -60,7 +60,7 @@ const HomeownerRegistration = () => {
     const validateStep1 = () => {
         if (!formData.email.trim()) return 'Email is required.'
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return 'Please enter a valid email.'
-        if (formData.password.length < 6) return 'Password must be at least 6 characters.'
+        if (formData.password.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) return 'Password must be at least 8 characters and include letters and numbers.'
         if (formData.password !== formData.confirmPassword) return 'Passwords do not match.'
         return null
     }
@@ -225,7 +225,7 @@ const HomeownerRegistration = () => {
                                             name="password"
                                             value={formData.password}
                                             onChange={handleChange}
-                                            placeholder="At least 6 characters"
+                                            placeholder="At least 8 characters, letters and numbers"
                                             className="w-full pl-11 pr-12 py-3 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none"
                                         />
                                         <button

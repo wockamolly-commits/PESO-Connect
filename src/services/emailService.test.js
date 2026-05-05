@@ -32,6 +32,38 @@ describe('emailService', () => {
 
       vi.unstubAllEnvs()
     })
+
+    it('sends enabled emails as server-rendered templates without raw html', async () => {
+      vi.stubEnv('VITE_EMAIL_NOTIFICATIONS_ENABLED', 'true')
+      const invoke = vi.fn().mockResolvedValue({ data: { success: true }, error: null })
+      vi.doMock('../config/supabase', () => ({
+        supabase: { functions: { invoke } },
+      }))
+
+      const { sendApplicationReceivedEmail } = await import('./emailService')
+      const result = await sendApplicationReceivedEmail(
+        'applicant@test.com',
+        '<img src=x onerror=alert(1)>',
+        '<script>alert(1)</script>'
+      )
+
+      expect(result).toBe(true)
+      expect(invoke).toHaveBeenCalledWith('send-notification-email', {
+        body: {
+          type: 'template',
+          templateType: 'APPLICATION_RECEIVED',
+          data: {
+            email: 'applicant@test.com',
+            applicant_name: '<img src=x onerror=alert(1)>',
+            job_title: '<script>alert(1)</script>',
+          },
+        },
+      })
+      expect(JSON.stringify(invoke.mock.calls[0][1].body)).not.toContain('html')
+
+      vi.doUnmock('../config/supabase')
+      vi.unstubAllEnvs()
+    })
   })
 
   describe('helper functions', () => {

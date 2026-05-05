@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import PendingReverificationBadge from '../common/PendingReverificationBadge'
 import { getCertificateSignedUrl } from '../../utils/certificateUtils'
+import { getResumeSignedUrl } from '../../utils/resumeUtils'
 
 const JobseekerCard = ({
     jobseeker,
@@ -29,6 +30,16 @@ const JobseekerCard = ({
             if (url) onViewDocument(url, title)
         } catch {
             // path may be stale or bucket policy missing — silently ignore
+        }
+    }
+
+    const handleResumeClick = async (e) => {
+        e.stopPropagation()
+        try {
+            const url = await getResumeSignedUrl(jobseeker.resume_url)
+            if (url) onViewDocument(url, `Resume - ${jobseeker.display_name || jobseeker.full_name || jobseeker.name}`)
+        } catch {
+            // Ignore stale paths; the admin can request a fresh upload.
         }
     }
 
@@ -258,7 +269,7 @@ const JobseekerCard = ({
                             {/* Resume */}
                             {jobseeker.resume_url ? (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onViewDocument(jobseeker.resume_url, `Resume \u2014 ${jobseeker.display_name || jobseeker.full_name || jobseeker.name}`) }}
+                                    onClick={handleResumeClick}
                                     className="group p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl hover:border-indigo-500/30 hover:bg-slate-800 transition-all text-left"
                                 >
                                     <div className="flex items-center justify-between mb-2">

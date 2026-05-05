@@ -9,10 +9,7 @@ import {
     normalizeSkillName,
     VALID_EDUCATION_LEVELS,
 } from './matching/deterministicScore'
-
-const COHERE_API_KEY = import.meta.env.VITE_COHERE_API_KEY
-const COHERE_API_URL = 'https://api.cohere.com/v2/chat'
-const COHERE_MODEL = 'command-a-03-2025'
+import { supabase } from '../config/supabase'
 
 // In-memory cache to avoid redundant API calls during a session
 const cache = new Map()
@@ -47,59 +44,23 @@ export const clearSessionScores = (userId) => {
  * Call Cohere API with a prompt.
  */
 export const callAI = async (prompt, { timeoutMs = 15000, maxTokens = 2048 } = {}) => {
-    if (!COHERE_API_KEY) {
-        throw new Error('Cohere API key not configured. Add VITE_COHERE_API_KEY to your .env file.')
-    }
-
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
-        const response = await fetch(COHERE_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${COHERE_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: COHERE_MODEL,
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are a helpful assistant that always responds with valid JSON only. No markdown, no explanation, no code blocks, just raw JSON.',
-                    },
-                    { role: 'user', content: prompt },
-                ],
-                temperature: 0.3,
-                max_tokens: maxTokens,
-                response_format: { type: 'json_object' },
-            }),
+        const { data, error } = await supabase.functions.invoke('ai-json', {
+            body: { prompt, maxTokens },
             signal: controller.signal,
         })
 
         clearTimeout(timeoutId)
 
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}))
-
-            if (response.status === 429) {
-                throw new Error('AI rate limit reached. Please wait a moment and try again.')
-            }
-
-            throw new Error(error.message || `AI API request failed (${response.status})`)
-        }
-
-        const data = await response.json()
-        const content = data.message?.content?.[0]?.text
-
-        if (!content) {
-            throw new Error('AI returned an empty response.')
-        }
-
-        return content
+        if (error) throw new Error(error.message || 'AI request failed')
+        if (!data?.content) throw new Error('AI returned an empty response.')
+        return data.content
     } catch (err) {
         clearTimeout(timeoutId)
-        if (err.name === 'AbortError') {
+        if (err?.name === 'AbortError') {
             throw new Error('AI request timed out. Please try again.')
         }
         throw err

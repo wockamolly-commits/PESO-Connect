@@ -1,4 +1,9 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { assertUserCanAccessUser, authErrorResponse } from '../_shared/auth.ts'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 interface GenerateMatchExplanationRequest {
   userId?: string
@@ -383,6 +388,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'userId and jobId are required' }, { status: 400 })
     }
 
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    try {
+      await assertUserCanAccessUser(supabase, req, body.userId)
+    } catch (authError) {
+      return authErrorResponse(authError, jsonResponse)
+    }
+
     const scores = body.scores && typeof body.scores === 'object' ? body.scores : {}
     const matchingSkills = Array.isArray(body.matchingSkills) ? body.matchingSkills : []
     const missingSkills = Array.isArray(body.missingSkills) ? body.missingSkills : []
@@ -399,6 +411,6 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('generate-match-explanation error:', err)
-    return jsonResponse({ error: err.message }, { status: 500 })
+    return jsonResponse({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 })
   }
 })

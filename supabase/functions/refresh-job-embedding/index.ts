@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
 import { ensureJobEmbedding } from '../_shared/embeddingStore.ts'
+import { assertUserCanAccessJob, authErrorResponse } from '../_shared/auth.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -23,6 +24,12 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+    try {
+      await assertUserCanAccessJob(supabase, req, jobId)
+    } catch (authError) {
+      return authErrorResponse(authError, jsonResponse)
+    }
 
     const { data: job, error } = await supabase
       .from('job_postings')
@@ -48,6 +55,6 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('refresh-job-embedding error:', err)
-    return jsonResponse({ error: err.message }, { status: 500 })
+    return jsonResponse({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 })
   }
 })

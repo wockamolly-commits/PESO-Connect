@@ -16,7 +16,6 @@ import {
     MessageSquare,
     AlertTriangle,
     Download,
-    ExternalLink,
     StickyNote,
     Save,
     CheckSquare,
@@ -26,6 +25,7 @@ import { ApplicationsSkeleton } from '../../components/LoadingSkeletons'
 import { useAuth } from '../../contexts/AuthContext'
 import { insertNotification } from '../../services/notificationService'
 import { sendApplicationStatusEmail } from '../../services/emailService'
+import ResumeLink from '../../components/common/ResumeLink'
 
 const JobApplicants = () => {
     const { jobId } = useParams()
@@ -555,16 +555,7 @@ const JobApplicants = () => {
                                             {/* Resume Link */}
                                             <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
                                                 {app.resume_url ? (
-                                                    <a
-                                                        href={app.resume_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-2 text-primary-600 hover:text-primary-800 font-medium text-sm"
-                                                    >
-                                                        <FileText className="w-4 h-4" />
-                                                        View Resume
-                                                        <ExternalLink className="w-3 h-3" />
-                                                    </a>
+                                                    <ResumeLink resumePath={app.resume_url} />
                                                 ) : (
                                                     <span className="text-gray-400 text-sm flex items-center gap-2">
                                                         <FileText className="w-4 h-4" />

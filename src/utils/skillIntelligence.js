@@ -310,7 +310,6 @@ export const SKILL_TIERS = {
     'Relay Protection': 'senior',
     'Power Factor Correction': 'mid',
     'Arc Flash Safety': 'mid',
-    'High Voltage Systems': 'senior',
     'Sales Reporting': 'mid',
     'Staff Scheduling': 'mid',
     'Inventory Management (F&B)': 'mid',

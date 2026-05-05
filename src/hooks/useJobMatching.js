@@ -41,6 +41,13 @@ export const useJobListingsMatches = ({
 }) => {
     const [matchScores, setMatchScores] = useState({})
     const [loadingMatchScores, setLoadingMatchScores] = useState(false)
+    const {
+        category,
+        location,
+        type,
+        salaryMin,
+        salaryMax,
+    } = filters
 
     useEffect(() => {
         if (!jobs.length || !canLoadMatches({ currentUser, userData, isJobseeker })) {
@@ -66,7 +73,13 @@ export const useJobListingsMatches = ({
             try {
                 const { results } = await getJobMatchesForUser({
                     userId: currentUser.uid,
-                    filters,
+                    filters: {
+                        category,
+                        location,
+                        type,
+                        salaryMin,
+                        salaryMax,
+                    },
                     limit: Math.max(jobs.length, 20),
                 })
 
@@ -99,7 +112,7 @@ export const useJobListingsMatches = ({
         return () => {
             isCancelled = true
         }
-    }, [jobs, currentUser, userData, isJobseeker, filters.category, filters.location, filters.type, filters.salaryMin, filters.salaryMax])
+    }, [jobs, currentUser, userData, isJobseeker, category, location, type, salaryMin, salaryMax])
 
     return { matchScores, loadingMatchScores }
 }

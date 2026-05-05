@@ -6,10 +6,23 @@ import Login from './Login'
 
 // Mock useAuth
 const mockLogin = vi.fn()
+const mockMaybeSingle = vi.fn()
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
     login: mockLogin,
   }),
+}))
+
+vi.mock('../config/supabase', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: mockMaybeSingle,
+        })),
+      })),
+    })),
+  },
 }))
 
 // Mock useNavigate
@@ -34,6 +47,8 @@ describe('Login page', () => {
   beforeEach(() => {
     mockLogin.mockReset()
     mockNavigate.mockReset()
+    mockMaybeSingle.mockReset()
+    mockMaybeSingle.mockResolvedValue({ data: { role: 'user' }, error: null })
   })
 
   it('renders email and password fields', () => {
@@ -57,7 +72,7 @@ describe('Login page', () => {
 
   it('submits form and navigates on success', async () => {
     const user = userEvent.setup()
-    mockLogin.mockResolvedValue({ uid: 'user-1' })
+    mockLogin.mockResolvedValue({ id: 'user-1' })
 
     renderLogin()
 

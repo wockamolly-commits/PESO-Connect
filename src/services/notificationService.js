@@ -9,11 +9,11 @@ import { supabase } from '../config/supabase'
  * @param {object} data - extra context (application_id, job_title, status, etc.)
  */
 export const insertNotification = async (userId, type, title, message, data = {}) => {
-    const { error } = await supabase
-        .from('notifications')
-        .insert({ user_id: userId, type, title, message, data })
+    const { error } = await supabase.functions.invoke('create-notification', {
+        body: { userId, type, title, message, data },
+    })
     if (error) {
-        console.error('Error inserting notification:', error)
+        console.error('Error creating notification:', error)
         throw error
     }
 }
