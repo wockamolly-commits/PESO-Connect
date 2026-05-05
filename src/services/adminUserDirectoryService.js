@@ -42,6 +42,20 @@ const mergeProfileData = (row, profile) => {
     return merged
 }
 
+const joinNameParts = (...parts) =>
+    parts
+        .map(part => String(part || '').trim())
+        .filter(Boolean)
+        .join(' ')
+
+const getJobseekerDisplayName = (row) =>
+    row.display_name ||
+    row.full_name ||
+    joinNameParts(row.first_name, row.middle_name, row.surname) ||
+    joinNameParts(row.first_name, row.last_name) ||
+    row.name ||
+    ''
+
 const fetchProfilesById = async (table, ids) => {
     if (!ids.length) return []
 
@@ -88,9 +102,11 @@ const hydrateAdminDirectoryRows = async (rows) => {
 
         if (row.role === 'user' && row.subtype === 'jobseeker') {
             const hydrated = mergeProfileData(row, jobseekerById.get(row.id))
+            const displayName = getJobseekerDisplayName(hydrated)
             return {
                 ...hydrated,
-                display_name: hydrated.display_name || hydrated.full_name || hydrated.name,
+                display_name: displayName,
+                full_name: hydrated.full_name || displayName,
                 rejection_reason: hydrated.rejection_reason || hydrated.jobseeker_rejection_reason || '',
             }
         }

@@ -91,4 +91,46 @@ describe('adminUserDirectoryService', () => {
             business_reg_number: 'REG-1',
         })
     })
+
+    it('builds a jobseeker display name from split profile name fields', async () => {
+        rpcMock.mockResolvedValue({
+            data: [{
+                id: 'jobseeker-1',
+                email: 'jobseeker@example.com',
+                name: '',
+                role: 'user',
+                subtype: 'jobseeker',
+                total_count: 1,
+            }],
+            error: null,
+        })
+
+        fromMock.mockImplementation((table) => ({
+            select: () => ({
+                in: async () => {
+                    if (table === 'jobseeker_profiles') {
+                        return {
+                            data: [{
+                                id: 'jobseeker-1',
+                                first_name: 'Maria',
+                                middle_name: 'Santos',
+                                surname: 'Reyes',
+                                skills: ['Bookkeeping'],
+                            }],
+                            error: null,
+                        }
+                    }
+
+                    return { data: [], error: null }
+                },
+            }),
+        }))
+
+        const result = await fetchAdminDirectoryPage({ role: 'jobseeker' })
+
+        expect(result.rows[0]).toMatchObject({
+            display_name: 'Maria Santos Reyes',
+            full_name: 'Maria Santos Reyes',
+        })
+    })
 })
