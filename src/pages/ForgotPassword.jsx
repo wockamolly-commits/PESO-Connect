@@ -210,7 +210,7 @@ const ForgotPassword = () => {
                                         required
                                     />
                                 </div>
-                                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                                <p className="text-xs text-gray-500 mt-1">Minimum 8 characters with letters and numbers</p>
                             </div>
 
                             <button

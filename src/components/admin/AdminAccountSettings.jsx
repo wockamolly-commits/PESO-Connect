@@ -53,8 +53,8 @@ const AdminAccountSettings = () => {
         setPasswordError('')
         setPasswordSuccess('')
 
-        if (password.length < 6) {
-            setPasswordError('Password must be at least 6 characters.')
+        if (password.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+            setPasswordError('Password must be at least 8 characters and include letters and numbers.')
             return
         }
         if (password !== confirmPassword) {
@@ -173,7 +173,7 @@ const AdminAccountSettings = () => {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm"
-                                placeholder="Min. 6 characters"
+                                placeholder="Min. 8 characters, letters and numbers"
                                 required
                             />
                         </div>

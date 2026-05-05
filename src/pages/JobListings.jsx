@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import {
@@ -66,10 +66,6 @@ const JobListings = () => {
 
     const jobTypes = ['full-time', 'part-time', 'contract', 'temporary']
 
-    useEffect(() => {
-        fetchJobs()
-    }, [])
-
     // Fetch user's applied job IDs
     useEffect(() => {
         if (!currentUser) return
@@ -110,12 +106,21 @@ const JobListings = () => {
         }
     }
 
-    const fetchJobs = async (loadMore = false) => {
+    const escapeSearchTerm = (value) => value
+        .trim()
+        .replace(/[%_,]/g, ' ')
+        .replace(/\s+/g, ' ')
+
+    const fetchJobs = useCallback(async (loadMore = false) => {
         try {
             const from = loadMore ? jobs.length : 0
             const to = from + PAGE_SIZE - 1
             const today = new Date().toISOString().split('T')[0]
-            const { data: jobsData, error } = await supabase
+            const normalizedSearch = escapeSearchTerm(searchTerm)
+            const minSalary = Number(salaryMin)
+            const maxSalary = Number(salaryMax)
+
+            let query = supabase
                 .from('job_postings')
                 .select(`
                     *,
@@ -132,8 +137,35 @@ const JobListings = () => {
                 .eq('status', 'open')
                 .gt('vacancies', 0)
                 .or(`deadline.is.null,deadline.gte.${today}`)
+
+            if (normalizedSearch) {
+                query = query.or(`title.ilike.%${normalizedSearch}%,description.ilike.%${normalizedSearch}%`)
+            }
+
+            if (categoryFilter) {
+                query = query.eq('category', categoryFilter)
+            }
+
+            if (typeFilter) {
+                query = query.eq('type', typeFilter)
+            }
+
+            if (locationFilter) {
+                query = query.eq('location', locationFilter)
+            }
+
+            if (salaryMin && Number.isFinite(minSalary)) {
+                query = query.gte('salary_max', minSalary)
+            }
+
+            if (salaryMax && Number.isFinite(maxSalary)) {
+                query = query.lte('salary_min', maxSalary)
+            }
+
+            const { data: jobsData, error } = await query
                 .order('created_at', { ascending: false })
                 .range(from, to)
+
             if (error) throw error
             const newJobs = jobsData || []
             setJobs(prev => loadMore ? [...prev, ...newJobs] : newJobs)
@@ -144,7 +176,17 @@ const JobListings = () => {
             setLoading(false)
             setLoadingMore(false)
         }
-    }
+    }, [categoryFilter, jobs.length, locationFilter, salaryMax, salaryMin, searchTerm, typeFilter])
+
+    useEffect(() => {
+        setLoading(true)
+        setHasMore(true)
+        const refreshTimer = window.setTimeout(() => {
+            fetchJobs(false)
+        }, 250)
+
+        return () => window.clearTimeout(refreshTimer)
+    }, [fetchJobs])
 
     const loadMore = () => {
         setLoadingMore(true)
@@ -153,19 +195,7 @@ const JobListings = () => {
 
     const locations = [...new Set(jobs.map(j => j.location).filter(Boolean))].sort()
 
-    const filteredJobs = jobs.filter(job => {
-        const matchesSearch = job.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            job.description?.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesCategory = !categoryFilter || job.category === categoryFilter
-        const matchesType = !typeFilter || job.type === typeFilter
-        const matchesLocation = !locationFilter || job.location === locationFilter
-        const minVal = salaryMin ? Number(salaryMin) : null
-        const maxVal = salaryMax ? Number(salaryMax) : null
-        const matchesSalary =
-            (!minVal || (job.salary_max && job.salary_max >= minVal)) &&
-            (!maxVal || (job.salary_min && job.salary_min <= maxVal))
-        return matchesSearch && matchesCategory && matchesType && matchesLocation && matchesSalary
-    }).sort((a, b) => {
+    const displayedJobs = [...jobs].sort((a, b) => {
         if (!sortByMatch) return 0
         const scoreA = matchScores[a.id]?.matchScore || 0
         const scoreB = matchScores[b.id]?.matchScore || 0
@@ -272,7 +302,7 @@ const JobListings = () => {
                 {/* Results Count & Sort */}
                 <div className="flex items-center justify-between mb-4">
                     <p className="text-gray-600">
-                        Showing <span className="font-semibold text-gray-900">{filteredJobs.length}</span>{hasMore ? '+' : ''} jobs
+                        Showing <span className="font-semibold text-gray-900">{displayedJobs.length}</span>{hasMore ? '+' : ''} jobs
                     </p>
                     {currentUser && isJobseeker() && [...(userData?.predefined_skills || []), ...(userData?.skills || [])].length > 0 && !loadingMatchScores && Object.keys(matchScores).length > 0 && (
                         <div className="flex items-center gap-2">
@@ -366,14 +396,14 @@ const JobListings = () => {
                 {/* Job Cards */}
                 {loading ? (
                     <JobListingSkeleton count={4} />
-                ) : filteredJobs.length === 0 ? (
+                ) : displayedJobs.length === 0 ? (
                     <div className="card text-center py-12">
                         <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-600">No jobs found matching your criteria</p>
                     </div>
                 ) : (
                     <div className="grid gap-4" role="list" aria-label="Job listings">
-                        {filteredJobs.map((job) => (
+                        {displayedJobs.map((job) => (
                             <Link
                                 key={job.id}
                                 to={`/jobs/${job.id}`}
@@ -466,7 +496,7 @@ const JobListings = () => {
                 )}
 
                 {/* Load More */}
-                {!loading && hasMore && filteredJobs.length > 0 && (
+                {!loading && hasMore && displayedJobs.length > 0 && (
                     <div className="text-center mt-6">
                         <button
                             onClick={loadMore}

@@ -1,10 +1,14 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import JobListings from './JobListings'
 
 const mockUseAuth = vi.fn()
 const mockUseJobListingsMatches = vi.fn()
+const { queryCalls } = vi.hoisted(() => ({
+    queryCalls: [],
+}))
 
 vi.mock('../contexts/AuthContext', () => ({
     useAuth: () => mockUseAuth(),
@@ -60,19 +64,25 @@ vi.mock('../config/supabase', () => ({
     supabase: {
         from: (table) => {
             if (table === 'job_postings') {
-                return {
-                    select: () => ({
-                        eq: () => ({
-                            gt: () => ({
-                                or: () => ({
-                                    order: () => ({
-                                        range: async () => ({ data: jobs, error: null }),
-                                    }),
-                                }),
-                            }),
-                        }),
-                    }),
+                const chain = {}
+                const track = method => (...args) => {
+                    queryCalls.push([method, ...args])
+                    return chain
                 }
+
+                chain.select = track('select')
+                chain.eq = track('eq')
+                chain.gt = track('gt')
+                chain.gte = track('gte')
+                chain.lte = track('lte')
+                chain.or = track('or')
+                chain.order = track('order')
+                chain.range = async (...args) => {
+                    queryCalls.push(['range', ...args])
+                    return { data: jobs, error: null }
+                }
+
+                return chain
             }
 
             if (table === 'applications') {
@@ -100,6 +110,7 @@ vi.mock('../config/supabase', () => ({
 
 describe('JobListings', () => {
     beforeEach(() => {
+        queryCalls.length = 0
         mockUseAuth.mockReturnValue({
             currentUser: { uid: 'user-1' },
             userData: { skills: ['React'] },
@@ -133,5 +144,35 @@ describe('JobListings', () => {
 
         const latestCall = mockUseJobListingsMatches.mock.calls.at(-1)[0]
         expect(latestCall.jobs).toEqual(jobs)
+    })
+
+    it('pushes listings filters into the Supabase query before pagination', async () => {
+        const user = userEvent.setup()
+
+        render(
+            <MemoryRouter>
+                <JobListings />
+            </MemoryRouter>,
+        )
+
+        await screen.findByText('Junior Full Stack Developer')
+        queryCalls.length = 0
+
+        await user.type(screen.getByLabelText('Search jobs by title or description'), 'developer')
+        await user.selectOptions(screen.getAllByTestId('mock-select')[0], 'Information Technology')
+        await user.selectOptions(screen.getAllByTestId('mock-select')[1], 'full-time')
+        await user.type(screen.getByLabelText('Minimum salary'), '30000')
+        await user.type(screen.getByLabelText('Maximum salary'), '50000')
+
+        await waitFor(() => {
+            expect(queryCalls).toContainEqual(['eq', 'category', 'Information Technology'])
+            expect(queryCalls).toContainEqual(['eq', 'type', 'full-time'])
+            expect(queryCalls).toContainEqual(['gte', 'salary_max', 30000])
+            expect(queryCalls).toContainEqual(['lte', 'salary_min', 50000])
+            expect(queryCalls).toEqual(expect.arrayContaining([
+                ['or', expect.stringContaining('title.ilike.%developer%')],
+                ['range', 0, 19],
+            ]))
+        })
     })
 })

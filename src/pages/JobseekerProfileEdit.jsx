@@ -69,7 +69,7 @@ const padArray = (arr, len) => {
 }
 
 // --- Constants ---
-const SUFFIX_OPTIONS = ['None', 'Jr.', 'Sr.', 'III', 'IV', 'V']
+const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'III', 'IV', 'V']
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Solo Parent']
 const DISABILITY_TYPES = ['Visual', 'Hearing', 'Speech', 'Physical', 'Mental', 'Others']
 const RELIGION_OPTIONS = [

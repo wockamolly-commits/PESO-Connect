@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
-// Mock the global fetch
-const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
+const mockInvoke = vi.fn()
+
+vi.mock('../config/supabase', () => ({
+  supabase: {
+    functions: { invoke: mockInvoke },
+  },
+}))
 
 describe('geminiService', () => {
   let analyzeResume, calculateJobMatch, quickExtractSkills
 
   beforeAll(async () => {
-    // Stub env before importing the module so the top-level const picks it up
-    vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
     vi.resetModules()
     const mod = await import('./geminiService')
     analyzeResume = mod.analyzeResume
@@ -18,17 +20,13 @@ describe('geminiService', () => {
   })
 
   beforeEach(() => {
-    mockFetch.mockReset()
+    mockInvoke.mockReset()
   })
 
-  function mockCohereResponse(text) {
+  function mockAIResponse(text) {
     return {
-      ok: true,
-      json: () => Promise.resolve({
-        message: {
-          content: [{ text }]
-        }
-      })
+      data: { content: text },
+      error: null,
     }
   }
 
@@ -42,11 +40,11 @@ describe('geminiService', () => {
         suggestedJobCategories: ['Plumbing', 'Maintenance'],
       }
 
-      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockResult)))
+      mockInvoke.mockResolvedValue(mockAIResponse(JSON.stringify(mockResult)))
 
       const result = await analyzeResume('I am an experienced plumber with 3 years of experience')
 
-      expect(mockFetch).toHaveBeenCalledOnce()
+      expect(mockInvoke).toHaveBeenCalledOnce()
       expect(result.skills).toHaveLength(1)
       expect(result.skills[0].name).toBe('Plumbing')
       expect(result.summary).toBe('Experienced plumber')
@@ -56,17 +54,14 @@ describe('geminiService', () => {
       const mockResult = { skills: [], experience: [], education: [], summary: 'Test', suggestedJobCategories: [] }
       const wrappedResponse = '```json\n' + JSON.stringify(mockResult) + '\n```'
 
-      mockFetch.mockResolvedValue(mockCohereResponse(wrappedResponse))
+      mockInvoke.mockResolvedValue(mockAIResponse(wrappedResponse))
 
       const result = await analyzeResume('Some text')
       expect(result.summary).toBe('Test')
     })
 
     it('throws on API error', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        json: () => Promise.resolve({ message: 'Rate limited' }),
-      })
+      mockInvoke.mockResolvedValue({ data: null, error: new Error('Rate limited') })
 
       await expect(analyzeResume('text')).rejects.toThrow()
     })
@@ -85,7 +80,7 @@ describe('geminiService', () => {
         improvementTips: ['Get electrical certification'],
       }
 
-      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockMatch)))
+      mockInvoke.mockResolvedValue(mockAIResponse(JSON.stringify(mockMatch)))
 
       const result = await calculateJobMatch(
         { id: 'job-1', title: 'Plumber', description: 'Fix pipes', required_skills: ['Plumbing', 'Electrical'] },
@@ -98,7 +93,7 @@ describe('geminiService', () => {
     })
 
     it('throws on network error', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'))
+      mockInvoke.mockRejectedValue(new Error('Network error'))
 
       await expect(calculateJobMatch(
         { id: 'job-err', title: 'Plumber', required_skills: ['Plumbing'] },
@@ -109,8 +104,8 @@ describe('geminiService', () => {
 
   describe('quickExtractSkills', () => {
     it('extracts skills from text', async () => {
-      mockFetch.mockResolvedValue(
-        mockCohereResponse(JSON.stringify({ skills: ['Plumbing', 'Pipe Fitting', 'Drainage'] }))
+      mockInvoke.mockResolvedValue(
+        mockAIResponse(JSON.stringify({ skills: ['Plumbing', 'Pipe Fitting', 'Drainage'] }))
       )
 
       const result = await quickExtractSkills('I can do plumbing and pipe fitting')
@@ -118,22 +113,16 @@ describe('geminiService', () => {
     })
 
     it('throws on error', async () => {
-      mockFetch.mockRejectedValue(new Error('fail'))
+      mockInvoke.mockRejectedValue(new Error('fail'))
       await expect(quickExtractSkills('text')).rejects.toThrow('fail')
     })
   })
 
-  describe('API key validation', () => {
-    it('throws when API key is not configured', async () => {
-      vi.stubEnv('VITE_COHERE_API_KEY', '')
-      vi.resetModules()
-      vi.stubGlobal('fetch', mockFetch)
+  describe('AI wrapper validation', () => {
+    it('throws when the edge function reports missing AI configuration', async () => {
+      mockInvoke.mockResolvedValue({ data: null, error: new Error('AI service is not configured') })
 
-      const { analyzeResume: freshAnalyzeResume } = await import('./geminiService')
-      await expect(freshAnalyzeResume('text')).rejects.toThrow('Cohere API key not configured')
-
-      // Restore
-      vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
+      await expect(analyzeResume('text')).rejects.toThrow('AI service is not configured')
     })
   })
 
@@ -196,14 +185,12 @@ describe('geminiService', () => {
 
     beforeAll(async () => {
       vi.resetModules()
-      vi.stubEnv('VITE_COHERE_API_KEY', 'test-api-key')
-      vi.stubGlobal('fetch', mockFetch)
       const mod = await import('./geminiService')
       expandProfileAliases = mod.expandProfileAliases
     })
 
     beforeEach(() => {
-      mockFetch.mockReset()
+      mockInvoke.mockReset()
     })
 
     it('returns skill aliases and experience categories', async () => {
@@ -211,7 +198,7 @@ describe('geminiService', () => {
         skillAliases: { 'Welding': ['Metal Fabrication', 'Arc Welding', 'SMAW'] },
         experienceCategories: ['trades'],
       }
-      mockFetch.mockResolvedValue(mockCohereResponse(JSON.stringify(mockResult)))
+      mockInvoke.mockResolvedValue(mockAIResponse(JSON.stringify(mockResult)))
 
       const result = await expandProfileAliases(
         [{ name: 'Welding' }],
@@ -223,7 +210,7 @@ describe('geminiService', () => {
     })
 
     it('returns empty fallback on API error', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'))
+      mockInvoke.mockRejectedValue(new Error('Network error'))
 
       const result = await expandProfileAliases([{ name: 'Welding' }], [])
       expect(result.skillAliases).toEqual({})

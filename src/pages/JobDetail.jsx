@@ -18,6 +18,7 @@ import {
     Bookmark
 } from 'lucide-react'
 import ResumeUpload from '../components/common/ResumeUpload'
+import ResumeLink from '../components/common/ResumeLink'
 import EmployerAvatar from '../components/EmployerAvatar'
 import { insertNotification } from '../services/notificationService'
 import { sendApplicationReceivedEmail, sendNewApplicantEmail } from '../services/emailService'
@@ -303,7 +304,7 @@ const JobDetail = () => {
                     'application_submitted',
                     `Application submitted for ${job.title}`,
                     `Your application for ${job.title} has been submitted successfully. You'll be notified when the employer reviews it.`,
-                    { job_id: id, job_title: job.title }
+                    { application_id: insertedApp.id, job_id: id, job_title: job.title }
                 )
             } catch (err) {
                 console.error('Failed to send confirmation notification:', err)
@@ -317,7 +318,7 @@ const JobDetail = () => {
                         'new_application',
                         `New application for ${job.title}`,
                         `${userData?.display_name || userData?.full_name || userData?.name || 'A jobseeker'} applied for ${job.title}.`,
-                        { job_id: id, job_title: job.title, applicant_name: userData?.display_name || userData?.full_name || userData?.name || 'Unknown' }
+                        { application_id: insertedApp.id, job_id: id, job_title: job.title, applicant_name: userData?.display_name || userData?.full_name || userData?.name || 'Unknown' }
                     )
                 }
             } catch (err) {
@@ -929,14 +930,12 @@ const JobDetail = () => {
                                                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
                                                     <CheckCircle className="w-4 h-4 text-green-600" />
                                                     <span className="text-sm text-green-700 flex-1">Using your saved resume</span>
-                                                    <a
-                                                        href={userData.resume_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                                    <ResumeLink
+                                                        resumePath={userData.resume_url}
                                                         className="text-sm text-primary-600 hover:underline"
                                                     >
                                                         View
-                                                    </a>
+                                                    </ResumeLink>
                                                 </div>
                                                 <button
                                                     type="button"

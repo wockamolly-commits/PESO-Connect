@@ -261,7 +261,7 @@ const EmployerRegistration = () => {
             case 1:
                 if (!formData.email.trim()) return 'Email is required.'
                 if (!formData.password) return 'Password is required.'
-                if (formData.password.length < 6) return 'Password must be at least 6 characters.'
+                if (formData.password.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) return 'Password must be at least 8 characters and include letters and numbers.'
                 if (formData.password !== formData.confirmPassword) return 'Passwords do not match.'
                 return null
             case 2:
@@ -572,7 +572,7 @@ const EmployerRegistration = () => {
                             <div className="relative">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                 <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleChange} onBlur={handleBlur}
-                                    className={`input-field pl-12 pr-12 ${touchedFields.password && fieldErrors.password ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="Create a password (min 6 characters)" required />
+                                    className={`input-field pl-12 pr-12 ${touchedFields.password && fieldErrors.password ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : ''}`} placeholder="Create a password (min 8 characters, letters and numbers)" required />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

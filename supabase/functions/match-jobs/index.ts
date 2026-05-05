@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { embedTexts } from '../_shared/voyage.ts'
+import { assertUserCanAccessUser, authErrorResponse } from '../_shared/auth.ts'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
 import {
   buildRequiredSkillSummary,
@@ -762,6 +763,12 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    try {
+      await assertUserCanAccessUser(supabase, req, userId)
+    } catch (authError) {
+      return authErrorResponse(authError, jsonResponse)
+    }
+
     const { data: baseUser, error: baseUserError } = await supabase
       .from('users')
       .select('*')
@@ -1263,6 +1270,6 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('match-jobs error:', err)
-    return jsonResponse({ error: err.message }, { status: 500 })
+    return jsonResponse({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 })
   }
 })

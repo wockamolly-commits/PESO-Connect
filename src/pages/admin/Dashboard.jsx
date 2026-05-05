@@ -63,8 +63,8 @@ const SetupPasswordModal = ({ onClose }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters')
+        if (password.length < 8 || !/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+            setError('Password must be at least 8 characters and include letters and numbers')
             return
         }
         if (password !== confirmPassword) {
@@ -117,7 +117,7 @@ const SetupPasswordModal = ({ onClose }) => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Min. 6 characters"
+                            placeholder="Min. 8 characters, letters and numbers"
                             required
                         />
                     </div>
@@ -173,6 +173,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     const [employers, setEmployers] = useState([])
     const [jobseekers, setJobseekers] = useState([])
     const [allUsers, setAllUsers] = useState([])
+    const [dashboardCounts, setDashboardCounts] = useState({})
     const [adminAccessRows, setAdminAccessRows] = useState([])
     const [pendingDeleteUser, setPendingDeleteUser] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -221,6 +222,8 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     const isSuper = adminAccess?.admin_level === 'admin'
     const canViewEmployers = hasAdminPermission(adminAccess, 'view_employers')
     const canViewJobseekers = hasAdminPermission(adminAccess, 'view_jobseekers')
+    const canViewEmployerCounts = canViewEmployers || hasAdminPermission(adminAccess, 'view_employer_overview') || hasAdminPermission(adminAccess, 'view_overall_overview')
+    const canViewJobseekerCounts = canViewJobseekers || hasAdminPermission(adminAccess, 'view_jobseeker_overview') || hasAdminPermission(adminAccess, 'view_overall_overview')
     const canApproveEmployers = hasAdminPermission(adminAccess, 'approve_employers')
     const canRejectEmployers = hasAdminPermission(adminAccess, 'reject_employers')
     const canApproveJobseekers = hasAdminPermission(adminAccess, 'approve_jobseekers')
@@ -305,18 +308,21 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const { data: users, error } = await supabase.from('users').select('*')
-            if (error) throw error
-
             const { data: accessRows } = await supabase
                 .from('admin_access')
                 .select('user_id, admin_level')
             setAdminAccessRows(accessRows || [])
 
+            const { data: countRows, error: countError } = await supabase.rpc('admin_dashboard_counts')
+            if (countError) throw countError
+            const counts = Object.fromEntries((countRows || []).map(row => [row.metric, Number(row.total || 0)]))
+            setDashboardCounts(counts)
+            const users = []
+
             const [empRes, jsRes, hoRes] = await Promise.allSettled([
-                supabase.from('employer_profiles').select('*'),
-                supabase.from('jobseeker_profiles').select('*'),
-                supabase.from('homeowner_profiles').select('*'),
+                supabase.from('employer_profiles').select('id'),
+                supabase.from('jobseeker_profiles').select('id'),
+                supabase.from('homeowner_profiles').select('id'),
             ])
 
             const pickRows = (res, label) => {
@@ -758,23 +764,23 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
     // but we defensively zero-out counts for out-of-scope roles here too.
     const EMPTY_COUNTS = { pending: 0, approved: 0, verified: 0, rejected: 0, expired: 0, total: 0 }
 
-    const employerCounts = canViewEmployers
+    const employerCounts = canViewEmployerCounts
         ? {
-            pending: employers.filter(e => (e.employer_status || 'pending') === 'pending').length,
-            approved: employers.filter(e => e.employer_status === 'approved').length,
-            rejected: employers.filter(e => e.employer_status === 'rejected').length,
-            expired: employers.filter(e => e.employer_status === 'expired').length,
-            total: employers.length,
+            pending: dashboardCounts['employers.pending'] ?? employers.filter(e => (e.employer_status || 'pending') === 'pending').length,
+            approved: dashboardCounts['employers.approved'] ?? employers.filter(e => e.employer_status === 'approved').length,
+            rejected: dashboardCounts['employers.rejected'] ?? employers.filter(e => e.employer_status === 'rejected').length,
+            expired: dashboardCounts['employers.expired'] ?? employers.filter(e => e.employer_status === 'expired').length,
+            total: dashboardCounts['employers.total'] ?? employers.length,
         }
         : EMPTY_COUNTS
 
-    const jobseekerCounts = canViewJobseekers
+    const jobseekerCounts = canViewJobseekerCounts
         ? {
-            pending: jobseekers.filter(j => (j.jobseeker_status || 'pending') === 'pending').length,
-            verified: jobseekers.filter(j => j.jobseeker_status === 'verified').length,
-            rejected: jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
-            expired: jobseekers.filter(j => j.jobseeker_status === 'expired').length,
-            total: jobseekers.length,
+            pending: dashboardCounts['jobseekers.pending'] ?? jobseekers.filter(j => (j.jobseeker_status || 'pending') === 'pending').length,
+            verified: dashboardCounts['jobseekers.verified'] ?? jobseekers.filter(j => j.jobseeker_status === 'verified').length,
+            rejected: dashboardCounts['jobseekers.rejected'] ?? jobseekers.filter(j => j.jobseeker_status === 'rejected').length,
+            expired: dashboardCounts['jobseekers.expired'] ?? jobseekers.filter(j => j.jobseeker_status === 'expired').length,
+            total: dashboardCounts['jobseekers.total'] ?? jobseekers.length,
         }
         : EMPTY_COUNTS
 
@@ -841,6 +847,7 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                             ? <OverviewSection
                                 allUsers={allUsers}
                                 employers={employers}
+                                dashboardCounts={dashboardCounts}
                                 employerCounts={employerCounts}
                                 jobseekerCounts={jobseekerCounts}
                                 setActiveSection={setActiveSection}

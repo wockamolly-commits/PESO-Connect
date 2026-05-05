@@ -33,7 +33,7 @@ const ProgressBar = ({ label, count, color, total }) => (
     </div>
 )
 
-const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, employerCounts: rawEmployerCounts, jobseekerCounts: rawJobseekerCounts, setActiveSection, setActiveTab, adminAccess }) => {
+const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, dashboardCounts = {}, employerCounts: rawEmployerCounts, jobseekerCounts: rawJobseekerCounts, setActiveSection, setActiveTab, adminAccess }) => {
     const isSuper = isSuperAdmin(adminAccess)
 
     // Granular overview permissions
@@ -55,12 +55,19 @@ const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, emplo
             return false
         })
     const employers = (canViewOverall || canViewEmployerOverview) ? rawEmployers : []
+    const totalUsers = dashboardCounts['users.total'] ?? allUsers.length
+    const roleCounts = {
+        jobseekers: dashboardCounts['jobseekers.total'] ?? allUsers.filter(u => u.role === 'user' && u.subtype === 'jobseeker').length,
+        homeowners: dashboardCounts['users.homeowners'] ?? allUsers.filter(u => u.role === 'user' && u.subtype === 'homeowner').length,
+        employers: dashboardCounts['employers.total'] ?? employers.length,
+        admins: dashboardCounts['users.admins'] ?? allUsers.filter(u => u.role === 'admin').length,
+    }
 
     // Build stat cards based on permissions
     const stats = []
 
     if (canViewOverall) {
-        stats.push({ label: 'Total Users', value: allUsers.length, color: 'from-indigo-500 to-indigo-600', dotColor: 'bg-indigo-400', icon: Users })
+        stats.push({ label: 'Total Users', value: totalUsers, color: 'from-indigo-500 to-indigo-600', dotColor: 'bg-indigo-400', icon: Users })
         stats.push({ label: 'Pending Review', value: employerCounts.pending + jobseekerCounts.pending, color: 'from-amber-500 to-orange-500', dotColor: 'bg-amber-400', icon: Clock })
         stats.push({ label: 'Verified', value: employerCounts.approved + jobseekerCounts.verified, color: 'from-emerald-500 to-green-500', dotColor: 'bg-emerald-400', icon: CheckCircle })
         stats.push({ label: 'Expired', value: (employerCounts.expired || 0) + (jobseekerCounts.expired || 0), color: 'from-orange-500 to-amber-500', dotColor: 'bg-orange-400', icon: AlertTriangle })
@@ -119,12 +126,12 @@ const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, emplo
                         </h3>
                         <div className="space-y-3">
                             {[
-                                { label: 'Jobseekers', count: allUsers.filter(u => u.role === 'user' && u.subtype === 'jobseeker').length, color: 'bg-blue-500' },
-                                { label: 'Homeowners', count: allUsers.filter(u => u.role === 'user' && u.subtype === 'homeowner').length, color: 'bg-emerald-500' },
-                                { label: 'Employers', count: employers.length, color: 'bg-violet-500' },
-                                { label: 'Admins', count: allUsers.filter(u => u.role === 'admin').length, color: 'bg-indigo-500' },
+                                { label: 'Jobseekers', count: roleCounts.jobseekers, color: 'bg-blue-500' },
+                                { label: 'Homeowners', count: roleCounts.homeowners, color: 'bg-emerald-500' },
+                                { label: 'Employers', count: roleCounts.employers, color: 'bg-violet-500' },
+                                { label: 'Admins', count: roleCounts.admins, color: 'bg-indigo-500' },
                             ].map((item, i) => (
-                                <ProgressBar key={i} {...item} total={allUsers.length} />
+                                <ProgressBar key={i} {...item} total={totalUsers} />
                             ))}
                         </div>
                     </div>
@@ -255,4 +262,3 @@ const OverviewSection = ({ allUsers: rawAllUsers, employers: rawEmployers, emplo
 
 export { OverviewSection }
 export default OverviewSection
-

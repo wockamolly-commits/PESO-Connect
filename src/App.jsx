@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 
@@ -9,43 +10,49 @@ import AdminProtectedRoute from './components/AdminProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // Public Pages
-import Home from './pages/Home'
-import Login from './pages/Login'
-import ForgotPassword from './pages/ForgotPassword'
-import Register from './pages/Register'
-import JobseekerRegistration from './pages/JobseekerRegistration'
-import EmployerRegistration from './pages/EmployerRegistration'
-import HomeownerRegistration from './pages/HomeownerRegistration'
-import JobListings from './pages/JobListings'
-import JobDetail from './pages/JobDetail'
-import JobFairs from './pages/JobFairs'
-import JobFairDetail from './pages/JobFairDetail'
-import Diagnostic from './pages/Diagnostic'
-import NotFound from './pages/NotFound'
-import Unauthorized from './pages/Unauthorized'
-import EmailVerificationPending from './pages/EmailVerificationPending'
-import AuthCallback from './pages/AuthCallback'
+const Home = lazy(() => import('./pages/Home'))
+const Login = lazy(() => import('./pages/Login'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const Register = lazy(() => import('./pages/Register'))
+const JobseekerRegistration = lazy(() => import('./pages/JobseekerRegistration'))
+const EmployerRegistration = lazy(() => import('./pages/EmployerRegistration'))
+const HomeownerRegistration = lazy(() => import('./pages/HomeownerRegistration'))
+const JobListings = lazy(() => import('./pages/JobListings'))
+const JobDetail = lazy(() => import('./pages/JobDetail'))
+const JobFairs = lazy(() => import('./pages/JobFairs'))
+const JobFairDetail = lazy(() => import('./pages/JobFairDetail'))
+const Diagnostic = lazy(() => import('./pages/Diagnostic'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const Unauthorized = lazy(() => import('./pages/Unauthorized'))
+const EmailVerificationPending = lazy(() => import('./pages/EmailVerificationPending'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 
 // Protected Pages
-import Dashboard from './pages/Dashboard'
-import Profile from './pages/Profile'
-import JobseekerProfileEdit from './pages/JobseekerProfileEdit'
-import MyApplications from './pages/MyApplications'
-import SavedJobs from './pages/SavedJobs'
-import Messages from './pages/Messages'
-import Settings from './pages/Settings'
-import EmployerProfileEdit from './pages/EmployerProfileEdit'
-import HomeownerProfileEdit from './pages/HomeownerProfileEdit'
-import PublicProfile from './pages/PublicProfile'
-import RegistrationContinue from './pages/RegistrationContinue'
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Profile = lazy(() => import('./pages/Profile'))
+const JobseekerProfileEdit = lazy(() => import('./pages/JobseekerProfileEdit'))
+const MyApplications = lazy(() => import('./pages/MyApplications'))
+const SavedJobs = lazy(() => import('./pages/SavedJobs'))
+const Messages = lazy(() => import('./pages/Messages'))
+const Settings = lazy(() => import('./pages/Settings'))
+const EmployerProfileEdit = lazy(() => import('./pages/EmployerProfileEdit'))
+const HomeownerProfileEdit = lazy(() => import('./pages/HomeownerProfileEdit'))
+const PublicProfile = lazy(() => import('./pages/PublicProfile'))
+const RegistrationContinue = lazy(() => import('./pages/RegistrationContinue'))
 
 // Employer Pages
-import PostJob from './pages/employer/PostJob'
-import MyListings from './pages/employer/MyListings'
-import JobApplicants from './pages/employer/JobApplicants'
+const PostJob = lazy(() => import('./pages/employer/PostJob'))
+const MyListings = lazy(() => import('./pages/employer/MyListings'))
+const JobApplicants = lazy(() => import('./pages/employer/JobApplicants'))
 
 // Admin Pages
-import AdminDashboard from './pages/admin/Dashboard'
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'))
+
+const PageFallback = () => (
+    <div className="min-h-[40vh] flex items-center justify-center px-4 text-sm text-gray-500">
+        Loading...
+    </div>
+)
 
 function AppContent() {
     const location = useLocation()
@@ -57,7 +64,8 @@ function AppContent() {
             {!hideNavbar && <Navbar />}
             <main className="flex-1">
                 <ErrorBoundary>
-                    <Routes>
+                    <Suspense fallback={<PageFallback />}>
+                        <Routes>
                         {/* Public Routes */}
                         <Route path="/" element={<ErrorBoundary><Home /></ErrorBoundary>} />
                         <Route path="/login" element={<ErrorBoundary><Login /></ErrorBoundary>} />
@@ -229,16 +237,13 @@ function AppContent() {
                         {/* Public Profile */}
                         <Route
                             path="/profile/:userId"
-                            element={
-                                <ProtectedRoute>
-                                    <ErrorBoundary><PublicProfile /></ErrorBoundary>
-                                </ProtectedRoute>
-                            }
+                            element={<ErrorBoundary><PublicProfile /></ErrorBoundary>}
                         />
 
                         {/* 404 */}
                         <Route path="*" element={<NotFound />} />
-                    </Routes>
+                        </Routes>
+                    </Suspense>
                 </ErrorBoundary>
             </main>
             {!hideNavbar && <Footer />}

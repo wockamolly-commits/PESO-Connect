@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../config/supabase'
 import { Upload, FileText, X, Loader2, AlertCircle } from 'lucide-react'
+import { getResumeSignedUrl, normalizeResumePath, RESUME_BUCKET } from '../../utils/resumeUtils'
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 
@@ -30,9 +31,30 @@ export default function ResumeUpload({
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState('')
     const [fileName, setFileName] = useState('')
+    const [displayUrl, setDisplayUrl] = useState('')
     const fileRef = useRef(null)
     const uploadCallback = onUploaded || onUploadComplete
-    const displayUrl = currentUrl || existingUrl
+    const storedResumePath = currentUrl || existingUrl
+
+    useEffect(() => {
+        let isCancelled = false
+        const loadDisplayUrl = async () => {
+            if (!storedResumePath) {
+                setDisplayUrl('')
+                return
+            }
+
+            try {
+                const signedUrl = await getResumeSignedUrl(storedResumePath)
+                if (!isCancelled) setDisplayUrl(signedUrl)
+            } catch {
+                if (!isCancelled) setDisplayUrl('')
+            }
+        }
+
+        loadDisplayUrl()
+        return () => { isCancelled = true }
+    }, [storedResumePath])
 
     const validate = (file) => {
         if (!file) return 'No file selected'
@@ -62,7 +84,7 @@ export default function ResumeUpload({
 
         try {
             const { error: uploadError } = await supabase.storage
-                .from('resumes')
+                .from(RESUME_BUCKET)
                 .upload(storagePath, file, {
                     cacheControl: '3600',
                     upsert: true,
@@ -70,16 +92,10 @@ export default function ResumeUpload({
 
             if (uploadError) throw uploadError
 
-            const { data: urlData } = supabase.storage
-                .from('resumes')
-                .getPublicUrl(storagePath)
-
-            // Append timestamp to bust cache
-            const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
             if (typeof uploadCallback !== 'function') {
                 throw new Error('No upload callback was provided.')
             }
-            uploadCallback(publicUrl)
+            uploadCallback(storagePath)
         } catch (err) {
             setError(`Upload failed: ${err.message}`)
             setFileName('')
@@ -92,7 +108,7 @@ export default function ResumeUpload({
     const handleRemove = async () => {
         setUploading(true)
         try {
-            await supabase.storage.from('resumes').remove([storagePath])
+            await supabase.storage.from(RESUME_BUCKET).remove([normalizeResumePath(storedResumePath || storagePath)])
             setFileName('')
             onRemoved?.()
         } catch (err) {
