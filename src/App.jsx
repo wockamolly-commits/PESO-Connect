@@ -18,6 +18,8 @@ import EmployerRegistration from './pages/EmployerRegistration'
 import HomeownerRegistration from './pages/HomeownerRegistration'
 import JobListings from './pages/JobListings'
 import JobDetail from './pages/JobDetail'
+import JobFairs from './pages/JobFairs'
+import JobFairDetail from './pages/JobFairDetail'
 import Diagnostic from './pages/Diagnostic'
 import NotFound from './pages/NotFound'
 import Unauthorized from './pages/Unauthorized'
@@ -68,6 +70,8 @@ function AppContent() {
                         <Route path="/register/individual" element={<Navigate to="/register/homeowner" replace />} />
                         <Route path="/jobs" element={<ErrorBoundary><JobListings /></ErrorBoundary>} />
                         <Route path="/jobs/:id" element={<ErrorBoundary><JobDetail /></ErrorBoundary>} />
+                        <Route path="/job-fairs" element={<ErrorBoundary><JobFairs /></ErrorBoundary>} />
+                        <Route path="/job-fairs/:id" element={<ErrorBoundary><JobFairDetail /></ErrorBoundary>} />
                         <Route path="/diagnostic" element={<ErrorBoundary><Diagnostic /></ErrorBoundary>} />
                         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
                         <Route path="/verify-email" element={<ErrorBoundary><EmailVerificationPending /></ErrorBoundary>} />

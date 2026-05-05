@@ -32,7 +32,8 @@ import {
     DocumentViewer,
     RejectModal,
     DeleteUserModal,
-    EMPTY_FILTERS
+    EMPTY_FILTERS,
+    JobFairManagementSection
 } from '../../components/admin'
 import {
     ADMIN_DIRECTORY_PAGE_SIZE,
@@ -967,6 +968,12 @@ const AdminDashboard = ({ initialSection = 'overview' }) => {
                         hasAdminPermission(adminAccess, 'view_skill_insights')
                             ? <SkillInsights />
                             : renderUnauthorized('Skill Insights')
+                    )}
+
+                    {activeSection === 'job_fairs' && (
+                        hasAdminPermission(adminAccess, 'manage_job_fairs')
+                            ? <JobFairManagementSection />
+                            : renderUnauthorized('Job Fairs')
                     )}
 
                     {activeSection === 'admin_management' && (

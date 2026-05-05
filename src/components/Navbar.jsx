@@ -12,7 +12,8 @@ import {
     Search,
     Shield,
     MessageSquare,
-    Bookmark
+    Bookmark,
+    CalendarDays
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getTotalUnreadCount } from '../services/messagingService'
@@ -48,6 +49,7 @@ const Navbar = () => {
     const navLinks = [
         { path: '/', label: 'Home', icon: Home, public: true },
         { path: '/jobs', label: 'Job Listings', icon: Briefcase, public: true },
+        { path: '/job-fairs', label: 'Job Fairs', icon: CalendarDays, public: true },
         { path: '/diagnostic', label: 'Find Workers', icon: Search, public: true },
     ]
 

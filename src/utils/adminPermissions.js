@@ -22,6 +22,7 @@ export const ALL_PERMISSIONS = [
     'reverify_jobseeker_profiles',
     'reverify_employer_profiles',
     'view_skill_insights',
+    'manage_job_fairs',
     'manage_admins',
     'manage_system_settings',
     'delete_users',
@@ -51,6 +52,7 @@ export const SECTION_PERMISSIONS = {
     reverification: 'reverify_profiles',
     jobseeker_export: 'export_jobseekers',
     skill_insights: 'view_skill_insights',
+    job_fairs: 'manage_job_fairs',
     admin_management: 'manage_admins',
 }
 

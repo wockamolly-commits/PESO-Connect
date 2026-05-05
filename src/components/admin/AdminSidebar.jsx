@@ -1,6 +1,6 @@
 import {
     Shield, User, LogOut, ChevronRight,
-    LayoutDashboard, ClipboardList, Building2, Users, UserCog, Settings, Download, RefreshCw, Sparkles
+    LayoutDashboard, ClipboardList, Building2, Users, UserCog, Settings, Download, RefreshCw, Sparkles, CalendarDays
 } from 'lucide-react'
 import { getVisibleAdminSections, isSuperAdmin } from '../../utils/adminPermissions'
 
@@ -12,6 +12,7 @@ const ALL_NAV_ITEMS = [
     { id: 'users', label: 'All Users', icon: ClipboardList },
     { id: 'jobseeker_export', label: 'Jobseeker Export', icon: Download },
     { id: 'skill_insights', label: 'Skill Insights', icon: Sparkles },
+    { id: 'job_fairs', label: 'Job Fairs', icon: CalendarDays },
     { id: 'admin_management', label: 'Admin Management', icon: UserCog },
 ]
 
