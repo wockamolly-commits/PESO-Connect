@@ -4,7 +4,7 @@ import { SearchableSelect } from '../forms/SearchableSelect'
 import { AnimatedSection } from '../forms/AnimatedSection'
 import { Tooltip } from '../forms/Tooltip'
 
-const SUFFIX_OPTIONS = ['None', 'Jr.', 'Sr.', 'III', 'IV', 'V']
+const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'III', 'IV', 'V']
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Solo Parent']
 const DISABILITY_TYPES = ['Visual', 'Hearing', 'Speech', 'Physical', 'Mental', 'Others']
 const RELIGION_OPTIONS = [

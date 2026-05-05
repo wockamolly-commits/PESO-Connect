@@ -446,7 +446,7 @@ const JobseekerRegistration = () => {
                     surname: formData.surname,
                     first_name: formData.first_name,
                     middle_name: formData.middle_name,
-                    suffix: formData.suffix,
+                    suffix: formData.suffix === 'None' ? '' : formData.suffix,
                     date_of_birth: formData.date_of_birth,
                     sex: formData.sex,
                     civil_status: formData.civil_status,

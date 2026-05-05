@@ -143,7 +143,8 @@ begin
       end as role_label,
       u.name,
       coalesce(
-        nullif(concat_ws(' ', nullif(js.first_name, ''), nullif(js.middle_name, ''), nullif(js.surname, ''), nullif(js.suffix, '')), ''),
+        nullif(concat_ws(' ', nullif(js.first_name, ''), nullif(js.middle_name, ''), nullif(js.surname, ''), nullif(nullif(js.suffix, ''), 'None')), ''),
+        nullif(concat_ws(' ', nullif(u.first_name, ''), nullif(u.middle_name, ''), nullif(u.surname, ''), nullif(nullif(u.suffix, ''), 'None')), ''),
         nullif(js.full_name, ''),
         nullif(u.name, '')
       ) as display_name,
@@ -151,7 +152,7 @@ begin
       coalesce(nullif(js.surname, ''), nullif(u.surname, '')) as surname,
       coalesce(nullif(js.first_name, ''), nullif(u.first_name, '')) as first_name,
       coalesce(nullif(js.middle_name, ''), nullif(u.middle_name, '')) as middle_name,
-      coalesce(nullif(js.suffix, ''), nullif(u.suffix, '')) as suffix,
+      coalesce(nullif(nullif(js.suffix, ''), 'None'), nullif(nullif(u.suffix, ''), 'None')) as suffix,
       ep.representative_name,
       ep.company_name,
       ep.trade_name,
