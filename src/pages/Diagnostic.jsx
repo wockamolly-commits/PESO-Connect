@@ -1,8 +1,7 @@
 import { useState, useReducer, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../config/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { analyzeWithAI, tradeKeywords, getTradeSkills } from '../services/diagnosticService'
+import { analyzeWithAI, fetchDiagnosticWorkerCounts, fetchMatchingWorkers, tradeKeywords } from '../services/diagnosticService'
 import { getOrCreateConversation } from '../services/messagingService'
 import {
     Search,
@@ -40,14 +39,6 @@ import {
 } from 'lucide-react'
 
 // ─── Static Data ─────────────────────────────────────────────────────────────
-
-const workerCounts = {
-    plumbing: '8 workers',
-    electrical: '12 workers',
-    masonry: '6 workers',
-    welding: '5 workers',
-    carpentry: '9 workers',
-}
 
 const tradeDescriptions = {
     plumbing: 'Pipes, leaks, drains, toilets, water heaters',
@@ -357,6 +348,7 @@ const Diagnostic = () => {
 
     // Hovered service trade for color tint
     const [hoveredTrade, setHoveredTrade] = useState(null)
+    const [workerCounts, setWorkerCounts] = useState({})
 
     // Refs
     const textareaRef = useRef(null)
@@ -375,6 +367,22 @@ const Diagnostic = () => {
         }, 3000)
         return () => clearInterval(interval)
     }, [problemText])
+
+    useEffect(() => {
+        let cancelled = false
+
+        fetchDiagnosticWorkerCounts()
+            .then(counts => {
+                if (!cancelled) setWorkerCounts(counts)
+            })
+            .catch(error => {
+                console.error('Failed to load diagnostic worker counts:', error)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     // Auto-scroll to results after analysis completes
     useEffect(() => {
@@ -416,7 +424,8 @@ const Diagnostic = () => {
                 try {
                     const matchingWorkers = await fetchMatchingWorkers(analysisResults.primaryTrade.id)
                     dispatch({ type: 'WORKERS_LOADED', payload: matchingWorkers })
-                } catch {
+                } catch (workerError) {
+                    console.error('Failed to load diagnostic workers:', workerError)
                     dispatch({ type: 'WORKERS_FAILED' })
                 }
             } else {
@@ -426,47 +435,6 @@ const Diagnostic = () => {
             console.error('Analysis failed:', error)
             dispatch({ type: 'ANALYZE_FAIL', payload: error.message || 'Analysis failed. Please try again.' })
         }
-    }
-
-    const fetchMatchingWorkers = async (tradeId) => {
-        const requiredSkills = getTradeSkills(tradeId)
-
-        // Fetch verified jobseekers (role='user', subtype='jobseeker')
-        const { data: usersData, error: usersError } = await supabase
-            .from('users')
-            .select('id, name, role, subtype')
-            .eq('role', 'user')
-            .eq('subtype', 'jobseeker')
-        if (usersError) throw usersError
-
-        const userIds = (usersData || []).map(u => u.id)
-        if (userIds.length === 0) return []
-
-        // Fetch their profiles (skills + is_verified lives on jobseeker_profiles)
-        const { data: profiles, error: profilesError } = await supabase
-            .from('jobseeker_profiles')
-            .select('id, skills, is_verified')
-            .in('id', userIds)
-            .eq('is_verified', true)
-        if (profilesError) throw profilesError
-
-        // Merge users with their skills and filter by matching skills
-        const profileMap = {}
-        ;(profiles || []).forEach(p => { profileMap[p.id] = p.skills || [] })
-
-        return (usersData || [])
-            .filter(user => profileMap[user.id])
-            .map(user => ({ ...user, skills: profileMap[user.id] }))
-            .filter(user => {
-                if (user.skills.length === 0) return false
-                const userSkillsLower = user.skills.map(s => s.toLowerCase())
-                return requiredSkills.some(reqSkill =>
-                    userSkillsLower.some(userSkill =>
-                        userSkill.includes(reqSkill.toLowerCase()) ||
-                        reqSkill.toLowerCase().includes(userSkill)
-                    )
-                )
-            })
     }
 
     // Handle "Message Worker" click
@@ -531,6 +499,12 @@ const Diagnostic = () => {
             case 'low': return 'bg-green-100 text-green-700 border-green-200'
             default: return 'bg-gray-100 text-gray-700 border-gray-200'
         }
+    }
+
+    const formatWorkerCount = (tradeId) => {
+        const count = workerCounts[tradeId]
+        if (!Number.isFinite(count)) return 'Checking...'
+        return `${count} ${count === 1 ? 'worker' : 'workers'}`
     }
 
     const examples = [
@@ -867,7 +841,9 @@ const Diagnostic = () => {
                             >
                                 <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                     <User className="w-5 h-5 text-primary-600" />
-                                    Verified {results.primaryTrade.name} Professionals
+                                    {workers.some(worker => worker.diagnostic_fallback)
+                                        ? 'Available Verified Professionals'
+                                        : `Verified ${results.primaryTrade.name} Professionals`}
                                 </h2>
 
                                 {status === 'loadingWorkers' ? (
@@ -918,8 +894,14 @@ const Diagnostic = () => {
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="grid sm:grid-cols-2 gap-4">
-                                        {workers.map((worker, wIdx) => (
+                                    <>
+                                        {workers.some(worker => worker.diagnostic_fallback) && (
+                                            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                No verified {results.primaryTrade.name.toLowerCase()} workers are currently listed, so these are other verified workers available on PESO Connect.
+                                            </div>
+                                        )}
+                                        <div className="grid sm:grid-cols-2 gap-4">
+                                            {workers.map((worker, wIdx) => (
                                             <div
                                                 key={worker.id}
                                                 className="group relative flex flex-col p-4 bg-white border border-gray-100 rounded-2xl hover:border-primary-300 hover:shadow-lg hover:shadow-primary-500/10 transition-all animate-fade-in"
@@ -986,8 +968,9 @@ const Diagnostic = () => {
                                                     View Profile
                                                 </button>
                                             </div>
-                                        ))}
-                                    </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -1020,7 +1003,7 @@ const Diagnostic = () => {
                                     <p className="text-xs font-bold text-gray-900">{trade.name}</p>
                                     {/* Worker count badge */}
                                     <span className="mt-1 inline-block px-1.5 py-0.5 bg-white border border-gray-200 text-[10px] text-gray-500 font-medium rounded-full">
-                                        {workerCounts[id]}
+                                        {formatWorkerCount(id)}
                                     </span>
                                     {/* Tooltip description */}
                                     {hoveredTrade === id && (

@@ -384,6 +384,7 @@ const PostJobWizard = () => {
                 requiredSkills: jobData.requiredSkills,
                 preferredSkills: jobData.preferredSkills,
             })
+            if (result.error) throw new Error(result.error)
 
             const existingRequired = new Set(jobData.requiredSkills.map(s => s.toLowerCase()))
             const existingPreferred = new Set(jobData.preferredSkills.map(s => s.toLowerCase()))
@@ -400,19 +401,13 @@ const PostJobWizard = () => {
                 .filter(s => !nextRequired.some(r => r.toLowerCase() === s.toLowerCase()))
                 .slice(0, 6)
 
-            if (nextRequired.length === 0 && nextPreferred.length === 0) {
-                setAiRequiredSkillSuggestions(buildDeterministicFallback())
-                setAiPreferredSkillSuggestions([])
-                setAiSoftSkillSuggestions([])
-                setAiSuggestionsSource('fallback')
-            } else {
-                setAiRequiredSkillSuggestions(nextRequired)
-                setAiPreferredSkillSuggestions(nextPreferred)
-                setAiSoftSkillSuggestions(nextSoft)
-                setAiSuggestionsSource('llm')
-            }
+            setAiRequiredSkillSuggestions(nextRequired)
+            setAiPreferredSkillSuggestions(nextPreferred)
+            setAiSoftSkillSuggestions(nextSoft)
+            setAiSuggestionsSource('llm')
             setAiSuggestionsGenerated(true)
-        } catch {
+        } catch (err) {
+            console.warn('AI job skill suggestions failed:', err?.message || err)
             setAiRequiredSkillSuggestions(buildDeterministicFallback())
             setAiPreferredSkillSuggestions([])
             setAiSoftSkillSuggestions([])

@@ -1,9 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getAuthenticatedUser } from '../_shared/auth.ts'
 import { handleCorsPreflightRequest, jsonResponse } from '../_shared/cors.ts'
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const COHERE_API_KEY = Deno.env.get('COHERE_API_KEY')!
 const COHERE_API_URL = 'https://api.cohere.com/v2/chat'
 const COHERE_MODEL = 'command-a-03-2025'
@@ -13,9 +9,6 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, { status: 405 })
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    await getAuthenticatedUser(supabase, req)
-
     if (!COHERE_API_KEY) {
       return jsonResponse({ error: 'AI service is not configured' }, { status: 503 })
     }

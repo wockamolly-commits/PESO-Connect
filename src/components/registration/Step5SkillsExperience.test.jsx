@@ -118,7 +118,7 @@ describe('Step5SkillsExperience — AI skill suggestions', () => {
     expect(aiPanel.textContent).not.toContain('Cooking')
   })
 
-  it('shows deterministic fallback only after AI returns empty', async () => {
+  it('shows an empty AI state when AI succeeds without new suggestions', async () => {
     deepAnalyzeProfileSkillsMock.mockResolvedValue({
       profileSkills: [],
       growthSkills: [],
@@ -129,12 +129,12 @@ describe('Step5SkillsExperience — AI skill suggestions', () => {
     fireEvent.click(screen.getByRole('button', { name: /Generate AI skill suggestions/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Suggested Skills From Your Profile/i)).toBeInTheDocument()
+      expect(screen.getByText(/No new suggestions\. Add more education or work experience details and try again\./i)).toBeInTheDocument()
     })
     expect(
-      screen.getByText(/AI suggestions were unavailable, so we used your course, training, and work experience/i)
-    ).toBeInTheDocument()
-    expect(screen.getByText('Fallback Skill A')).toBeInTheDocument()
+      screen.queryByText(/AI suggestions were unavailable, so we used your course, training, and work experience/i)
+    ).toBeNull()
+    expect(screen.queryByText('Fallback Skill A')).toBeNull()
   })
 
   it('shows deterministic fallback when AI throws', async () => {
@@ -146,6 +146,25 @@ describe('Step5SkillsExperience — AI skill suggestions', () => {
     await waitFor(() => {
       expect(screen.getByText(/Suggested Skills From Your Profile/i)).toBeInTheDocument()
     })
+    expect(screen.getByText('Fallback Skill A')).toBeInTheDocument()
+  })
+
+  it('shows deterministic fallback when the AI helper returns an error result', async () => {
+    deepAnalyzeProfileSkillsMock.mockResolvedValue({
+      profileSkills: [],
+      growthSkills: [],
+      softSkills: [],
+      warnings: [],
+      error: 'AI service error (401): AI request was not authorized. Please sign in again and retry.',
+    })
+
+    renderStep()
+    fireEvent.click(screen.getByRole('button', { name: /Generate AI skill suggestions/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Suggested Skills From Your Profile/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/AI service error \(401\)/i)).toBeInTheDocument()
     expect(screen.getByText('Fallback Skill A')).toBeInTheDocument()
   })
 })

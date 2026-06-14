@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
-const mockInvoke = vi.fn()
+const { mockInvoke, mockGetSession, mockRefreshSession } = vi.hoisted(() => ({
+  mockInvoke: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockRefreshSession: vi.fn(),
+}))
 
 vi.mock('../config/supabase', () => ({
   supabase: {
     functions: { invoke: mockInvoke },
+    auth: {
+      getSession: mockGetSession,
+      refreshSession: mockRefreshSession,
+    },
   },
 }))
 
 describe('geminiService', () => {
-  let analyzeResume, calculateJobMatch, quickExtractSkills
+  let analyzeResume, calculateJobMatch, quickExtractSkills, callAI
 
   beforeAll(async () => {
     vi.resetModules()
@@ -17,10 +25,15 @@ describe('geminiService', () => {
     analyzeResume = mod.analyzeResume
     calculateJobMatch = mod.calculateJobMatch
     quickExtractSkills = mod.quickExtractSkills
+    callAI = mod.callAI
   })
 
   beforeEach(() => {
     mockInvoke.mockReset()
+    mockGetSession.mockReset()
+    mockRefreshSession.mockReset()
+    mockGetSession.mockResolvedValue({ data: { session: null }, error: null })
+    mockRefreshSession.mockResolvedValue({ data: { session: null }, error: null })
   })
 
   function mockAIResponse(text) {
@@ -119,6 +132,48 @@ describe('geminiService', () => {
   })
 
   describe('AI wrapper validation', () => {
+    it('passes the current Supabase access token to ai-json', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { access_token: 'user-token' } },
+        error: null,
+      })
+      mockInvoke.mockResolvedValue(mockAIResponse('{"ok":true}'))
+
+      await callAI('Return JSON')
+
+      expect(mockInvoke).toHaveBeenCalledWith('ai-json', expect.objectContaining({
+        headers: { Authorization: 'Bearer user-token' },
+      }))
+    })
+
+    it('refreshes the session and retries once after an ai-json 401', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: { access_token: 'stale-token' } },
+        error: null,
+      })
+      mockRefreshSession.mockResolvedValue({
+        data: { session: { access_token: 'fresh-token' } },
+        error: null,
+      })
+      mockInvoke
+        .mockResolvedValueOnce({
+          data: null,
+          error: {
+            message: 'Edge Function returned a non-2xx status code',
+            context: new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }),
+          },
+        })
+        .mockResolvedValueOnce(mockAIResponse('{"ok":true}'))
+
+      await callAI('Return JSON')
+
+      expect(mockRefreshSession).toHaveBeenCalledOnce()
+      expect(mockInvoke).toHaveBeenCalledTimes(2)
+      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'ai-json', expect.objectContaining({
+        headers: { Authorization: 'Bearer fresh-token' },
+      }))
+    })
+
     it('throws when the edge function reports missing AI configuration', async () => {
       mockInvoke.mockResolvedValue({ data: null, error: new Error('AI service is not configured') })
 

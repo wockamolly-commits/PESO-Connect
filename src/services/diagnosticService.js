@@ -1,4 +1,5 @@
 import { callAI, parseAIJSON } from './geminiService'
+import { supabase } from '../config/supabase'
 
 // Trade keyword dictionary for AI text diagnostic
 // Maps problem keywords to trade categories
@@ -212,7 +213,14 @@ Return valid JSON in this exact format:
             degraded: false
         }
     } catch (error) {
-        console.error('AI Analysis failed, falling back to keyword matching:', error)
+        // Re-throw programming errors (not service/network failures)
+        if (error instanceof TypeError && !error.message.includes('fetch')) throw error
+
+        const status = error?.status
+        console.error(
+            `AI Analysis failed (${status ?? 'network/unknown'}), falling back to keyword matching:`,
+            error.message
+        )
         const fallback = analyzeText(problemText)
         return { ...fallback, source: 'keyword_fallback', degraded: true }
     }
@@ -278,12 +286,139 @@ export const analyzeText = (text) => {
 export const getTradeSkills = (tradeId) => {
     const skillMap = {
         plumbing: ['Plumbing', 'Pipe Fitting', 'Water Systems', 'Drainage'],
-        electrical: ['Electrical Work', 'Wiring', 'Circuit Installation', 'Electrical Repair'],
+        electrical: ['Electrical Work', 'Electrician', 'Wiring', 'Circuit Installation', 'Electrical Repair'],
         masonry: ['Masonry', 'Tile Setting', 'Concrete Work', 'Plastering'],
         welding: ['Welding', 'Metal Fabrication', 'Steel Work', 'Gate Installation'],
-        carpentry: ['Carpentry', 'Woodworking', 'Cabinet Making', 'Furniture Repair']
+        carpentry: ['Carpentry', 'Carpentry Work', 'Woodworking', 'Cabinet Making', 'Furniture Repair']
     }
     return skillMap[tradeId] || []
 }
 
-export default { tradeKeywords, analyzeText, analyzeWithAI, getTradeSkills }
+const normalizeSkill = (skill) => {
+    if (typeof skill === 'string') return skill.trim()
+    if (skill && typeof skill === 'object') return String(skill.name || skill.label || '').trim()
+    return ''
+}
+
+const getProfileSkills = (profile) => {
+    const combined = [
+        ...(Array.isArray(profile?.predefined_skills) ? profile.predefined_skills : []),
+        ...(Array.isArray(profile?.skills) ? profile.skills : []),
+    ]
+        .map(normalizeSkill)
+        .filter(Boolean)
+
+    return [...new Set(combined)]
+}
+
+const isVerifiedProfile = (profile) =>
+    profile?.is_verified === true || profile?.jobseeker_status === 'verified'
+
+const isJobseekerUser = (user) =>
+    user?.role === 'jobseeker' || (user?.role === 'user' && user?.subtype === 'jobseeker')
+
+const buildDisplayName = (user = {}, profile = {}) => {
+    const splitName = [profile.first_name, profile.middle_name, profile.surname]
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .join(' ')
+
+    return splitName || profile.full_name || user.name || user.email || 'Verified Worker'
+}
+
+const fetchMatchingWorkersFromTables = async (tradeId, client) => {
+    const requiredSkills = getTradeSkills(tradeId)
+    if (requiredSkills.length === 0) return []
+
+    const { data: profilesData, error: profilesError } = await client
+        .from('jobseeker_profiles')
+        .select('id, first_name, middle_name, surname, full_name, skills, predefined_skills, is_verified, jobseeker_status')
+        .or('is_verified.eq.true,jobseeker_status.eq.verified')
+
+    if (profilesError) throw profilesError
+
+    const verifiedProfiles = (profilesData || [])
+        .filter(isVerifiedProfile)
+        .map(profile => ({
+            ...profile,
+            skills: getProfileSkills(profile),
+        }))
+        .filter(profile => profile.skills.length > 0)
+
+    const userIds = verifiedProfiles.map(profile => profile.id).filter(Boolean)
+    if (userIds.length === 0) return []
+
+    const { data: usersData, error: usersError } = await client
+        .from('users')
+        .select('id, email, name, role, subtype, is_verified, registration_complete')
+        .in('id', userIds)
+
+    if (usersError) throw usersError
+
+    const usersById = new Map((usersData || []).filter(isJobseekerUser).map(user => [user.id, user]))
+    const requiredSkillsLower = requiredSkills.map(skill => skill.toLowerCase())
+
+    return verifiedProfiles
+        .filter(profile => usersById.has(profile.id))
+        .map(profile => {
+            const user = usersById.get(profile.id)
+            return {
+                ...user,
+                ...profile,
+                name: buildDisplayName(user, profile),
+                role: user.role,
+                subtype: user.subtype,
+            }
+        })
+        .filter(worker => {
+            const userSkillsLower = worker.skills.map(skill => skill.toLowerCase())
+            return requiredSkillsLower.some(reqSkill =>
+                userSkillsLower.some(userSkill =>
+                    userSkill.includes(reqSkill) || reqSkill.includes(userSkill)
+                )
+            )
+        })
+}
+
+export const fetchMatchingWorkers = async (tradeId, client = supabase) => {
+    const { data, error } = await client.rpc('get_diagnostic_workers', { p_trade_id: tradeId })
+
+    if (!error) {
+        if ((data || []).length > 0) return data || []
+
+        const { data: fallbackData, error: fallbackError } = await client.rpc('get_diagnostic_workers', { p_trade_id: 'all' })
+        if (fallbackError) throw fallbackError
+
+        return (fallbackData || []).map(worker => ({
+            ...worker,
+            diagnostic_fallback: true,
+        }))
+    }
+
+    // Local/dev databases may not have the RPC migration yet. Keep the table
+    // fallback for older setups, but production should use the RLS-safe RPC.
+    if (error.code !== '42883' && error.code !== 'PGRST202') throw error
+
+    return fetchMatchingWorkersFromTables(tradeId, client)
+}
+
+export const fetchDiagnosticWorkerCounts = async (client = supabase) => {
+    const { data, error } = await client.rpc('get_diagnostic_worker_counts')
+
+    if (!error) {
+        return Object.fromEntries(
+            (data || []).map(row => [row.trade_id, Number(row.worker_count) || 0])
+        )
+    }
+
+    if (error.code !== '42883' && error.code !== 'PGRST202') throw error
+
+    const counts = {}
+    await Promise.all(Object.keys(tradeKeywords).map(async (tradeId) => {
+        const workers = await fetchMatchingWorkersFromTables(tradeId, client)
+        counts[tradeId] = workers.length
+    }))
+    return counts
+}
+
+export default { tradeKeywords, analyzeText, analyzeWithAI, getTradeSkills, fetchMatchingWorkers, fetchDiagnosticWorkerCounts }

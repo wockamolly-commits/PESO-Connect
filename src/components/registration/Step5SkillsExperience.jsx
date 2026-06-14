@@ -137,6 +137,8 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
     setAiError('')
     try {
       const result = await deepAnalyzeProfileSkills(formData)
+      if (result.error) throw new Error(result.error)
+
       const selectedLower = new Set([
         ...predefinedSkills.map(s => s.toLowerCase()),
         ...customSkills.map(s => s.toLowerCase()),
@@ -146,12 +148,11 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       const soft = (result.softSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
 
       if (profile.length === 0 && growth.length === 0 && soft.length === 0) {
-        const fallback = buildDeterministicFallback()
-        setAiProfileSkills(fallback)
+        setAiProfileSkills([])
         setAiGrowthSkills([])
         setAiSoftSkills([])
-        setAiWarnings([])
-        setAiSource('fallback')
+        setAiWarnings(result.warnings || [])
+        setAiSource('ai')
       } else {
         setAiProfileSkills(profile)
         setAiGrowthSkills(growth)
@@ -160,7 +161,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
         setAiSource('ai')
       }
       setAiGenerated(true)
-    } catch {
+    } catch (err) {
       const fallback = buildDeterministicFallback()
       setAiProfileSkills(fallback)
       setAiGrowthSkills([])
@@ -168,7 +169,7 @@ function Step5SkillsExperience({ formData, handleChange, setFormData, userId, er
       setAiWarnings([])
       setAiSource('fallback')
       setAiGenerated(true)
-      setAiError('AI suggestions were unavailable, so we used your profile details instead.')
+      setAiError(err?.message || 'AI suggestions were unavailable, so we used your profile details instead.')
     } finally {
       setAiLoading(false)
     }

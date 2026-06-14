@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeText, analyzeWithAI, getTradeSkills, tradeKeywords } from './diagnosticService'
+import {
+  analyzeText,
+  analyzeWithAI,
+  fetchDiagnosticWorkerCounts,
+  fetchMatchingWorkers,
+  getTradeSkills,
+  tradeKeywords,
+} from './diagnosticService'
 
 describe('diagnosticService', () => {
   describe('analyzeText', () => {
@@ -148,6 +155,222 @@ describe('diagnosticService', () => {
     it('returns empty trades for null input', async () => {
       const result = await analyzeWithAI(null)
       expect(result.trades).toEqual([])
+    })
+  })
+
+  describe('fetchMatchingWorkers', () => {
+    const createClient = ({ profiles = [], users = [], rpcData = null, rpcDataByTrade = null, rpcError = { code: '42883' } } = {}) => {
+      const calls = []
+
+      const client = {
+        rpc: async (functionName, params) => {
+          calls.push({ rpc: functionName, params })
+          if (rpcDataByTrade) {
+            return { data: rpcDataByTrade[params.p_trade_id] || [], error: null }
+          }
+          return { data: rpcData, error: rpcError }
+        },
+        from: (table) => {
+          calls.push({ table })
+          return {
+            select: (columns) => {
+              calls[calls.length - 1].columns = columns
+
+              if (table === 'jobseeker_profiles') {
+                return {
+                  or: async (filter) => {
+                    calls[calls.length - 1].filter = filter
+                    return { data: profiles, error: null }
+                  },
+                }
+              }
+
+              if (table === 'users') {
+                return {
+                  in: async (column, ids) => {
+                    calls[calls.length - 1].column = column
+                    calls[calls.length - 1].ids = ids
+                    return { data: users.filter(user => ids.includes(user.id)), error: null }
+                  },
+                }
+              }
+
+              throw new Error(`Unexpected table ${table}`)
+            },
+          }
+        },
+      }
+
+      return { client, calls }
+    }
+
+    it('loads diagnostic workers through the RLS-safe RPC', async () => {
+      const { client, calls } = createClient({
+        rpcData: [{
+          id: 'worker-1',
+          name: 'RPC Worker',
+          role: 'user',
+          subtype: 'jobseeker',
+          skills: ['Plumbing'],
+        }],
+        rpcError: null,
+      })
+
+      const result = await fetchMatchingWorkers('plumbing', client)
+
+      expect(calls).toEqual([
+        { rpc: 'get_diagnostic_workers', params: { p_trade_id: 'plumbing' } },
+      ])
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'worker-1',
+          name: 'RPC Worker',
+          skills: ['Plumbing'],
+        }),
+      ])
+    })
+
+    it('falls back to all verified workers when a trade has no exact RPC matches', async () => {
+      const { client, calls } = createClient({
+        rpcDataByTrade: {
+          plumbing: [],
+          all: [{
+            id: 'worker-2',
+            name: 'Available Worker',
+            role: 'user',
+            subtype: 'jobseeker',
+            skills: ['Electrical Wiring'],
+          }],
+        },
+      })
+
+      const result = await fetchMatchingWorkers('plumbing', client)
+
+      expect(calls).toEqual([
+        { rpc: 'get_diagnostic_workers', params: { p_trade_id: 'plumbing' } },
+        { rpc: 'get_diagnostic_workers', params: { p_trade_id: 'all' } },
+      ])
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'worker-2',
+          diagnostic_fallback: true,
+        }),
+      ])
+    })
+
+    it('loads workers verified by jobseeker status and matches predefined skills', async () => {
+      const { client, calls } = createClient({
+        profiles: [
+          {
+            id: 'worker-1',
+            first_name: 'Ana',
+            surname: 'Santos',
+            predefined_skills: ['Plumbing'],
+            skills: [],
+            is_verified: false,
+            jobseeker_status: 'verified',
+          },
+        ],
+        users: [
+          {
+            id: 'worker-1',
+            email: 'ana@example.com',
+            name: '',
+            role: 'user',
+            subtype: 'jobseeker',
+          },
+        ],
+      })
+
+      const result = await fetchMatchingWorkers('plumbing', client)
+
+      expect(calls[0]).toEqual({ rpc: 'get_diagnostic_workers', params: { p_trade_id: 'plumbing' } })
+      expect(calls[1]).toMatchObject({
+        table: 'jobseeker_profiles',
+        filter: 'is_verified.eq.true,jobseeker_status.eq.verified',
+      })
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'worker-1',
+          name: 'Ana Santos',
+          skills: ['Plumbing'],
+        }),
+      ])
+    })
+
+    it('excludes unverified profiles and non-jobseeker users', async () => {
+      const { client } = createClient({
+        profiles: [
+          {
+            id: 'worker-1',
+            predefined_skills: ['Electrician'],
+            skills: [],
+            is_verified: true,
+            jobseeker_status: 'pending',
+          },
+          {
+            id: 'pending-1',
+            predefined_skills: ['Electrician'],
+            skills: [],
+            is_verified: false,
+            jobseeker_status: 'pending',
+          },
+          {
+            id: 'homeowner-1',
+            predefined_skills: ['Electrician'],
+            skills: [],
+            is_verified: true,
+            jobseeker_status: 'verified',
+          },
+        ],
+        users: [
+          { id: 'worker-1', name: 'Verified Electrician', role: 'user', subtype: 'jobseeker' },
+          { id: 'pending-1', name: 'Pending Worker', role: 'user', subtype: 'jobseeker' },
+          { id: 'homeowner-1', name: 'Home Owner', role: 'user', subtype: 'homeowner' },
+        ],
+      })
+
+      const result = await fetchMatchingWorkers('electrical', client)
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        id: 'worker-1',
+        name: 'Verified Electrician',
+        skills: ['Electrician'],
+      })
+    })
+  })
+
+  describe('fetchDiagnosticWorkerCounts', () => {
+    it('maps live RPC rows into numeric counts by trade', async () => {
+      const client = {
+        rpc: async (functionName) => {
+          expect(functionName).toBe('get_diagnostic_worker_counts')
+          return {
+            data: [
+              { trade_id: 'plumbing', worker_count: 0 },
+              { trade_id: 'electrical', worker_count: 1 },
+              { trade_id: 'welding', worker_count: '2' },
+            ],
+            error: null,
+          }
+        },
+      }
+
+      await expect(fetchDiagnosticWorkerCounts(client)).resolves.toEqual({
+        plumbing: 0,
+        electrical: 1,
+        welding: 2,
+      })
+    })
+
+    it('throws count RPC errors instead of displaying stale values', async () => {
+      const error = { code: '42501', message: 'permission denied' }
+      const client = {
+        rpc: async () => ({ data: null, error }),
+      }
+
+      await expect(fetchDiagnosticWorkerCounts(client)).rejects.toBe(error)
     })
   })
 })

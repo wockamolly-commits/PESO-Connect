@@ -634,6 +634,8 @@ const JobseekerProfileEdit = () => {
         setAiError('')
         try {
             const result = await deepAnalyzeProfileSkills(formData)
+            if (result.error) throw new Error(result.error)
+
             const selectedLower = new Set([
                 ...predefinedSkills.map(s => s.toLowerCase()),
                 ...customSkills.map(s => s.toLowerCase()),
@@ -643,12 +645,11 @@ const JobseekerProfileEdit = () => {
             const soft = (result.softSkills || []).filter(s => !selectedLower.has(s.toLowerCase()))
 
             if (profile.length === 0 && growth.length === 0 && soft.length === 0) {
-                const fallback = buildDeterministicFallback()
-                setAiProfileSkills(fallback)
+                setAiProfileSkills([])
                 setAiGrowthSkills([])
                 setAiSoftSkills([])
-                setAiWarnings([])
-                setAiSource('fallback')
+                setAiWarnings(result.warnings || [])
+                setAiSource('ai')
             } else {
                 setAiProfileSkills(profile)
                 setAiGrowthSkills(growth)
@@ -657,7 +658,7 @@ const JobseekerProfileEdit = () => {
                 setAiSource('ai')
             }
             setAiGenerated(true)
-        } catch {
+        } catch (err) {
             const fallback = buildDeterministicFallback()
             setAiProfileSkills(fallback)
             setAiGrowthSkills([])
@@ -665,7 +666,7 @@ const JobseekerProfileEdit = () => {
             setAiWarnings([])
             setAiSource('fallback')
             setAiGenerated(true)
-            setAiError('AI suggestions were unavailable, so we used your profile details instead.')
+            setAiError(err?.message || 'AI suggestions were unavailable, so we used your profile details instead.')
         } finally {
             setAiLoading(false)
         }
@@ -1480,6 +1481,7 @@ const JobseekerProfileEdit = () => {
                                                 <p className="text-xs text-violet-700/80 mb-2">
                                                     AI suggestions were unavailable — showing suggestions based on your course, training, and work experience.
                                                 </p>
+                                                {aiError && <p className="text-[11px] text-violet-500 italic mb-2">{aiError}</p>}
                                                 {visibleAiProfileSkills.length > 0 ? (
                                                     <div className="flex flex-wrap gap-2 mb-3">
                                                         {visibleAiProfileSkills.map(skill => (

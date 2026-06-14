@@ -29,6 +29,60 @@ const setCache = (key, data) => {
     cache.set(key, { data, timestamp: Date.now() })
 }
 
+const getAIAuthHeaders = async () => {
+    const getSession = supabase.auth?.getSession
+    if (typeof getSession !== 'function') return {}
+
+    try {
+        const { data, error } = await getSession.call(supabase.auth)
+        if (error) throw error
+        const token = data?.session?.access_token
+        return token ? { Authorization: `Bearer ${token}` } : {}
+    } catch (err) {
+        console.warn('Unable to read Supabase session for AI request:', err?.message || err)
+        return {}
+    }
+}
+
+const refreshAIAuthHeaders = async () => {
+    const refreshSession = supabase.auth?.refreshSession
+    if (typeof refreshSession !== 'function') return null
+
+    try {
+        const { data, error } = await refreshSession.call(supabase.auth)
+        if (error) throw error
+        const token = data?.session?.access_token
+        return token ? { Authorization: `Bearer ${token}` } : null
+    } catch (err) {
+        console.warn('Unable to refresh Supabase session for AI request:', err?.message || err)
+        return null
+    }
+}
+
+const getAIHttpStatus = (error) => {
+    const context = error?.context
+    return context instanceof Response ? context.status : error?.status
+}
+
+const invokeAIJson = async ({ prompt, maxTokens, signal }) => {
+    const body = { prompt, maxTokens }
+    const headers = await getAIAuthHeaders()
+    let result = await supabase.functions.invoke('ai-json', { body, signal, headers })
+
+    if (getAIHttpStatus(result.error) === 401) {
+        const refreshedHeaders = await refreshAIAuthHeaders()
+        if (refreshedHeaders?.Authorization && refreshedHeaders.Authorization !== headers.Authorization) {
+            result = await supabase.functions.invoke('ai-json', {
+                body,
+                signal,
+                headers: refreshedHeaders,
+            })
+        }
+    }
+
+    return result
+}
+
 // Session storage cache for match scores
 const SESSION_KEY_PREFIX = 'peso-match-scores-'
 
@@ -48,14 +102,25 @@ export const callAI = async (prompt, { timeoutMs = 15000, maxTokens = 2048 } = {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
-        const { data, error } = await supabase.functions.invoke('ai-json', {
-            body: { prompt, maxTokens },
-            signal: controller.signal,
-        })
+        const { data, error } = await invokeAIJson({ prompt, maxTokens, signal: controller.signal })
 
         clearTimeout(timeoutId)
 
-        if (error) throw new Error(error.message || 'AI request failed')
+        if (error) {
+            // Supabase wraps non-2xx responses; extract the body for a real message
+            const context = error.context
+            if (context instanceof Response) {
+                const body = await context.json().catch(() => ({}))
+                const httpStatus = context.status
+                const message = httpStatus === 401
+                    ? 'AI request was not authorized. Please sign in again and retry.'
+                    : body?.error || error.message || 'AI request failed'
+                const err = new Error(`AI service error (${httpStatus}): ${message}`)
+                err.status = httpStatus
+                throw err
+            }
+            throw new Error(error.message || 'AI request failed')
+        }
         if (!data?.content) throw new Error('AI returned an empty response.')
         return data.content
     } catch (err) {
@@ -491,7 +556,7 @@ Return ONLY a JSON object in this exact shape:
     try {
         const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 768 })
         const parsed = safeParseAIJSON(raw)
-        if (!parsed.ok) return EMPTY
+        if (!parsed.ok) return { ...EMPTY, error: `AI response could not be parsed: ${parsed.error}` }
 
         const normalizeList = (values, limit) => {
             if (!Array.isArray(values)) return []
@@ -515,8 +580,8 @@ Return ONLY a JSON object in this exact shape:
         const warnings = normalizeList(parsed.data?.warnings, 5)
 
         return { profileSkills, growthSkills, softSkills, warnings }
-    } catch {
-        return EMPTY
+    } catch (err) {
+        return { ...EMPTY, error: err?.message || 'AI suggestions were unavailable.' }
     }
 }
 
@@ -560,7 +625,7 @@ Return ONLY a JSON object:
     try {
         const raw = await callAI(prompt, { timeoutMs: 20000, maxTokens: 600 })
         const parsed = safeParseAIJSON(raw)
-        if (!parsed.ok) return EMPTY
+        if (!parsed.ok) return { ...EMPTY, error: `AI response could not be parsed: ${parsed.error}` }
 
         const normalizeList = (values, limit) => {
             if (!Array.isArray(values)) return []
@@ -580,8 +645,8 @@ Return ONLY a JSON object:
             .filter(s => !requiredLower.has(s.toLowerCase()) && !preferredLower.has(s.toLowerCase()))
 
         return { requiredSkills, preferredSkills, softSkills }
-    } catch {
-        return EMPTY
+    } catch (err) {
+        return { ...EMPTY, error: err?.message || 'AI suggestions were unavailable.' }
     }
 }
 

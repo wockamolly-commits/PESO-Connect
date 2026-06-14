@@ -9,6 +9,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern coverage --ignore-pattern node_modules --ignore-pattern .worktrees",
     "preview": "vite preview",
     "seed:system-test-data": "node scripts/seed-users.js",
+    "seed:diagnostic-workers": "node scripts/seed-diagnostic-workers.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
