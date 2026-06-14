@@ -11,10 +11,10 @@ import {
     Clock,
     Loader2,
     AlertCircle,
-    Star,
-    CalendarDays
+    Star
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import JobFairBanner from '../components/jobFairs/JobFairBanner'
 import {
     getEvent,
     toggleBookmark,
@@ -107,16 +107,7 @@ export default function JobFairDetail() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Banner */}
-            {event.banner_url ? (
-                <div className="w-full h-56 sm:h-72 overflow-hidden">
-                    <img src={event.banner_url} alt={event.title} className="w-full h-full object-cover" />
-                </div>
-            ) : (
-                <div className="w-full h-56 sm:h-72 bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center">
-                    <CalendarDays className="w-16 h-16 text-white/25" />
-                </div>
-            )}
+            <JobFairBanner src={event.banner_url} title={event.title} variant="detail" />
 
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Back link */}

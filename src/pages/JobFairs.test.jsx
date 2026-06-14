@@ -92,6 +92,19 @@ describe('JobFairs', () => {
         })
     })
 
+    it('uses a placeholder for temporary Facebook CDN banners', async () => {
+        listEvents.mockResolvedValue([
+            {
+                ...mockEvents[0],
+                banner_url: 'https://scontent.fmnl17-1.fna.fbcdn.net/v/t39.30808-6/example.jpg',
+            },
+        ])
+        renderPage()
+        await waitFor(() => screen.getByText('Mega Job Fair 2026'))
+        expect(screen.queryByAltText('Mega Job Fair 2026')).not.toBeInTheDocument()
+        expect(screen.getByRole('img', { name: /mega job fair 2026 banner placeholder/i })).toBeInTheDocument()
+    })
+
     it('shows empty state when no events match search', async () => {
         renderPage()
         await waitFor(() => screen.getByText('Mega Job Fair 2026'))

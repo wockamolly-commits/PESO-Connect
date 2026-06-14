@@ -13,6 +13,7 @@ import {
     AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import JobFairBanner from '../components/jobFairs/JobFairBanner'
 import {
     listEvents,
     listBookmarks,
@@ -240,18 +241,7 @@ function EventCard({ event, isBookmarked, toggling, onBookmark }) {
                 </div>
             )}
 
-            {/* Banner */}
-            {event.banner_url ? (
-                <img
-                    src={event.banner_url}
-                    alt={event.title}
-                    className="w-full h-36 object-cover"
-                />
-            ) : (
-                <div className="w-full h-36 bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-                    <CalendarDays className="w-10 h-10 text-white/40" />
-                </div>
-            )}
+            <JobFairBanner src={event.banner_url} title={event.title} />
 
             <div className="p-4 flex flex-col gap-3 flex-1">
                 <div className="flex items-start justify-between gap-2">

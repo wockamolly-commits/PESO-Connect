@@ -1,7 +1,13 @@
-import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { AlertCircle, ImagePlus, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { supabase } from '../../config/supabase'
+import JobFairBanner from '../jobFairs/JobFairBanner'
 import { createEvent, updateEvent } from '../../services/jobFairService'
+
+const BANNER_BUCKET = 'job-fair-banners'
+const BANNER_ACCEPT = 'image/png,image/jpeg,image/webp'
+const MAX_BANNER_SIZE = 5 * 1024 * 1024
 
 const EMPTY_FORM = {
     title: '',
@@ -38,12 +44,106 @@ function toFormValues(event) {
     }
 }
 
+function isTemporaryFacebookCdnUrl(url) {
+    if (!url) return false
+    try {
+        const { hostname } = new URL(url)
+        return hostname.includes('fbcdn.net') || hostname.startsWith('scontent.')
+    } catch {
+        return false
+    }
+}
+
+function sanitizeFileName(name) {
+    const extension = name.split('.').pop()?.toLowerCase() || 'jpg'
+    const baseName = name
+        .replace(/\.[^/.]+$/, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'banner'
+
+    return `${baseName}.${extension}`
+}
+
+function validateBannerFile(file) {
+    if (!file.type || !BANNER_ACCEPT.split(',').includes(file.type)) {
+        return 'Upload a PNG, JPG, or WebP image.'
+    }
+
+    if (file.size > MAX_BANNER_SIZE) {
+        return 'Banner image must be 5MB or smaller.'
+    }
+
+    return ''
+}
+
+function toUploadMessage(error) {
+    const message = error?.message || 'Failed to upload banner.'
+    const lowerMessage = message.toLowerCase()
+
+    if (lowerMessage.includes('bucket')) {
+        return 'Job fair banner storage is not configured yet. Apply the job-fair-banners bucket SQL first.'
+    }
+
+    if (lowerMessage.includes('row-level security') || lowerMessage.includes('policy')) {
+        return 'Banner upload is blocked by storage permissions. Check the job-fair-banners bucket policies.'
+    }
+
+    return message
+}
+
 export function JobFairFormModal({ event, onClose, onSaved }) {
     const isEdit = Boolean(event)
     const [form, setForm] = useState(toFormValues(event))
     const [saving, setSaving] = useState(false)
+    const [uploadingBanner, setUploadingBanner] = useState(false)
+    const [bannerError, setBannerError] = useState('')
+    const fileInputRef = useRef(null)
 
     const set = (field, value) => setForm(f => ({ ...f, [field]: value }))
+
+    const handleBannerUpload = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const validationError = validateBannerFile(file)
+        if (validationError) {
+            setBannerError(validationError)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+            return
+        }
+
+        setBannerError('')
+        setUploadingBanner(true)
+
+        try {
+            const eventSegment = event?.id || 'drafts'
+            const fileName = sanitizeFileName(file.name)
+            const storagePath = `${eventSegment}/${Date.now()}-${fileName}`
+            const { error: uploadError } = await supabase.storage
+                .from(BANNER_BUCKET)
+                .upload(storagePath, file, {
+                    cacheControl: '31536000',
+                    upsert: false,
+                    contentType: file.type,
+                })
+
+            if (uploadError) throw uploadError
+
+            const { data } = supabase.storage
+                .from(BANNER_BUCKET)
+                .getPublicUrl(storagePath)
+
+            set('banner_url', data.publicUrl)
+            toast.success('Banner uploaded.')
+        } catch (uploadError) {
+            setBannerError(toUploadMessage(uploadError))
+        } finally {
+            setUploadingBanner(false)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -200,16 +300,60 @@ export function JobFairFormModal({ event, onClose, onSaved }) {
                         />
                     </div>
 
-                    {/* Banner URL */}
+                    {/* Banner image */}
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Banner Image</label>
+                        <div className="mb-3 overflow-hidden rounded-lg border border-gray-200">
+                            <JobFairBanner src={form.banner_url} title={form.title || 'Job fair'} />
+                        </div>
+                        {bannerError && (
+                            <div className="mb-3 flex items-center gap-2 text-sm text-red-600">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>{bannerError}</span>
+                            </div>
+                        )}
+                        {isTemporaryFacebookCdnUrl(form.banner_url) && (
+                            <div className="mb-3 flex items-center gap-2 text-sm text-amber-700">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>Facebook image links expire. Upload the image file here or use a permanent image URL.</span>
+                            </div>
+                        )}
+                        <input
+                            ref={fileInputRef}
+                            id="job-fair-banner-upload"
+                            type="file"
+                            accept={BANNER_ACCEPT}
+                            onChange={handleBannerUpload}
+                            className="hidden"
+                            disabled={uploadingBanner || saving}
+                        />
+                        <label
+                            htmlFor="job-fair-banner-upload"
+                            className={`mb-3 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-600 transition-colors hover:border-primary-400 hover:bg-primary-50 ${
+                                uploadingBanner || saving ? 'pointer-events-none opacity-60' : ''
+                            }`}
+                        >
+                            {uploadingBanner ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-primary-500" />
+                            ) : (
+                                <ImagePlus className="h-4 w-4 text-gray-400" />
+                            )}
+                            {uploadingBanner ? 'Uploading banner...' : 'Upload PNG, JPG, or WebP'}
+                        </label>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Banner Image URL</label>
                         <input
                             type="url"
                             value={form.banner_url}
-                            onChange={e => set('banner_url', e.target.value)}
+                            onChange={e => {
+                                setBannerError('')
+                                set('banner_url', e.target.value)
+                            }}
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                             placeholder="https://..."
                         />
+                        <p className="mt-1 text-xs text-gray-400">
+                            Use the uploader for event photos. The URL field is only for permanent public image links.
+                        </p>
                     </div>
 
                     {/* Toggles */}
