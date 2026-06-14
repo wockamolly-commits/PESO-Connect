@@ -9,6 +9,7 @@ const mockUseJobListingsMatches = vi.fn()
 const { queryCalls } = vi.hoisted(() => ({
     queryCalls: [],
 }))
+let jobQueryResult
 
 vi.mock('../contexts/AuthContext', () => ({
     useAuth: () => mockUseAuth(),
@@ -79,7 +80,7 @@ vi.mock('../config/supabase', () => ({
                 chain.order = track('order')
                 chain.range = async (...args) => {
                     queryCalls.push(['range', ...args])
-                    return { data: jobs, error: null }
+                    return jobQueryResult
                 }
 
                 return chain
@@ -126,6 +127,7 @@ describe('JobListings', () => {
             },
             loadingMatchScores: false,
         })
+        jobQueryResult = { data: jobs, error: null }
     })
 
     it('renders the shared match badge from the shared listings hook', async () => {
@@ -174,5 +176,24 @@ describe('JobListings', () => {
                 ['range', 0, 19],
             ]))
         })
+    })
+
+    it('shows a retryable error instead of an empty listings state when fetching fails', async () => {
+        jobQueryResult = {
+            data: null,
+            error: { message: 'permission denied for table job_postings' },
+        }
+
+        render(
+            <MemoryRouter>
+                <JobListings />
+            </MemoryRouter>,
+        )
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Job listings could not be loaded. Please try again.',
+        )
+        expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument()
+        expect(screen.queryByText('No jobs found matching your criteria')).not.toBeInTheDocument()
     })
 })

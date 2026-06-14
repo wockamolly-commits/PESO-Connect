@@ -22,6 +22,7 @@ const JobListings = () => {
     const { currentUser, userData, isJobseeker } = useAuth()
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(true)
+    const [fetchError, setFetchError] = useState('')
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -113,6 +114,7 @@ const JobListings = () => {
 
     const fetchJobs = useCallback(async (loadMore = false) => {
         try {
+            setFetchError('')
             const from = loadMore ? jobs.length : 0
             const to = from + PAGE_SIZE - 1
             const today = new Date().toISOString().split('T')[0]
@@ -172,6 +174,11 @@ const JobListings = () => {
             setHasMore(newJobs.length === PAGE_SIZE)
         } catch (error) {
             console.error('Error fetching jobs:', error)
+            setFetchError('Job listings could not be loaded. Please try again.')
+            if (!loadMore) {
+                setJobs([])
+                setHasMore(false)
+            }
         } finally {
             setLoading(false)
             setLoadingMore(false)
@@ -396,6 +403,21 @@ const JobListings = () => {
                 {/* Job Cards */}
                 {loading ? (
                     <JobListingSkeleton count={4} />
+                ) : fetchError ? (
+                    <div className="card text-center py-12" role="alert">
+                        <AlertCircle className="w-12 h-12 text-red-300 mx-auto mb-4" />
+                        <p className="text-gray-700 font-medium">{fetchError}</p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLoading(true)
+                                fetchJobs(false)
+                            }}
+                            className="btn-secondary mt-4 px-6 py-2"
+                        >
+                            Try Again
+                        </button>
+                    </div>
                 ) : displayedJobs.length === 0 ? (
                     <div className="card text-center py-12">
                         <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
